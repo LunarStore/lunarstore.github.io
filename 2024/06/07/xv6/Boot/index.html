@@ -1,0 +1,628 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=2">
+<meta name="theme-color" content="#222">
+<meta name="generator" content="Hexo 7.3.0">
+  <link rel="apple-touch-icon" sizes="180x180" href="/images/apple-touch-icon-next.png">
+  <link rel="icon" type="image/png" sizes="32x32" href="/images/favicon-32x32-next.png">
+  <link rel="icon" type="image/png" sizes="16x16" href="/images/favicon-16x16-next.png">
+  <link rel="mask-icon" href="/images/logo.svg" color="#222">
+
+<link rel="stylesheet" href="/css/main.css">
+
+
+<link rel="stylesheet" href="/lib/font-awesome/css/font-awesome.min.css">
+  <link rel="stylesheet" href="/lib/pace/pace-theme-flash.min.css">
+  <script src="/lib/pace/pace.min.js"></script>
+
+<script id="hexo-configurations">
+    var NexT = window.NexT || {};
+    var CONFIG = {"hostname":"www.halfmantou.xyz","root":"/","scheme":"Gemini","version":"7.8.0","exturl":false,"sidebar":{"position":"left","display":"post","padding":18,"offset":12,"onmobile":false},"copycode":{"enable":true,"show_result":true,"style":null},"back2top":{"enable":true,"sidebar":true,"scrollpercent":true},"bookmark":{"enable":false,"color":"#222","save":"auto"},"fancybox":false,"mediumzoom":false,"lazyload":false,"pangu":false,"comments":{"style":"tabs","active":null,"storage":true,"lazyload":false,"nav":null},"algolia":{"hits":{"per_page":10},"labels":{"input_placeholder":"Search for Posts","hits_empty":"We didn't find any results for the search: ${query}","hits_stats":"${hits} results found in ${time} ms"}},"localsearch":{"enable":true,"trigger":"auto","top_n_per_article":3,"unescape":false,"preload":false},"motion":{"enable":true,"async":false,"transition":{"post_block":"fadeIn","post_header":"slideDownIn","post_body":"slideDownIn","coll_header":"slideLeftIn","sidebar":"slideUpIn"}},"path":"search.json"};
+  </script>
+
+  <meta name="description" content="前言Onix是一款相对于XV6来说功能更为健全的单核OS，由于功能更加完善，Onix也更加复杂。代码阅读起来会比较绕。 XV6是一款简单易读的多核操作系统，但其功能相对Onix来说更为简陋，比如Onix对物理内存的管理采用了位图、内核内存和进程相关的内存进行了分开管理，页目录使用单独的内核内存，没有和页表、页框混用等。而XV6显得非常简陋。尽管XV6的实验可以弥补部分缺陷。 Onix操作系统也实现">
+<meta property="og:type" content="article">
+<meta property="og:title" content="这才是计科之 Onix &amp; XV6 源码分析（1、XV6-x86的启动）">
+<meta property="og:url" content="https://www.halfmantou.xyz/2024/06/07/xv6/Boot/index.html">
+<meta property="og:site_name" content="碎碎念念">
+<meta property="og:description" content="前言Onix是一款相对于XV6来说功能更为健全的单核OS，由于功能更加完善，Onix也更加复杂。代码阅读起来会比较绕。 XV6是一款简单易读的多核操作系统，但其功能相对Onix来说更为简陋，比如Onix对物理内存的管理采用了位图、内核内存和进程相关的内存进行了分开管理，页目录使用单独的内核内存，没有和页表、页框混用等。而XV6显得非常简陋。尽管XV6的实验可以弥补部分缺陷。 Onix操作系统也实现">
+<meta property="og:locale" content="zh_CN">
+<meta property="og:image" content="https://www.halfmantou.xyz/2024/06/07/xv6/Boot/photo/start/SegmentDescriptor.png">
+<meta property="og:image" content="https://www.halfmantou.xyz/2024/06/07/xv6/Boot/photo/start/GDT.png">
+<meta property="og:image" content="https://www.halfmantou.xyz/2024/06/07/xv6/Boot/photo/start/GDTR.png">
+<meta property="og:image" content="https://www.halfmantou.xyz/2024/06/07/xv6/Boot/photo/start/SegmentSelector.png">
+<meta property="og:image" content="https://www.halfmantou.xyz/2024/06/07/xv6/Boot/photo/start/boot.drawio.png">
+<meta property="og:image" content="https://www.halfmantou.xyz/2024/06/07/xv6/Boot/photo/start/entry.drawio.png">
+<meta property="article:published_time" content="2024-06-07T04:00:00.000Z">
+<meta property="article:modified_time" content="2025-09-29T14:24:25.649Z">
+<meta property="article:author" content="半个馒头">
+<meta property="article:tag" content="类Unix源码剖析">
+<meta name="twitter:card" content="summary">
+<meta name="twitter:image" content="https://www.halfmantou.xyz/2024/06/07/xv6/Boot/photo/start/SegmentDescriptor.png">
+
+<link rel="canonical" href="https://www.halfmantou.xyz/2024/06/07/xv6/Boot/">
+
+
+<script id="page-configurations">
+  // https://hexo.io/docs/variables.html
+  CONFIG.page = {
+    sidebar: "",
+    isHome : false,
+    isPost : true,
+    lang   : 'zh-CN'
+  };
+</script>
+
+  <title>这才是计科之 Onix & XV6 源码分析（1、XV6-x86的启动） | 碎碎念念</title>
+  
+
+
+
+
+
+
+  <noscript>
+  <style>
+  .use-motion .brand,
+  .use-motion .menu-item,
+  .sidebar-inner,
+  .use-motion .post-block,
+  .use-motion .pagination,
+  .use-motion .comments,
+  .use-motion .post-header,
+  .use-motion .post-body,
+  .use-motion .collection-header { opacity: initial; }
+
+  .use-motion .site-title,
+  .use-motion .site-subtitle {
+    opacity: initial;
+    top: initial;
+  }
+
+  .use-motion .logo-line-before i { left: initial; }
+  .use-motion .logo-line-after i { right: initial; }
+  </style>
+</noscript>
+
+</head>
+
+<body itemscope itemtype="http://schema.org/WebPage">
+  <div class="container use-motion">
+    <div class="headband"></div>
+
+    <header class="header" itemscope itemtype="http://schema.org/WPHeader">
+      <div class="header-inner"><div class="site-brand-container">
+  <div class="site-nav-toggle">
+    <div class="toggle" aria-label="切换导航栏">
+      <span class="toggle-line toggle-line-first"></span>
+      <span class="toggle-line toggle-line-middle"></span>
+      <span class="toggle-line toggle-line-last"></span>
+    </div>
+  </div>
+
+  <div class="site-meta">
+
+    <a href="/" class="brand" rel="start">
+      <span class="logo-line-before"><i></i></span>
+      <h1 class="site-title">碎碎念念</h1>
+      <span class="logo-line-after"><i></i></span>
+    </a>
+  </div>
+
+  <div class="site-nav-right">
+    <div class="toggle popup-trigger">
+        <i class="fa fa-search fa-fw fa-lg"></i>
+    </div>
+  </div>
+</div>
+
+
+
+
+<nav class="site-nav">
+  <ul id="menu" class="menu">
+        <li class="menu-item menu-item-home">
+
+    <a href="/" rel="section"><i class="fa fa-fw fa-home"></i>首页</a>
+
+  </li>
+        <li class="menu-item menu-item-about">
+
+    <a href="/about/" rel="section"><i class="fa fa-fw fa-user"></i>关于</a>
+
+  </li>
+        <li class="menu-item menu-item-tags">
+
+    <a href="/tags/" rel="section"><i class="fa fa-fw fa-tags"></i>标签<span class="badge">18</span></a>
+
+  </li>
+        <li class="menu-item menu-item-categories">
+
+    <a href="/categories/" rel="section"><i class="fa fa-fw fa-th"></i>分类<span class="badge">0</span></a>
+
+  </li>
+        <li class="menu-item menu-item-archives">
+
+    <a href="/archives/" rel="section"><i class="fa fa-fw fa-archive"></i>归档<span class="badge">58</span></a>
+
+  </li>
+      <li class="menu-item menu-item-search">
+        <a role="button" class="popup-trigger"><i class="fa fa-search fa-fw"></i>搜索
+        </a>
+      </li>
+  </ul>
+</nav>
+
+
+
+  <div class="search-pop-overlay">
+    <div class="popup search-popup">
+        <div class="search-header">
+  <span class="search-icon">
+    <i class="fa fa-search"></i>
+  </span>
+  <div class="search-input-container">
+    <input autocomplete="off" autocapitalize="off"
+           placeholder="搜索..." spellcheck="false"
+           type="search" class="search-input">
+  </div>
+  <span class="popup-btn-close">
+    <i class="fa fa-times-circle"></i>
+  </span>
+</div>
+<div id="search-result">
+  <div id="no-result">
+    <i class="fa fa-spinner fa-pulse fa-5x fa-fw"></i>
+  </div>
+</div>
+
+    </div>
+  </div>
+
+</div>
+    </header>
+
+    
+  <div class="reading-progress-bar"></div>
+
+  <a href="https://github.com/LunarStore" class="github-corner" title="Follow me on GitHub" aria-label="Follow me on GitHub" rel="noopener" target="_blank"><svg width="80" height="80" viewBox="0 0 250 250" aria-hidden="true"><path d="M0,0 L115,115 L130,115 L142,142 L250,250 L250,0 Z"></path><path d="M128.3,109.0 C113.8,99.7 119.0,89.6 119.0,89.6 C122.0,82.7 120.5,78.6 120.5,78.6 C119.2,72.0 123.4,76.3 123.4,76.3 C127.3,80.9 125.5,87.3 125.5,87.3 C122.9,97.6 130.6,101.9 134.4,103.2" fill="currentColor" style="transform-origin: 130px 106px;" class="octo-arm"></path><path d="M115.0,115.0 C114.9,115.1 118.7,116.5 119.8,115.4 L133.7,101.6 C136.9,99.2 139.9,98.4 142.2,98.6 C133.8,88.0 127.5,74.4 143.8,58.0 C148.5,53.4 154.0,51.2 159.7,51.0 C160.3,49.4 163.2,43.6 171.4,40.1 C171.4,40.1 176.1,42.5 178.8,56.2 C183.1,58.6 187.2,61.8 190.9,65.4 C194.5,69.0 197.7,73.2 200.1,77.6 C213.8,80.2 216.3,84.9 216.3,84.9 C212.7,93.1 206.9,96.0 205.4,96.6 C205.1,102.4 203.0,107.8 198.3,112.5 C181.9,128.9 168.3,122.5 157.7,114.1 C157.9,116.9 156.7,120.9 152.7,124.9 L141.0,136.5 C139.8,137.7 141.6,141.9 141.8,141.8 Z" fill="currentColor" class="octo-body"></path></svg></a>
+
+
+    <main class="main">
+      <div class="main-inner">
+        <div class="content-wrap">
+          
+
+          <div class="content post posts-expand">
+            
+
+    
+  
+  
+  <article itemscope itemtype="http://schema.org/Article" class="post-block" lang="zh-CN">
+    <link itemprop="mainEntityOfPage" href="https://www.halfmantou.xyz/2024/06/07/xv6/Boot/">
+
+    <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
+      <meta itemprop="image" content="/images/avatar.jpg">
+      <meta itemprop="name" content="半个馒头">
+      <meta itemprop="description" content="">
+    </span>
+
+    <span hidden itemprop="publisher" itemscope itemtype="http://schema.org/Organization">
+      <meta itemprop="name" content="碎碎念念">
+    </span>
+      <header class="post-header">
+        <h1 class="post-title" itemprop="name headline">
+          这才是计科之 Onix & XV6 源码分析（1、XV6-x86的启动）
+        </h1>
+
+        <div class="post-meta">
+            <span class="post-meta-item">
+              <span class="post-meta-item-icon">
+                <i class="fa fa-calendar-o"></i>
+              </span>
+              <span class="post-meta-item-text">发表于</span>
+
+              <time title="创建时间：2024-06-07 12:00:00" itemprop="dateCreated datePublished" datetime="2024-06-07T12:00:00+08:00">2024-06-07</time>
+            </span>
+              <span class="post-meta-item">
+                <span class="post-meta-item-icon">
+                  <i class="fa fa-calendar-check-o"></i>
+                </span>
+                <span class="post-meta-item-text">更新于</span>
+                <time title="修改时间：2025-09-29 22:24:25" itemprop="dateModified" datetime="2025-09-29T22:24:25+08:00">2025-09-29</time>
+              </span>
+
+          
+            <span class="post-meta-item" title="阅读次数" id="busuanzi_container_page_pv" style="display: none;">
+              <span class="post-meta-item-icon">
+                <i class="fa fa-eye"></i>
+              </span>
+              <span class="post-meta-item-text">阅读次数：</span>
+              <span id="busuanzi_value_page_pv"></span>
+            </span>
+
+        </div>
+      </header>
+
+    
+    
+    
+    <div class="post-body" itemprop="articleBody">
+
+      
+        <h2 id="前言"><a href="#前言" class="headerlink" title="前言"></a>前言</h2><p>Onix是一款相对于XV6来说功能更为健全的单核OS，由于功能更加完善，Onix也更加复杂。代码阅读起来会比较绕。</p>
+<p>XV6是一款简单易读的多核操作系统，但其功能相对Onix来说更为简陋，比如Onix对物理内存的管理采用了位图、内核内存和进程相关的内存进行了分开管理，页目录使用单独的内核内存，没有和页表、页框混用等。而XV6显得非常简陋。尽管XV6的实验可以弥补部分缺陷。</p>
+<p>Onix操作系统也实现了bootloader，对于将OS加载到内存的操作，Onix是采用汇编进行内核加载，并且在加载内核前，还会进行一个内存探测的操作，所以Onix的bootloader稍微有些复杂。而XV6操作系统的启动操作写的非常简洁，加载内核的操作采用的是C语言的形式，非常利于阅读学习，但是XV6不会进行内存探测。为求方便，本文主要叙述XV6的启动流程。</p>
+<p>Onix相关链接：</p>
+<ul>
+<li><p><a target="_blank" rel="noopener" href="https://github.com/StevenBaby/onix">github仓库链接</a></p>
+</li>
+<li><p><a target="_blank" rel="noopener" href="https://www.bilibili.com/video/BV1qM4y127om/">B站配套视频链接</a></p>
+</li>
+</ul>
+<p>XV6-x86的github链接：</p>
+<ul>
+<li><a target="_blank" rel="noopener" href="https://github.com/mit-pdos/xv6-public">链接</a></li>
+</ul>
+<span id="more"></span>
+
+<h2 id="Makefile-kernel-ld文件的分析"><a href="#Makefile-kernel-ld文件的分析" class="headerlink" title="Makefile &amp; kernel.ld文件的分析"></a>Makefile &amp; kernel.ld文件的分析</h2><p>首先科普一个概念 —— 引导扇区</p>
+<p><strong>引导扇区：是计算机启动过程中 BIOS 读取的第一个磁盘扇区（通常为 512 字节），用于加载操作系统或更复杂的引导程序（如 GRUB）。</strong></p>
+<p>BISO规定引导扇区有如下要求：</p>
+<ol>
+<li>引导扇区的代码被加载到内存的0x7c00位置执行</li>
+<li>引导扇区有且仅有512字节。</li>
+<li>引导扇区的魔数在最后两个字节的位置，值0x55aa。</li>
+</ol>
+<p>在叙述os启动前，必须要了解其Makefile是怎么写的。同时，在了解bootmain从镜像中加载os的代码到内存中前，因为os是elf格式，所以我们需要了解os的link脚本是怎么布局的。以便我们能更好掌握os的内存布局。</p>
+<h3 id="Makefile"><a href="#Makefile" class="headerlink" title="Makefile"></a>Makefile</h3><p>这里贴出makefile比较关键的代码：</p>
+<figure class="highlight makefile"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br><span class="line">36</span><br><span class="line">37</span><br><span class="line">38</span><br><span class="line">39</span><br><span class="line">40</span><br><span class="line">41</span><br><span class="line">42</span><br><span class="line">43</span><br><span class="line">44</span><br><span class="line">45</span><br><span class="line">46</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment"># 利用dd命令制作OS镜像，依赖bootblock和kernel，</span></span><br><span class="line"><span class="comment"># 首先划分了10000个扇区</span></span><br><span class="line"><span class="comment"># 然后将bootblock写到了第0号扇区</span></span><br><span class="line"><span class="comment"># 最后从1号扇区开始，填入OS的代码文件。</span></span><br><span class="line"><span class="section">xv6.img: bootblock kernel</span></span><br><span class="line">	dd if=/dev/zero of=xv6.img count=10000</span><br><span class="line">	dd if=bootblock of=xv6.img conv=notrunc</span><br><span class="line">	dd if=kernel of=xv6.img seek=1 conv=notrunc</span><br><span class="line"></span><br><span class="line"><span class="comment"># 单独产生os的bootloader模块，并且该模块是使用$(OBJCOPY)产生，</span></span><br><span class="line"><span class="comment"># 所以没有elf文件头信息，只是单纯的二进制可执行文件。并且$(LD)规定</span></span><br><span class="line"><span class="comment"># 代码的入口点是start、并且从地址0x7C00（物理地址）开始，最终的文件名是bootblock</span></span><br><span class="line"><span class="comment"># 最后一步，调用pl脚本对引导扇区进行签名，在512字节引导扇区最后两字节写入0x55aa</span></span><br><span class="line"><span class="section">bootblock: bootasm.S bootmain.c</span></span><br><span class="line">	<span class="variable">$(CC)</span> <span class="variable">$(CFLAGS)</span> -fno-pic -O -nostdinc -I. -c bootmain.c</span><br><span class="line">	<span class="variable">$(CC)</span> <span class="variable">$(CFLAGS)</span> -fno-pic -nostdinc -I. -c bootasm.S</span><br><span class="line">	<span class="variable">$(LD)</span> <span class="variable">$(LDFLAGS)</span> -N -e start -Ttext 0x7C00 -o bootblock.o bootasm.o bootmain.o</span><br><span class="line">	<span class="variable">$(OBJDUMP)</span> -S bootblock.o &gt; bootblock.asm</span><br><span class="line">	<span class="variable">$(OBJCOPY)</span> -S -O binary -j .text bootblock.o bootblock</span><br><span class="line">	./sign.pl bootblock</span><br><span class="line"></span><br><span class="line"><span class="comment"># 产生AP cpu的boot代码</span></span><br><span class="line"><span class="comment"># 指定程序的加载地址是0x7000（物理地址）</span></span><br><span class="line"><span class="comment"># 可执行代码的格式和bootblock相同，纯粹的二进制程序，没有elf的头部信息</span></span><br><span class="line"><span class="comment"># 但最终输出的entryother会和kernel合并</span></span><br><span class="line"><span class="section">entryother: entryother.S</span></span><br><span class="line">	<span class="variable">$(CC)</span> <span class="variable">$(CFLAGS)</span> -fno-pic -nostdinc -I. -c entryother.S</span><br><span class="line">	<span class="variable">$(LD)</span> <span class="variable">$(LDFLAGS)</span> -N -e start -Ttext 0x7000 -o bootblockother.o entryother.o</span><br><span class="line">	<span class="variable">$(OBJCOPY)</span> -S -O binary -j .text bootblockother.o entryother</span><br><span class="line">	<span class="variable">$(OBJDUMP)</span> -S bootblockother.o &gt; entryother.asm</span><br><span class="line"></span><br><span class="line"><span class="comment"># 产生第一个进程，init进程的boot代码</span></span><br><span class="line"><span class="comment"># 同样以$(OBJCOPY)提取纯粹的可执行代码，没有elf头部信息，输出文件名为initcode</span></span><br><span class="line"><span class="comment"># 指定程序的加载地址是0（虚拟地址）</span></span><br><span class="line"><span class="section">initcode: initcode.S</span></span><br><span class="line">	<span class="variable">$(CC)</span> <span class="variable">$(CFLAGS)</span> -nostdinc -I. -c initcode.S</span><br><span class="line">	<span class="variable">$(LD)</span> <span class="variable">$(LDFLAGS)</span> -N -e start -Ttext 0 -o initcode.out initcode.o</span><br><span class="line">	<span class="variable">$(OBJCOPY)</span> -S -O binary initcode.out initcode</span><br><span class="line">	<span class="variable">$(OBJDUMP)</span> -S initcode.o &gt; initcode.asm</span><br><span class="line"></span><br><span class="line"><span class="comment"># 产生内核的elf可执行文件</span></span><br><span class="line"><span class="section">kernel: <span class="variable">$(OBJS)</span> entry.o entryother initcode kernel.ld</span></span><br><span class="line">	<span class="variable">$(LD)</span> <span class="variable">$(LDFLAGS)</span> -T kernel.ld -o kernel entry.o <span class="variable">$(OBJS)</span> -b binary initcode entryother</span><br><span class="line">	<span class="variable">$(OBJDUMP)</span> -S kernel &gt; kernel.asm</span><br><span class="line">	<span class="variable">$(OBJDUMP)</span> -t kernel | sed &#x27;1,/SYMBOL TABLE/d; s/ .* / /; /^$$/d&#x27; &gt; kernel.sym</span><br><span class="line"></span><br></pre></td></tr></table></figure>
+
+<p>这里编译器、链接器的选项具体作用读者可以自行百度，这里只阐述比较关键的部分。</p>
+<p>首先是利用dd命令制作xv6.img镜像，从代码中可以很清楚的看到，bootblock填到了第0号扇区、kernel填到了1号以及之后的扇区。bootblock作用就是使cpu从实时模式转换为保护模式，然后将kernel从磁盘上加载到内存。这里要注意一个特殊的数字0x7C00，它出现在生成bootblock二进制文件的$(LD)阶段，这里暗示了bootblock代码在加载进内存时应该被放在0x7C00的位置。事实也是如此，<strong>在BIOS完成硬件初始化后，就会将第0号扇区（一个扇区一般就是512字节）的512字节代码加载到内存的0x7C00的位置，然后BIOS就会让eip指向0x7C00的位置，去执行bootasm.S里面的汇编代码。</strong></p>
+<p>这里有个关键点：在使用$(LD)命令生成bootblock.o时，命令参数部分bootasm.o放在bootmain.o前面，会导致链接时，bootasm.o代码就会靠前，这样在eip执行0x7C00位置的代码时，一定是从start开始。</p>
+<p>bootblock是由$(OBJCOPY)生成，$(OBJCOPY)的作用就是去除elf文件中的各种头部，因为BIOS只负责从第0号扇区加载bootblock，不会解析elf文件，所以，$(OBJCOPY)去提取纯粹的二进制是非常有必要的！</p>
+<p>bootblock具体细节下面会详细探讨</p>
+<h3 id="kernel-ld"><a href="#kernel-ld" class="headerlink" title="kernel.ld"></a>kernel.ld</h3><p>这里贴出kernel.ld比较关键的代码：</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br></pre></td><td class="code"><pre><span class="line">OUTPUT_FORMAT(&quot;elf32-i386&quot;, &quot;elf32-i386&quot;, &quot;elf32-i386&quot;)</span><br><span class="line">OUTPUT_ARCH(i386)</span><br><span class="line">ENTRY(_start)</span><br><span class="line"></span><br><span class="line">SECTIONS</span><br><span class="line">&#123;</span><br><span class="line">	/* Link the kernel at this address: &quot;.&quot; means the current address */</span><br><span class="line">        /* Must be equal to KERNLINK */</span><br><span class="line">	. = 0x80100000; // 定义代码起始的虚拟地址</span><br><span class="line"></span><br><span class="line">	.text : AT(0x100000) &#123;  // 定义了起始加载地址</span><br><span class="line">		*(.text .stub .text.* .gnu.linkonce.t.*)</span><br><span class="line">	&#125;</span><br><span class="line"></span><br><span class="line">  /*</span><br><span class="line">    省略...</span><br><span class="line">  */</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p>从kernel的链接脚本我们可以看到，kernel的起始虚拟内存地址是0x8010 0000，内核实际加载的物理地址是x100000，由AT定义。这里我反复标注了 虚拟地址 &#x2F; 物理地址 ，这两者一定要分清！</p>
+<h2 id="从实时模式到保护模式"><a href="#从实时模式到保护模式" class="headerlink" title="从实时模式到保护模式"></a>从实时模式到保护模式</h2><p>本段代码实现位于xv6的bootasm.S文件。具体细节如下，xv6使用的AT&amp;T的汇编，还是比较好懂的，读者有疑问的话，可以百度去搜相关指令的作用。英文注释已经非常详细，我就直接引用了。</p>
+<figure class="highlight arm"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br><span class="line">36</span><br><span class="line">37</span><br><span class="line">38</span><br><span class="line">39</span><br><span class="line">40</span><br><span class="line">41</span><br><span class="line">42</span><br><span class="line">43</span><br><span class="line">44</span><br><span class="line">45</span><br><span class="line">46</span><br><span class="line">47</span><br><span class="line">48</span><br><span class="line">49</span><br><span class="line">50</span><br><span class="line">51</span><br><span class="line">52</span><br><span class="line">53</span><br><span class="line">54</span><br><span class="line">55</span><br><span class="line">56</span><br><span class="line">57</span><br><span class="line">58</span><br><span class="line">59</span><br><span class="line">60</span><br><span class="line">61</span><br><span class="line">62</span><br><span class="line">63</span><br><span class="line">64</span><br><span class="line">65</span><br><span class="line">66</span><br><span class="line">67</span><br><span class="line">68</span><br><span class="line">69</span><br><span class="line">70</span><br><span class="line">71</span><br><span class="line">72</span><br><span class="line">73</span><br><span class="line">74</span><br><span class="line">75</span><br><span class="line">76</span><br><span class="line">77</span><br><span class="line">78</span><br><span class="line">79</span><br><span class="line">80</span><br><span class="line">81</span><br><span class="line">82</span><br><span class="line">83</span><br><span class="line">84</span><br><span class="line">85</span><br><span class="line">86</span><br><span class="line">87</span><br><span class="line">88</span><br><span class="line">89</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">#include &quot;asm.h&quot;</span></span><br><span class="line"><span class="comment">#include &quot;memlayout.h&quot;</span></span><br><span class="line"><span class="comment">#include &quot;mmu.h&quot;</span></span><br><span class="line"></span><br><span class="line"><span class="comment"># Start the first CPU: switch to 32-bit protected mode, jump into C.</span></span><br><span class="line"><span class="comment"># The BIOS loads this code from the first sector of the hard disk into</span></span><br><span class="line"><span class="comment"># memory at physical address 0x7c00 and starts executing in real mode</span></span><br><span class="line"><span class="comment"># with %cs=0 %ip=7c00.</span></span><br><span class="line"></span><br><span class="line"><span class="symbol">.code16</span>                       # Assemble for <span class="number">16</span>-bit mode</span><br><span class="line"><span class="symbol">.globl</span> start</span><br><span class="line"><span class="symbol">start:</span></span><br><span class="line">  cli                         # BIOS enabled interrupts<span class="comment">; disable</span></span><br><span class="line"></span><br><span class="line">  <span class="comment"># Zero data segment registers DS, ES, and SS.</span></span><br><span class="line">  xorw    %ax,%ax             # Set %ax to zero</span><br><span class="line">  movw    %ax,%ds             # -&gt; <span class="meta">Data</span> Segment</span><br><span class="line">  movw    %ax,%es             # -&gt; Extra Segment</span><br><span class="line">  movw    %ax,%ss             # -&gt; Stack Segment</span><br><span class="line"></span><br><span class="line">  <span class="comment"># 硬件相关，主线是OS的启动，该部分不深究也没影响，其实就是一个固定步骤。</span></span><br><span class="line">  <span class="comment"># Physical address line A20 is tied to zero so that the first PCs </span></span><br><span class="line">  <span class="comment"># with 2 MB would run software that assumed 1 MB.  Undo that.</span></span><br><span class="line"><span class="symbol">seta20.1:</span></span><br><span class="line">  inb     <span class="number">$0x64</span>,%al               # Wait for not busy</span><br><span class="line">  testb   <span class="number">$0x2</span>,%al</span><br><span class="line">  jnz     seta20.<span class="number">1</span></span><br><span class="line"></span><br><span class="line">  movb    <span class="number">$0xd1</span>,%al               # <span class="number">0xd1</span> -&gt; port <span class="number">0x64</span></span><br><span class="line">  outb    %al,<span class="number">$0x64</span></span><br><span class="line"></span><br><span class="line"><span class="symbol">seta20.2:</span></span><br><span class="line">  inb     <span class="number">$0x64</span>,%al               # Wait for not busy</span><br><span class="line">  testb   <span class="number">$0x2</span>,%al</span><br><span class="line">  jnz     seta20.<span class="number">2</span></span><br><span class="line"></span><br><span class="line">  movb    <span class="number">$0xdf</span>,%al               # <span class="number">0xdf</span> -&gt; port <span class="number">0x60</span></span><br><span class="line">  outb    %al,<span class="number">$0x60</span></span><br><span class="line"></span><br><span class="line">  <span class="comment"># Switch from real to protected mode.  Use a bootstrap GDT that makes</span></span><br><span class="line">  <span class="comment"># virtual addresses map directly to physical addresses so that the</span></span><br><span class="line">  <span class="comment"># effective memory map doesn&#x27;t change during the transition.</span></span><br><span class="line">  lgdt    gdtdesc</span><br><span class="line">  movl    %cr0, %eax</span><br><span class="line">  orl     $CR0_PE, %eax</span><br><span class="line">  movl    %eax, %cr0</span><br><span class="line"> <span class="comment">########################### 以下正式进入32位保护模式</span></span><br><span class="line"><span class="comment">//PAGEBREAK!</span></span><br><span class="line">  <span class="comment"># Complete the transition to 32-bit protected mode by using a long jmp</span></span><br><span class="line">  <span class="comment"># to reload %cs and %eip.  The segment descriptors are set up with no</span></span><br><span class="line">  <span class="comment"># translation, so that the mapping is still the identity mapping.</span></span><br><span class="line">  ljmp    $(SEG_KCODE&lt;&lt;<span class="number">3</span>), $start32</span><br><span class="line"></span><br><span class="line"><span class="symbol">.code32</span>  # Tell assembler to generate <span class="number">32</span>-bit <span class="meta">code</span> now.</span><br><span class="line"><span class="symbol">start32:</span></span><br><span class="line">  <span class="comment"># Set up the protected-mode data segment registers</span></span><br><span class="line">  movw    $(SEG_KDATA&lt;&lt;<span class="number">3</span>), %ax    # Our <span class="meta">data</span> segment selector</span><br><span class="line">  movw    %ax, %ds                # -&gt; DS: <span class="meta">Data</span> Segment</span><br><span class="line">  movw    %ax, %es                # -&gt; ES: Extra Segment</span><br><span class="line">  movw    %ax, %ss                # -&gt; SS: Stack Segment</span><br><span class="line">  movw    <span class="number">$0</span>, %ax                 # Zero segments not ready for use</span><br><span class="line">  movw    %ax, %fs                # -&gt; FS</span><br><span class="line">  movw    %ax, %gs                # -&gt; GS</span><br><span class="line"></span><br><span class="line">  <span class="comment"># Set up the stack pointer and call into C.</span></span><br><span class="line">  movl    $start, %esp            # 这里将esp栈设置到了start，由于栈向低地址处增长，所以刚好和bootasm文件的代码背道而驰。</span><br><span class="line">  call    bootmain</span><br><span class="line"></span><br><span class="line">  <span class="comment"># If bootmain returns (it shouldn&#x27;t), trigger a Bochs</span></span><br><span class="line">  <span class="comment"># breakpoint if running under Bochs, then loop.</span></span><br><span class="line">  movw    <span class="number">$0x8a00</span>, %ax            # <span class="number">0x8a00</span> -&gt; port <span class="number">0x8a00</span></span><br><span class="line">  movw    %ax, %dx</span><br><span class="line">  outw    %ax, %dx</span><br><span class="line">  movw    <span class="number">$0x8ae0</span>, %ax            # <span class="number">0x8ae0</span> -&gt; port <span class="number">0x8a00</span></span><br><span class="line">  outw    %ax, %dx</span><br><span class="line"><span class="symbol">spin:</span></span><br><span class="line">  jmp     spin</span><br><span class="line"></span><br><span class="line"><span class="comment"># Bootstrap GDT</span></span><br><span class="line"><span class="symbol">.p2align</span> <span class="number">2</span>                                # force <span class="number">4</span> byte alignment</span><br><span class="line"><span class="symbol">gdt:</span></span><br><span class="line">  SEG_NULLASM                             # null seg</span><br><span class="line">  SEG_ASM(STA_X<span class="title">|STA_R, 0x0, 0xffffffff)   # code seg</span></span><br><span class="line"><span class="title">  SEG_ASM(STA_W, 0x0, 0xffffffff)         # data seg</span></span><br><span class="line"><span class="title"></span></span><br><span class="line"><span class="title">gdtdesc:</span></span><br><span class="line"><span class="title">  .word   (gdtdesc - gdt - 1)             # sizeof(gdt) - 1</span></span><br><span class="line"><span class="title">  .long   gdt                             # address gdt</span></span><br><span class="line"><span class="title"></span></span><br></pre></td></tr></table></figure>
+
+<p>这里先普及一下实时模式和保护模式的区别：</p>
+<ul>
+<li><p>实时模式：为兼容以前的PC。特点是：寄存器都是16位。寻址方式：16位的段寄存器 + 16位的偏移寄存器，最大寻址范围是20位。</p>
+</li>
+<li><p>保护模式：现代CPU的寻址方式。特点是：寄存器有16位、32为、64位。寻址方式：段描述符 + 32位偏移寄存器。最大寻址范围4G+。</p>
+</li>
+</ul>
+<p>bootasm.S是操作系统被加载内存前，最先开始执行的代码。BIOS是运行在实时模式下的程序，只拥有1M的寻址空间（<strong>boot代码被加载到0x7C00 &lt; 1M 就能证明存在1M的限制</strong>），所以在cpu拥有4G寻址空间前，还需要进行一些初始化操作，</p>
+<p>从实时模式 -&gt; 保护模式的转变流程非常固定，在xv6的bootasm中实现如下：</p>
+<ol start="0">
+<li><p>对于多核处理器，最先启动的CPU（我们称为BSP（bootstrap processor）），BSP一上电就是实时模式。其余的从处理器（我们称为AP）在后面的内核初始化阶段会被BSP依次唤醒并初始化。</p>
+</li>
+<li><p>关中断。清空各种段寄存器，包括ds、es、ss。</p>
+</li>
+<li><p>打开A20地址线.</p>
+</li>
+<li><p>加载全局描述符表。即使用lgdt指令将表的地址和大小放在GDTR中。（这里的全局描述符表是临时的，后面内核初始化会更换一张gdt表，那张表更加完善。</p>
+</li>
+<li><p>将CR0寄存器第0位设置为1（PE位），此时正式转换成保护模式。</p>
+</li>
+<li><p>使用ljmp（长跳转指令）指令刷新段寄存器，跳到start32。</p>
+ <figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><span class="line"># xv6对ljmp的注释如下：</span><br><span class="line"># Complete the transition to 32-bit protected mode by using a long jmp</span><br><span class="line"># to reload %cs and %eip. </span><br></pre></td></tr></table></figure>
+</li>
+<li><p>初始化数据段、栈段寄存器，将esp设置到0x7C00处，跳到bootmain函数中，该函数会将XV6 OS加载到内存。</p>
+</li>
+</ol>
+<p>相关的结构如下：</p>
+<p>段描述符（Descriptor），描述一段地址的特性，包括基地址、范围、权限、粒度（范围以字节为单位还是以4K为单位）、类型（代码&#x2F;数据）等信息：</p>
+<p><img src="/2024/06/07/xv6/Boot/photo/start/SegmentDescriptor.png"></p>
+<p>全局描述符表，由许多个8字节段描述符组成的表：</p>
+<p><img src="/2024/06/07/xv6/Boot/photo/start/GDT.png"></p>
+<p>全局描述符表寄存器，其<strong>基地址</strong>的内容是全局描述符表的首地址，<strong>界限</strong>是全局描述符表的大小：</p>
+<p><img src="/2024/06/07/xv6/Boot/photo/start/GDTR.png"></p>
+<p>段选择子，【代码、数据、栈等】段使用了哪个段描述符，索引号指使用段描述符在全局描述符表的偏移（8字节为单位），第2位指明是全局描述符还是局部描述符，0~1位指示段的特权级：</p>
+<p><img src="/2024/06/07/xv6/Boot/photo/start/SegmentSelector.png"></p>
+<p>从低特权级的段空间 跳到 高特权级的段空间就会发生cpu特权级的切换，cpu就是通过全局描述符表来确定一个段的特权级。最典型的就是用户进程调用系统调用产生的特权级切换，这中间涉及查tss段、切栈等复杂操作，我们后面在进行详细的讨论。</p>
+<p>对于GDT的详细描述，这里推荐两篇博客，这两篇博客写的真的非常好！相信阅读之后，对全局描述符会有一个清晰的认识，全局描述符的几幅图片也是取自这两篇文章，如有侵权，可告知删除：</p>
+<p><a target="_blank" rel="noopener" href="https://blog.csdn.net/abc123lzf/article/details/109289567">详细介绍了段描述符各个位的作用</a></p>
+<p><a target="_blank" rel="noopener" href="https://blog.csdn.net/me1171115772/article/details/51750442">可以作为扩展，里面介绍了局部描述符的作用</a></p>
+<h2 id="正式将XV6加载到内存"><a href="#正式将XV6加载到内存" class="headerlink" title="正式将XV6加载到内存"></a>正式将XV6加载到内存</h2><p>分析该部分细节前，先需要了解一下elf文件的格式，我们重点关注elf文件的ELF header和Program header table。直接上各个字段的描述：</p>
+<p>引用自博客<a target="_blank" rel="noopener" href="https://zhuanlan.zhihu.com/p/165336511">https://zhuanlan.zhihu.com/p/165336511</a>如有侵权，可告知删除：</p>
+<figure class="highlight cpp"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br><span class="line">36</span><br><span class="line">37</span><br><span class="line">38</span><br><span class="line">39</span><br><span class="line">40</span><br><span class="line">41</span><br><span class="line">42</span><br><span class="line">43</span><br><span class="line">44</span><br><span class="line">45</span><br><span class="line">46</span><br><span class="line">47</span><br><span class="line">48</span><br><span class="line">49</span><br><span class="line">50</span><br><span class="line">51</span><br><span class="line">52</span><br><span class="line">53</span><br><span class="line">54</span><br><span class="line">55</span><br><span class="line">56</span><br><span class="line">57</span><br><span class="line">58</span><br><span class="line">59</span><br><span class="line">60</span><br><span class="line">61</span><br><span class="line">62</span><br><span class="line">63</span><br><span class="line">64</span><br><span class="line">65</span><br><span class="line">66</span><br><span class="line">67</span><br><span class="line">68</span><br><span class="line">69</span><br><span class="line">70</span><br><span class="line">71</span><br><span class="line">72</span><br><span class="line">73</span><br></pre></td><td class="code"><pre><span class="line"><span class="meta">#<span class="keyword">define</span> ELF_MAGIC 0x464C457FU  <span class="comment">// &quot;\x7FELF&quot; in little endian</span></span></span><br><span class="line"></span><br><span class="line"><span class="comment">// ELF 文件的头部</span></span><br><span class="line"><span class="keyword">struct</span> <span class="title class_">elfhdr</span> &#123;</span><br><span class="line">  uint magic;       <span class="comment">// 4 字节，为 0x464C457FU（大端模式）或 0x7felf（小端模式）</span></span><br><span class="line">                      <span class="comment">// 表明该文件是个 ELF 格式文件</span></span><br><span class="line"></span><br><span class="line">  uchar elf[<span class="number">12</span>];    <span class="comment">// 12 字节，每字节对应意义如下：</span></span><br><span class="line">                    <span class="comment">//     0 : 1 = 32 位程序；2 = 64 位程序</span></span><br><span class="line">                    <span class="comment">//     1 : 数据编码方式，0 = 无效；1 = 小端模式；2 = 大端模式</span></span><br><span class="line">                    <span class="comment">//     2 : 只是版本，固定为 0x1</span></span><br><span class="line">                    <span class="comment">//     3 : 目标操作系统架构</span></span><br><span class="line">                    <span class="comment">//     4 : 目标操作系统版本</span></span><br><span class="line">                    <span class="comment">//     5 ~ 11 : 固定为 0</span></span><br><span class="line"></span><br><span class="line">  ushort type;      <span class="comment">// 2 字节，表明该文件类型，意义如下：</span></span><br><span class="line">                    <span class="comment">//     0x0 : 未知目标文件格式</span></span><br><span class="line">                    <span class="comment">//     0x1 : 可重定位文件</span></span><br><span class="line">                    <span class="comment">//     0x2 : 可执行文件</span></span><br><span class="line">                    <span class="comment">//     0x3 : 共享目标文件</span></span><br><span class="line">                    <span class="comment">//     0x4 : 转储文件</span></span><br><span class="line">                    <span class="comment">//     0xff00 : 特定处理器文件</span></span><br><span class="line">                    <span class="comment">//     0xffff : 特定处理器文件</span></span><br><span class="line"></span><br><span class="line">  ushort machine;   <span class="comment">// 2 字节，表明运行该程序需要的计算机体系架构，</span></span><br><span class="line">                    <span class="comment">// 这里我们只需要知道 0x0 为未指定；0x3 为 x86 架构</span></span><br><span class="line"></span><br><span class="line">  uint version;     <span class="comment">// 4 字节，表示该文件的版本号</span></span><br><span class="line"></span><br><span class="line">  uint entry;       <span class="comment">// 4 字节，该文件的入口地址，没有入口（非可执行文件）则为 0</span></span><br><span class="line"></span><br><span class="line">  uint phoff;       <span class="comment">// 4 字节，表示该文件的“程序头部表”相对于文件的位置，单位是字节</span></span><br><span class="line"></span><br><span class="line">  uint shoff;       <span class="comment">// 4 字节，表示该文件的“节区头部表”相对于文件的位置，单位是字节</span></span><br><span class="line"></span><br><span class="line">  uint flags;       <span class="comment">// 4 字节，特定处理器标志</span></span><br><span class="line"></span><br><span class="line">  ushort ehsize;    <span class="comment">// 2 字节，ELF文件头部的大小，单位是字节</span></span><br><span class="line"></span><br><span class="line">  ushort phentsize; <span class="comment">// 2 字节，表示程序头部表中一个入口的大小，单位是字节</span></span><br><span class="line"></span><br><span class="line">  ushort phnum;     <span class="comment">// 2 字节，表示程序头部表的入口个数，</span></span><br><span class="line">                    <span class="comment">// phnum * phentsize = 程序头部表大小（单位是字节）</span></span><br><span class="line"></span><br><span class="line">  ushort shentsize; <span class="comment">// 2 字节，节区头部表入口大小，单位是字节</span></span><br><span class="line"></span><br><span class="line">  ushort shnum;     <span class="comment">// 2 字节，节区头部表入口个数，</span></span><br><span class="line">                    <span class="comment">// shnum * shentsize = 节区头部表大小（单位是字节）</span></span><br><span class="line"></span><br><span class="line">  ushort shstrndx;  <span class="comment">// 2 字节，表示字符表相关入口的节区头部表索引</span></span><br><span class="line">&#125;;</span><br><span class="line"></span><br><span class="line"><span class="comment">// 程序头表</span></span><br><span class="line"><span class="keyword">struct</span> <span class="title class_">proghdr</span> &#123;</span><br><span class="line">  uint type;        <span class="comment">// 4 字节， 段类型</span></span><br><span class="line">                    <span class="comment">//         1 PT_LOAD : 可载入的段</span></span><br><span class="line">                    <span class="comment">//         2 PT_DYNAMIC : 动态链接信息</span></span><br><span class="line">                    <span class="comment">//         3 PT_INTERP : 指定要作为解释程序调用的以空字符结尾的路径名的位置和大小</span></span><br><span class="line">                    <span class="comment">//         4 PT_NOTE : 指定辅助信息的位置和大小</span></span><br><span class="line">                    <span class="comment">//         5 PT_SHLIB : 保留类型，但具有未指定的语义</span></span><br><span class="line">                    <span class="comment">//         6 PT_PHDR : 指定程序头表在文件及程序内存映像中的位置和大小</span></span><br><span class="line">                    <span class="comment">//         7 PT_TLS : 指定线程局部存储模板</span></span><br><span class="line">  uint off;         <span class="comment">// 4 字节， 段的第一个字节在文件中的偏移</span></span><br><span class="line">  uint vaddr;       <span class="comment">// 4 字节， 段的第一个字节在内存中的虚拟地址</span></span><br><span class="line">  uint paddr;       <span class="comment">// 4 字节， 段的第一个字节在内存中的物理地址(适用于物理内存定位型的系统)</span></span><br><span class="line">  uint filesz;      <span class="comment">// 4 字节， 段在文件中的长度</span></span><br><span class="line">  uint memsz;       <span class="comment">// 4 字节， 段在内存中的长度</span></span><br><span class="line">  uint flags;       <span class="comment">// 4 字节， 段标志</span></span><br><span class="line">                    <span class="comment">//         1 : 可执行</span></span><br><span class="line">                    <span class="comment">//         2 : 可写入</span></span><br><span class="line">                    <span class="comment">//         4 : 可读取</span></span><br><span class="line">  uint align;       <span class="comment">// 4 字节， 段在文件及内存中如何对齐</span></span><br><span class="line">&#125;;</span><br></pre></td></tr></table></figure>
+
+<p>如果感兴趣的话，可以参考文章：<a target="_blank" rel="noopener" href="https://blog.csdn.net/pingxiaozhao/article/details/109239221">ELF文件格式的详解</a>，这篇文章讲解的更为详细，但是对于现阶段来说，可以不用了解太仔细，知道elf文件的ELF header和Program header table各个字段的作用就足够你继续学习XV6操作系统。</p>
+<p>对kernel elf文件解析的主流程：</p>
+<figure class="highlight cpp"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br><span class="line">36</span><br><span class="line">37</span><br><span class="line">38</span><br><span class="line">39</span><br><span class="line">40</span><br><span class="line">41</span><br><span class="line">42</span><br></pre></td><td class="code"><pre><span class="line"><span class="function"><span class="type">void</span></span></span><br><span class="line"><span class="function"><span class="title">bootmain</span><span class="params">(<span class="type">void</span>)</span></span></span><br><span class="line"><span class="function"></span>&#123;</span><br><span class="line">  <span class="keyword">struct</span> <span class="title class_">elfhdr</span> *elf;</span><br><span class="line">  <span class="keyword">struct</span> <span class="title class_">proghdr</span> *ph, *eph;</span><br><span class="line">  <span class="built_in">void</span> (*entry)(<span class="type">void</span>);</span><br><span class="line">  uchar* pa;</span><br><span class="line">  <span class="comment">// 预留足够空间</span></span><br><span class="line">  <span class="comment">// 46K</span></span><br><span class="line">  elf = (<span class="keyword">struct</span> elfhdr*)<span class="number">0x10000</span>;  <span class="comment">// scratch space</span></span><br><span class="line"></span><br><span class="line">  <span class="comment">// 以0为偏移读4096个字节，读elf文件头</span></span><br><span class="line">  <span class="comment">// Read 1st page off disk</span></span><br><span class="line">  <span class="built_in">readseg</span>((uchar*)elf, <span class="number">4096</span>, <span class="number">0</span>);</span><br><span class="line"></span><br><span class="line">  <span class="comment">// 判断elf文件魔数。</span></span><br><span class="line">  <span class="comment">// Is this an ELF executable?</span></span><br><span class="line">  <span class="keyword">if</span>(elf-&gt;magic != ELF_MAGIC)</span><br><span class="line">    <span class="keyword">return</span>;  <span class="comment">// let bootasm.S handle error</span></span><br><span class="line"></span><br><span class="line">  <span class="comment">// 定位到Program header table</span></span><br><span class="line">  <span class="comment">// Load each program segment (ignores ph flags).</span></span><br><span class="line">  ph = (<span class="keyword">struct</span> proghdr*)((uchar*)elf + elf-&gt;phoff);</span><br><span class="line">  <span class="comment">// 程序头部表个数</span></span><br><span class="line">  eph = ph + elf-&gt;phnum;</span><br><span class="line"></span><br><span class="line">  <span class="comment">// 一个段一个段的读</span></span><br><span class="line">  <span class="keyword">for</span>(; ph &lt; eph; ph++)&#123;  <span class="comment">// 以struct proghdr为单位自增。</span></span><br><span class="line">    <span class="comment">// 应该加载到的物理内存，xv6中是0x100000</span></span><br><span class="line">    pa = (uchar*)ph-&gt;paddr;</span><br><span class="line">    <span class="comment">// 读取整个段到pa中</span></span><br><span class="line">    <span class="built_in">readseg</span>(pa, ph-&gt;filesz, ph-&gt;off);</span><br><span class="line">    <span class="keyword">if</span>(ph-&gt;memsz &gt; ph-&gt;filesz)</span><br><span class="line">      <span class="comment">// mem大小比file大小大，多余的补零</span></span><br><span class="line">      <span class="built_in">stosb</span>(pa + ph-&gt;filesz, <span class="number">0</span>, ph-&gt;memsz - ph-&gt;filesz);</span><br><span class="line">  &#125;</span><br><span class="line"></span><br><span class="line">  <span class="comment">// Call the entry point from the ELF header.</span></span><br><span class="line">  <span class="comment">// Does not return!</span></span><br><span class="line">  entry = (<span class="built_in">void</span>(*)(<span class="type">void</span>))(elf-&gt;entry);  <span class="comment">// 在xv6的kernel.ld中描述为_start</span></span><br><span class="line">  <span class="built_in">entry</span>();</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p>前半部分做的操作就是不断从kernel的elf文件中按照程序头将各个段读取到内存。后面通过elf头中的entry，该字段保存内核入口点_start（这可以通过阅读kernel.ld文件来证明），去执行_start开始的代码，这里要提醒读者的是，到目前为止，对cpu来说状态是：保护模式 &amp; 已经装填了全局描述符 &amp; <strong>一切地址皆是物理地址</strong>。而kernel的elf文件中代码都是使用的（0x8010 0000开始的）虚拟地址，所以我们后面在entry.S中会看到，在给_start赋值前，会通过一个宏将真正的入口地址的虚拟地址转换为XV6加载到内存的物理地址。从而我们在物理地址寻址模式下，可以利用_start准确跳转到xv6的入口代码。</p>
+<p>需要注意的是：<strong>在执行bootasm汇编代码时，esp的位置是不确定的，唯一能确定的是esp在1M空间之内。在bootasm汇编最后才会将esp挪到0x7c00的位置！</strong></p>
+<p>在bootmain执行完毕后，内存布局如下：</p>
+<p><img src="/2024/06/07/xv6/Boot/photo/start/boot.drawio.png"></p>
+<p>接下来深入分析一下从磁盘读取文件的细节，这些内容都是和硬件相关的，通过操作硬件寄存器来实现读写磁盘，这部分深入下去也是挺让人头大的，作者也是菜鸟一个，也就力所能及的叙述一些自己明白的东西吧。</p>
+<figure class="highlight cpp"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br><span class="line">36</span><br><span class="line">37</span><br><span class="line">38</span><br><span class="line">39</span><br><span class="line">40</span><br><span class="line">41</span><br><span class="line">42</span><br><span class="line">43</span><br><span class="line">44</span><br><span class="line">45</span><br><span class="line">46</span><br><span class="line">47</span><br><span class="line">48</span><br><span class="line">49</span><br><span class="line">50</span><br><span class="line">51</span><br><span class="line">52</span><br><span class="line">53</span><br><span class="line">54</span><br><span class="line">55</span><br><span class="line">56</span><br><span class="line">57</span><br></pre></td><td class="code"><pre><span class="line"><span class="function"><span class="type">void</span></span></span><br><span class="line"><span class="function"><span class="title">waitdisk</span><span class="params">(<span class="type">void</span>)</span></span></span><br><span class="line"><span class="function"></span>&#123;</span><br><span class="line">  <span class="comment">// Wait for disk ready.</span></span><br><span class="line">  <span class="keyword">while</span>((<span class="built_in">inb</span>(<span class="number">0x1F7</span>) &amp; <span class="number">0xC0</span>) != <span class="number">0x40</span>)</span><br><span class="line">    ;</span><br><span class="line">&#125;</span><br><span class="line"></span><br><span class="line"><span class="comment">// readsect也引用自https://zhuanlan.zhihu.com/p/165336511，如有侵权，可联系我删除</span></span><br><span class="line"><span class="comment">// Read a single sector at offset into dst.</span></span><br><span class="line"><span class="function"><span class="type">void</span></span></span><br><span class="line"><span class="function"><span class="title">readsect</span><span class="params">(<span class="type">void</span> *dst, uint offset)</span></span></span><br><span class="line"><span class="function"></span>&#123;</span><br><span class="line">  <span class="comment">// Issue command.</span></span><br><span class="line">  <span class="built_in">waitdisk</span>();</span><br><span class="line">  <span class="built_in">outb</span>(<span class="number">0x1F2</span>, <span class="number">1</span>);   <span class="comment">// count = 1          // 要读取的扇区数量 count = 1</span></span><br><span class="line">  <span class="built_in">outb</span>(<span class="number">0x1F3</span>, offset);                    <span class="comment">// 扇区 LBA 地址的 0-7 位</span></span><br><span class="line">  <span class="built_in">outb</span>(<span class="number">0x1F4</span>, offset &gt;&gt; <span class="number">8</span>);               <span class="comment">// 扇区 LBA 地址的 8-15 位</span></span><br><span class="line">  <span class="built_in">outb</span>(<span class="number">0x1F5</span>, offset &gt;&gt; <span class="number">16</span>);              <span class="comment">// 扇区 LBA 地址的 16-23 位</span></span><br><span class="line">  <span class="built_in">outb</span>(<span class="number">0x1F6</span>, (offset &gt;&gt; <span class="number">24</span>) | <span class="number">0xE0</span>);     <span class="comment">// offset | 11100000 保证高三位恒为 1</span></span><br><span class="line">                                          <span class="comment">//         第7位     恒为1</span></span><br><span class="line">                                          <span class="comment">//         第6位     LBA模式的开关，置1为LBA模式</span></span><br><span class="line">                                          <span class="comment">//         第5位     恒为1</span></span><br><span class="line">                                          <span class="comment">//         第4位     为0代表主硬盘、为1代表从硬盘</span></span><br><span class="line">                                          <span class="comment">//         第3~0位   扇区 LBA 地址的 24-27 位</span></span><br><span class="line">  <span class="built_in">outb</span>(<span class="number">0x1F7</span>, <span class="number">0x20</span>);  <span class="comment">// cmd 0x20 - read sectors  // 20h为读，30h为写</span></span><br><span class="line"></span><br><span class="line">  <span class="comment">// Read data.</span></span><br><span class="line">  <span class="built_in">waitdisk</span>();</span><br><span class="line">  <span class="built_in">insl</span>(<span class="number">0x1F0</span>, dst, SECTSIZE/<span class="number">4</span>); <span class="comment">// 读的时候以4字节位单位读，所以需要扇区除以4，代表要读的次数</span></span><br><span class="line">&#125;</span><br><span class="line"></span><br><span class="line"><span class="comment">// Read &#x27;count&#x27; bytes at &#x27;offset&#x27; from kernel into physical address &#x27;pa&#x27;.</span></span><br><span class="line"><span class="comment">// Might copy more than asked.</span></span><br><span class="line"><span class="function"><span class="type">void</span></span></span><br><span class="line"><span class="function"><span class="title">readseg</span><span class="params">(uchar* pa, uint count, uint offset)</span></span></span><br><span class="line"><span class="function"></span>&#123;</span><br><span class="line">  uchar* epa; <span class="comment">// end phy addr</span></span><br><span class="line"></span><br><span class="line">  epa = pa + count; <span class="comment">// 结束地址</span></span><br><span class="line"></span><br><span class="line">  <span class="comment">// 这里将起始物理地址回退了offset的SECTSIZE（512）余数个Byte</span></span><br><span class="line">  <span class="comment">// 因为在从磁盘上读数据的时候，以512字节进行读取。所以offset会以512为单位向下取整，</span></span><br><span class="line">  <span class="comment">// 被换算成扇区号的偏移。如果offset原来不是SECTSIZE的整数倍，向下取整会导致offset截断，</span></span><br><span class="line">  <span class="comment">// 记换算后的offset为ofs，此时如果直接读取ofs扇区会多读offset % SECTSIZE个字节，</span></span><br><span class="line">  <span class="comment">// 所以需要提前将pa的地址减去offset % SECTSIZE个字节来排除offset被截断的多余的字节。</span></span><br><span class="line">  <span class="comment">// Round down to sector boundary.</span></span><br><span class="line">  pa -= offset % SECTSIZE;    </span><br><span class="line"></span><br><span class="line">  <span class="comment">// 将offset换算成扇区号</span></span><br><span class="line">  <span class="comment">// Translate from bytes to sectors; kernel starts at sector 1.</span></span><br><span class="line">  offset = (offset / SECTSIZE) + <span class="number">1</span>; </span><br><span class="line"></span><br><span class="line">  <span class="comment">// 依次读取每个扇区，最后一个扇区多读了也没关系。</span></span><br><span class="line">  <span class="keyword">for</span>(; pa &lt; epa; pa += SECTSIZE, offset++)</span><br><span class="line">    <span class="built_in">readsect</span>(pa, offset);</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p>仔细推敲readseg函数中pa回滚的操作，总感觉这样贸然回滚，会覆盖之前已经被加载到内存中的代码。既然xv6敢这样写，八成说明是没有问题的，具体的原因，作者实在琢磨不透，如果有了解的朋友，可以在评论区交流一下。</p>
+<h2 id="跳到-start，正式进入内核前的预初始化"><a href="#跳到-start，正式进入内核前的预初始化" class="headerlink" title="跳到_start，正式进入内核前的预初始化"></a>跳到_start，正式进入内核前的预初始化</h2><p>相关代码文件是entry.S</p>
+<figure class="highlight arm"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br><span class="line">36</span><br><span class="line">37</span><br><span class="line">38</span><br><span class="line">39</span><br><span class="line">40</span><br><span class="line">41</span><br><span class="line">42</span><br><span class="line">43</span><br><span class="line">44</span><br><span class="line">45</span><br><span class="line">46</span><br><span class="line">47</span><br><span class="line">48</span><br><span class="line">49</span><br><span class="line">50</span><br><span class="line">51</span><br><span class="line">52</span><br><span class="line">53</span><br><span class="line">54</span><br><span class="line">55</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">#include &quot;asm.h&quot;</span></span><br><span class="line"><span class="comment">#include &quot;memlayout.h&quot;</span></span><br><span class="line"><span class="comment">#include &quot;mmu.h&quot;</span></span><br><span class="line"><span class="comment">#include &quot;param.h&quot;</span></span><br><span class="line"></span><br><span class="line"><span class="comment"># Multiboot header.  Data to direct multiboot loader.</span></span><br><span class="line"><span class="symbol">.p2align</span> <span class="number">2</span></span><br><span class="line"><span class="symbol">.text</span></span><br><span class="line"><span class="symbol">.globl</span> multiboot_header</span><br><span class="line"><span class="symbol">multiboot_header:</span></span><br><span class="line">  <span class="comment">#define magic 0x1badb002</span></span><br><span class="line">  <span class="comment">#define flags 0</span></span><br><span class="line">  <span class="meta">.long</span> magic</span><br><span class="line">  <span class="meta">.long</span> flags</span><br><span class="line">  <span class="meta">.long</span> (-magic-flags)</span><br><span class="line">  </span><br><span class="line"><span class="comment"># 这里就能看到，因为elf描述的一些标签是使用的虚拟地址，</span></span><br><span class="line"><span class="comment"># 而在进入entry开启分页前都是使用的物理地址，所以使用了</span></span><br><span class="line"><span class="comment"># V2P_WO宏将entry转换成了物理地址。方便bootmain跳转到entry.</span></span><br><span class="line"><span class="comment"># V2P_WO展开就是将输入的地址减去 0x8000 0000 的偏移。</span></span><br><span class="line"><span class="symbol">.globl</span> _start</span><br><span class="line"><span class="symbol">_start</span> = V2P_WO(<span class="meta">entry</span>)</span><br><span class="line"></span><br><span class="line"><span class="comment"># Entering xv6 on boot processor, with paging off.</span></span><br><span class="line"><span class="symbol">.globl</span> <span class="meta">entry</span></span><br><span class="line"><span class="symbol">entry:</span></span><br><span class="line">  <span class="comment"># 打开4M big page开关</span></span><br><span class="line">  <span class="comment"># Turn on page size extension for 4Mbyte pages</span></span><br><span class="line">  movl    %cr4, %eax</span><br><span class="line">  orl     $(CR4_PSE), %eax</span><br><span class="line">  movl    %eax, %cr4</span><br><span class="line"></span><br><span class="line">  <span class="comment"># 将页目录设置为entrypgdir，同样由于在启用虚拟内存前，</span></span><br><span class="line">  <span class="comment"># 需要将虚拟地址entrypgdir转换为物理地址，有关entrypgdir</span></span><br><span class="line">  <span class="comment"># 的定义在内存管理章节进行详细叙述。</span></span><br><span class="line">  <span class="comment"># Set page directory</span></span><br><span class="line">  movl    $(V2P_WO(entrypgdir)), %eax</span><br><span class="line">  movl    %eax, %cr3</span><br><span class="line"></span><br><span class="line">  <span class="comment"># 开启分页</span></span><br><span class="line">  <span class="comment"># Turn on paging.</span></span><br><span class="line">  movl    %cr0, %eax</span><br><span class="line">  orl     $(CR0_PG<span class="title">|CR0_WP), %eax</span></span><br><span class="line"><span class="title">  movl    %eax, %cr0</span></span><br><span class="line"><span class="title"></span></span><br><span class="line"><span class="title">  ########################### 以下正式进入分页模式，地址皆是虚拟地址</span></span><br><span class="line"><span class="title">  # 再一次修改esp指针，将esp移到内核代码范围中</span></span><br><span class="line"><span class="title">  # Set up the stack pointer.</span></span><br><span class="line"><span class="title">  movl $(stack + KSTACKSIZE), %esp</span></span><br><span class="line"><span class="title"></span></span><br><span class="line"><span class="title">  # 真正进入内核main函数，开始各种初始化。</span></span><br><span class="line"><span class="title">  mov $main, %eax</span></span><br><span class="line"><span class="title">  jmp *%eax</span></span><br><span class="line"><span class="title"></span></span><br><span class="line"><span class="title">.comm stack, KSTACKSIZE</span></span><br></pre></td></tr></table></figure>
+
+<p>该部分代码负责进入main函数前的初始化，主要工作如下：</p>
+<ol>
+<li><p>打开4M big page分页开关，让cpu支持4M大页。entrypgdir会将内核区域与映射为物理地址低4M的大页，我们后面会详细进行讨论，entrypgdir的生命周期非常短，在main函数中初始化过程中，会另外产生一个粒度更小的页表kpgdir（4K为一页），该页表会一直作为xv6的内核页表。</p>
+</li>
+<li><p>设置entrypgdir为BSP（booststrap processor）的页目录。</p>
+</li>
+<li><p>开启分页。</p>
+</li>
+<li><p>修改esp。指向内核自己分配的4K大小的栈上。</p>
+</li>
+<li><p>进入main。</p>
+</li>
+</ol>
+<p>在entry.S代码执行完后，cpu开启分页模式，所有的地址都将以虚拟地址的形式存在。此时内存布局如下：</p>
+<p><img src="/2024/06/07/xv6/Boot/photo/start/entry.drawio.png"></p>
+<p>至此，cpu的预初始化进行完毕。下面几章将围绕内核的初始化去讲解类unix操作系统的内存管理、进程调度、文件系统子模块。</p>
+<hr>
+<p><strong>本章完结</strong></p>
+
+    </div>
+
+    
+    
+    
+        <div class="reward-container">
+  <div></div>
+  <button onclick="var qr = document.getElementById('qr'); qr.style.display = (qr.style.display === 'none') ? 'block' : 'none';">
+    打赏
+  </button>
+  <div id="qr" style="display: none;">
+      
+      <div style="display: inline-block;">
+        <img src="/images/wechatpay.jpg" alt="半个馒头 微信支付">
+        <p>微信支付</p>
+      </div>
+
+  </div>
+</div>
+
+
+      <footer class="post-footer">
+          <div class="post-tags">
+              <a href="/tags/%E7%B1%BBUnix%E6%BA%90%E7%A0%81%E5%89%96%E6%9E%90/" rel="tag"># 类Unix源码剖析</a>
+          </div>
+
+        
+
+
+        
+    <div class="post-nav">
+      <div class="post-nav-item">
+    <a href="/2024/06/07/xv6/MemoryManager/" rel="prev" title="这才是计科之 Onix & XV6 源码分析（2、类Unix的内存管理）">
+      <i class="fa fa-chevron-left"></i> 这才是计科之 Onix & XV6 源码分析（2、类Unix的内存管理）
+    </a></div>
+      <div class="post-nav-item">
+    <a href="/2024/06/08/xv6/Scheduler/" rel="next" title="这才是计科之 Onix & XV6 源码分析（3、Unix-like系统的进程调度模块）">
+      这才是计科之 Onix & XV6 源码分析（3、Unix-like系统的进程调度模块） <i class="fa fa-chevron-right"></i>
+    </a></div>
+    </div>
+      </footer>
+    
+  </article>
+  
+  
+  
+
+
+
+          </div>
+          
+
+<script>
+  window.addEventListener('tabs:register', () => {
+    let { activeClass } = CONFIG.comments;
+    if (CONFIG.comments.storage) {
+      activeClass = localStorage.getItem('comments_active') || activeClass;
+    }
+    if (activeClass) {
+      let activeTab = document.querySelector(`a[href="#comment-${activeClass}"]`);
+      if (activeTab) {
+        activeTab.click();
+      }
+    }
+  });
+  if (CONFIG.comments.storage) {
+    window.addEventListener('tabs:click', event => {
+      if (!event.target.matches('.tabs-comment .tab-content .tab-pane')) return;
+      let commentClass = event.target.classList[1];
+      localStorage.setItem('comments_active', commentClass);
+    });
+  }
+</script>
+
+        </div>
+          
+  
+  <div class="toggle sidebar-toggle">
+    <span class="toggle-line toggle-line-first"></span>
+    <span class="toggle-line toggle-line-middle"></span>
+    <span class="toggle-line toggle-line-last"></span>
+  </div>
+
+  <aside class="sidebar">
+    <div class="sidebar-inner">
+
+      <ul class="sidebar-nav motion-element">
+        <li class="sidebar-nav-toc">
+          文章目录
+        </li>
+        <li class="sidebar-nav-overview">
+          站点概览
+        </li>
+      </ul>
+
+      <!--noindex-->
+      <div class="post-toc-wrap sidebar-panel">
+          <div class="post-toc motion-element"><ol class="nav"><li class="nav-item nav-level-2"><a class="nav-link" href="#%E5%89%8D%E8%A8%80"><span class="nav-number">1.</span> <span class="nav-text">前言</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#Makefile-kernel-ld%E6%96%87%E4%BB%B6%E7%9A%84%E5%88%86%E6%9E%90"><span class="nav-number">2.</span> <span class="nav-text">Makefile &amp; kernel.ld文件的分析</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#Makefile"><span class="nav-number">2.1.</span> <span class="nav-text">Makefile</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#kernel-ld"><span class="nav-number">2.2.</span> <span class="nav-text">kernel.ld</span></a></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#%E4%BB%8E%E5%AE%9E%E6%97%B6%E6%A8%A1%E5%BC%8F%E5%88%B0%E4%BF%9D%E6%8A%A4%E6%A8%A1%E5%BC%8F"><span class="nav-number">3.</span> <span class="nav-text">从实时模式到保护模式</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#%E6%AD%A3%E5%BC%8F%E5%B0%86XV6%E5%8A%A0%E8%BD%BD%E5%88%B0%E5%86%85%E5%AD%98"><span class="nav-number">4.</span> <span class="nav-text">正式将XV6加载到内存</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#%E8%B7%B3%E5%88%B0-start%EF%BC%8C%E6%AD%A3%E5%BC%8F%E8%BF%9B%E5%85%A5%E5%86%85%E6%A0%B8%E5%89%8D%E7%9A%84%E9%A2%84%E5%88%9D%E5%A7%8B%E5%8C%96"><span class="nav-number">5.</span> <span class="nav-text">跳到_start，正式进入内核前的预初始化</span></a></li></ol></div>
+      </div>
+      <!--/noindex-->
+
+      <div class="site-overview-wrap sidebar-panel">
+        <div class="site-author motion-element" itemprop="author" itemscope itemtype="http://schema.org/Person">
+    <img class="site-author-image" itemprop="image" alt="半个馒头"
+      src="/images/avatar.jpg">
+  <p class="site-author-name" itemprop="name">半个馒头</p>
+  <div class="site-description" itemprop="description"></div>
+</div>
+<div class="site-state-wrap motion-element">
+  <nav class="site-state">
+      <div class="site-state-item site-state-posts">
+          <a href="/archives/">
+        
+          <span class="site-state-item-count">58</span>
+          <span class="site-state-item-name">日志</span>
+        </a>
+      </div>
+      <div class="site-state-item site-state-tags">
+            <a href="/tags/">
+          
+        <span class="site-state-item-count">18</span>
+        <span class="site-state-item-name">标签</span></a>
+      </div>
+  </nav>
+</div>
+  <div class="links-of-author motion-element">
+      <span class="links-of-author-item">
+        <a href="https://github.com/LunarStore" title="GitHub → https:&#x2F;&#x2F;github.com&#x2F;LunarStore" rel="noopener" target="_blank"><i class="fa fa-fw fa-github"></i>GitHub</a>
+      </span>
+      <span class="links-of-author-item">
+        <a href="mailto:18772124875@163.com" title="网易邮箱 → mailto:18772124875@163.com" rel="noopener" target="_blank"><i class="fa fa-fw fa-fas fa-envelope"></i>网易邮箱</a>
+      </span>
+  </div>
+
+
+  <div class="links-of-blogroll motion-element">
+    <div class="links-of-blogroll-title">
+      <i class="fa fa-fw fa-link"></i>
+      友情链接
+    </div>
+    <ul class="links-of-blogroll-list">
+        <li class="links-of-blogroll-item">
+          <a href="https://blog.csdn.net/m0_52566365" title="https:&#x2F;&#x2F;blog.csdn.net&#x2F;m0_52566365" rel="noopener" target="_blank">CSDN博客地址</a>
+        </li>
+    </ul>
+  </div>
+
+      </div>
+        <div class="back-to-top motion-element">
+          <i class="fa fa-arrow-up"></i>
+          <span>0%</span>
+        </div>
+
+    </div>
+  </aside>
+  <div id="sidebar-dimmer"></div>
+
+
+      </div>
+    </main>
+
+    <footer class="footer">
+      <div class="footer-inner">
+        
+
+        
+
+<div class="copyright">
+  
+  &copy; 
+  <span itemprop="copyrightYear">2025</span>
+  <span class="with-love">
+    <i class="fa fa-user"></i>
+  </span>
+  <span class="author" itemprop="copyrightHolder">半个馒头</span>
+</div>
+  <div class="powered-by">由 <a href="https://hexo.io/" class="theme-link" rel="noopener" target="_blank">Hexo</a> & <a href="https://theme-next.org/" class="theme-link" rel="noopener" target="_blank">NexT.Gemini</a> 强力驱动
+  </div>
+
+        
+<div class="busuanzi-count">
+  <script async src="https://busuanzi.ibruce.info/busuanzi/2.3/busuanzi.pure.mini.js"></script>
+    <span class="post-meta-item" id="busuanzi_container_site_uv" style="display: none;">
+      <span class="post-meta-item-icon">
+        <i class="fa fa-user"></i>
+      </span>
+      <span class="site-uv" title="总访客量">
+        <span id="busuanzi_value_site_uv"></span>
+      </span>
+    </span>
+    <span class="post-meta-divider">|</span>
+    <span class="post-meta-item" id="busuanzi_container_site_pv" style="display: none;">
+      <span class="post-meta-item-icon">
+        <i class="fa fa-eye"></i>
+      </span>
+      <span class="site-pv" title="总访问量">
+        <span id="busuanzi_value_site_pv"></span>
+      </span>
+    </span>
+</div>
+
+
+
+
+
+
+
+
+      </div>
+    </footer>
+  </div>
+
+  
+  <script src="/lib/anime.min.js"></script>
+  <script src="/lib/velocity/velocity.min.js"></script>
+  <script src="/lib/velocity/velocity.ui.min.js"></script>
+
+<script src="/js/utils.js"></script>
+
+<script src="/js/motion.js"></script>
+
+
+<script src="/js/schemes/pisces.js"></script>
+
+
+<script src="/js/next-boot.js"></script>
+
+
+
+
+  
+
+
+
+
+  
+<script src="/js/local-search.js"></script>
+
+
+
+
+
+
+
+
+
+
+
+
+
+  
+
+  
+
+</body>
+</html>

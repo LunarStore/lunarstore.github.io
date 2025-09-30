@@ -1,0 +1,657 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=2">
+<meta name="theme-color" content="#222">
+<meta name="generator" content="Hexo 7.3.0">
+  <link rel="apple-touch-icon" sizes="180x180" href="/images/apple-touch-icon-next.png">
+  <link rel="icon" type="image/png" sizes="32x32" href="/images/favicon-32x32-next.png">
+  <link rel="icon" type="image/png" sizes="16x16" href="/images/favicon-16x16-next.png">
+  <link rel="mask-icon" href="/images/logo.svg" color="#222">
+
+<link rel="stylesheet" href="/css/main.css">
+
+
+<link rel="stylesheet" href="/lib/font-awesome/css/font-awesome.min.css">
+  <link rel="stylesheet" href="/lib/pace/pace-theme-flash.min.css">
+  <script src="/lib/pace/pace.min.js"></script>
+
+<script id="hexo-configurations">
+    var NexT = window.NexT || {};
+    var CONFIG = {"hostname":"www.halfmantou.xyz","root":"/","scheme":"Gemini","version":"7.8.0","exturl":false,"sidebar":{"position":"left","display":"post","padding":18,"offset":12,"onmobile":false},"copycode":{"enable":true,"show_result":true,"style":null},"back2top":{"enable":true,"sidebar":true,"scrollpercent":true},"bookmark":{"enable":false,"color":"#222","save":"auto"},"fancybox":false,"mediumzoom":false,"lazyload":false,"pangu":false,"comments":{"style":"tabs","active":null,"storage":true,"lazyload":false,"nav":null},"algolia":{"hits":{"per_page":10},"labels":{"input_placeholder":"Search for Posts","hits_empty":"We didn't find any results for the search: ${query}","hits_stats":"${hits} results found in ${time} ms"}},"localsearch":{"enable":true,"trigger":"auto","top_n_per_article":3,"unescape":false,"preload":false},"motion":{"enable":true,"async":false,"transition":{"post_block":"fadeIn","post_header":"slideDownIn","post_body":"slideDownIn","coll_header":"slideLeftIn","sidebar":"slideUpIn"}},"path":"search.json"};
+  </script>
+
+  <meta name="description" content="前言系列链接如下： WorkFlow源码剖析——GO-Task 源码分析 WorkFlow源码剖析——Communicator之TCPServer（上） WorkFlow源码剖析——Communicator之TCPServer（中） WorkFlow源码剖析——Communicator之TCPServer（下） 终于来到TCPServer最后一部分，前面两篇博客已经深入分析了WorkFlow底层p">
+<meta property="og:type" content="article">
+<meta property="og:title" content="WorkFlow源码剖析——Communicator之TCPServer（下）">
+<meta property="og:url" content="https://www.halfmantou.xyz/2024/11/07/workflow/TCPServer_3/index.html">
+<meta property="og:site_name" content="碎碎念念">
+<meta property="og:description" content="前言系列链接如下： WorkFlow源码剖析——GO-Task 源码分析 WorkFlow源码剖析——Communicator之TCPServer（上） WorkFlow源码剖析——Communicator之TCPServer（中） WorkFlow源码剖析——Communicator之TCPServer（下） 终于来到TCPServer最后一部分，前面两篇博客已经深入分析了WorkFlow底层p">
+<meta property="og:locale" content="zh_CN">
+<meta property="article:published_time" content="2024-11-07T04:00:00.000Z">
+<meta property="article:modified_time" content="2025-09-29T14:24:25.648Z">
+<meta property="article:author" content="半个馒头">
+<meta property="article:tag" content="高性能服务器框架">
+<meta name="twitter:card" content="summary">
+
+<link rel="canonical" href="https://www.halfmantou.xyz/2024/11/07/workflow/TCPServer_3/">
+
+
+<script id="page-configurations">
+  // https://hexo.io/docs/variables.html
+  CONFIG.page = {
+    sidebar: "",
+    isHome : false,
+    isPost : true,
+    lang   : 'zh-CN'
+  };
+</script>
+
+  <title>WorkFlow源码剖析——Communicator之TCPServer（下） | 碎碎念念</title>
+  
+
+
+
+
+
+
+  <noscript>
+  <style>
+  .use-motion .brand,
+  .use-motion .menu-item,
+  .sidebar-inner,
+  .use-motion .post-block,
+  .use-motion .pagination,
+  .use-motion .comments,
+  .use-motion .post-header,
+  .use-motion .post-body,
+  .use-motion .collection-header { opacity: initial; }
+
+  .use-motion .site-title,
+  .use-motion .site-subtitle {
+    opacity: initial;
+    top: initial;
+  }
+
+  .use-motion .logo-line-before i { left: initial; }
+  .use-motion .logo-line-after i { right: initial; }
+  </style>
+</noscript>
+
+</head>
+
+<body itemscope itemtype="http://schema.org/WebPage">
+  <div class="container use-motion">
+    <div class="headband"></div>
+
+    <header class="header" itemscope itemtype="http://schema.org/WPHeader">
+      <div class="header-inner"><div class="site-brand-container">
+  <div class="site-nav-toggle">
+    <div class="toggle" aria-label="切换导航栏">
+      <span class="toggle-line toggle-line-first"></span>
+      <span class="toggle-line toggle-line-middle"></span>
+      <span class="toggle-line toggle-line-last"></span>
+    </div>
+  </div>
+
+  <div class="site-meta">
+
+    <a href="/" class="brand" rel="start">
+      <span class="logo-line-before"><i></i></span>
+      <h1 class="site-title">碎碎念念</h1>
+      <span class="logo-line-after"><i></i></span>
+    </a>
+  </div>
+
+  <div class="site-nav-right">
+    <div class="toggle popup-trigger">
+        <i class="fa fa-search fa-fw fa-lg"></i>
+    </div>
+  </div>
+</div>
+
+
+
+
+<nav class="site-nav">
+  <ul id="menu" class="menu">
+        <li class="menu-item menu-item-home">
+
+    <a href="/" rel="section"><i class="fa fa-fw fa-home"></i>首页</a>
+
+  </li>
+        <li class="menu-item menu-item-about">
+
+    <a href="/about/" rel="section"><i class="fa fa-fw fa-user"></i>关于</a>
+
+  </li>
+        <li class="menu-item menu-item-tags">
+
+    <a href="/tags/" rel="section"><i class="fa fa-fw fa-tags"></i>标签<span class="badge">18</span></a>
+
+  </li>
+        <li class="menu-item menu-item-categories">
+
+    <a href="/categories/" rel="section"><i class="fa fa-fw fa-th"></i>分类<span class="badge">0</span></a>
+
+  </li>
+        <li class="menu-item menu-item-archives">
+
+    <a href="/archives/" rel="section"><i class="fa fa-fw fa-archive"></i>归档<span class="badge">58</span></a>
+
+  </li>
+      <li class="menu-item menu-item-search">
+        <a role="button" class="popup-trigger"><i class="fa fa-search fa-fw"></i>搜索
+        </a>
+      </li>
+  </ul>
+</nav>
+
+
+
+  <div class="search-pop-overlay">
+    <div class="popup search-popup">
+        <div class="search-header">
+  <span class="search-icon">
+    <i class="fa fa-search"></i>
+  </span>
+  <div class="search-input-container">
+    <input autocomplete="off" autocapitalize="off"
+           placeholder="搜索..." spellcheck="false"
+           type="search" class="search-input">
+  </div>
+  <span class="popup-btn-close">
+    <i class="fa fa-times-circle"></i>
+  </span>
+</div>
+<div id="search-result">
+  <div id="no-result">
+    <i class="fa fa-spinner fa-pulse fa-5x fa-fw"></i>
+  </div>
+</div>
+
+    </div>
+  </div>
+
+</div>
+    </header>
+
+    
+  <div class="reading-progress-bar"></div>
+
+  <a href="https://github.com/LunarStore" class="github-corner" title="Follow me on GitHub" aria-label="Follow me on GitHub" rel="noopener" target="_blank"><svg width="80" height="80" viewBox="0 0 250 250" aria-hidden="true"><path d="M0,0 L115,115 L130,115 L142,142 L250,250 L250,0 Z"></path><path d="M128.3,109.0 C113.8,99.7 119.0,89.6 119.0,89.6 C122.0,82.7 120.5,78.6 120.5,78.6 C119.2,72.0 123.4,76.3 123.4,76.3 C127.3,80.9 125.5,87.3 125.5,87.3 C122.9,97.6 130.6,101.9 134.4,103.2" fill="currentColor" style="transform-origin: 130px 106px;" class="octo-arm"></path><path d="M115.0,115.0 C114.9,115.1 118.7,116.5 119.8,115.4 L133.7,101.6 C136.9,99.2 139.9,98.4 142.2,98.6 C133.8,88.0 127.5,74.4 143.8,58.0 C148.5,53.4 154.0,51.2 159.7,51.0 C160.3,49.4 163.2,43.6 171.4,40.1 C171.4,40.1 176.1,42.5 178.8,56.2 C183.1,58.6 187.2,61.8 190.9,65.4 C194.5,69.0 197.7,73.2 200.1,77.6 C213.8,80.2 216.3,84.9 216.3,84.9 C212.7,93.1 206.9,96.0 205.4,96.6 C205.1,102.4 203.0,107.8 198.3,112.5 C181.9,128.9 168.3,122.5 157.7,114.1 C157.9,116.9 156.7,120.9 152.7,124.9 L141.0,136.5 C139.8,137.7 141.6,141.9 141.8,141.8 Z" fill="currentColor" class="octo-body"></path></svg></a>
+
+
+    <main class="main">
+      <div class="main-inner">
+        <div class="content-wrap">
+          
+
+          <div class="content post posts-expand">
+            
+
+    
+  
+  
+  <article itemscope itemtype="http://schema.org/Article" class="post-block" lang="zh-CN">
+    <link itemprop="mainEntityOfPage" href="https://www.halfmantou.xyz/2024/11/07/workflow/TCPServer_3/">
+
+    <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
+      <meta itemprop="image" content="/images/avatar.jpg">
+      <meta itemprop="name" content="半个馒头">
+      <meta itemprop="description" content="">
+    </span>
+
+    <span hidden itemprop="publisher" itemscope itemtype="http://schema.org/Organization">
+      <meta itemprop="name" content="碎碎念念">
+    </span>
+      <header class="post-header">
+        <h1 class="post-title" itemprop="name headline">
+          WorkFlow源码剖析——Communicator之TCPServer（下）
+        </h1>
+
+        <div class="post-meta">
+            <span class="post-meta-item">
+              <span class="post-meta-item-icon">
+                <i class="fa fa-calendar-o"></i>
+              </span>
+              <span class="post-meta-item-text">发表于</span>
+
+              <time title="创建时间：2024-11-07 12:00:00" itemprop="dateCreated datePublished" datetime="2024-11-07T12:00:00+08:00">2024-11-07</time>
+            </span>
+              <span class="post-meta-item">
+                <span class="post-meta-item-icon">
+                  <i class="fa fa-calendar-check-o"></i>
+                </span>
+                <span class="post-meta-item-text">更新于</span>
+                <time title="修改时间：2025-09-29 22:24:25" itemprop="dateModified" datetime="2025-09-29T22:24:25+08:00">2025-09-29</time>
+              </span>
+
+          
+            <span class="post-meta-item" title="阅读次数" id="busuanzi_container_page_pv" style="display: none;">
+              <span class="post-meta-item-icon">
+                <i class="fa fa-eye"></i>
+              </span>
+              <span class="post-meta-item-text">阅读次数：</span>
+              <span id="busuanzi_value_page_pv"></span>
+            </span>
+
+        </div>
+      </header>
+
+    
+    
+    
+    <div class="post-body" itemprop="articleBody">
+
+      
+        <h2 id="前言"><a href="#前言" class="headerlink" title="前言"></a>前言</h2><p>系列链接如下：</p>
+<p><a target="_blank" rel="noopener" href="https://blog.csdn.net/m0_52566365/article/details/142903964">WorkFlow源码剖析——GO-Task 源码分析</a></p>
+<p><a target="_blank" rel="noopener" href="https://blog.csdn.net/m0_52566365/article/details/143452443">WorkFlow源码剖析——Communicator之TCPServer（上）</a></p>
+<p><a target="_blank" rel="noopener" href="https://blog.csdn.net/m0_52566365/article/details/143493066">WorkFlow源码剖析——Communicator之TCPServer（中）</a></p>
+<p><a target="_blank" rel="noopener" href="https://blog.csdn.net/m0_52566365/article/details/143605123">WorkFlow源码剖析——Communicator之TCPServer（下）</a></p>
+<p>终于来到TCPServer最后一部分，前面两篇博客已经深入分析了WorkFlow底层poller和Communicator的实现细节，本篇博客将会从整体视角，整合前面所讲的poller以及Communicator形成最终的TCPServer。</p>
+<p>同样放上workflow开源项目的Github地址：<a target="_blank" rel="noopener" href="https://github.com/sogou/workflow">https://github.com/sogou/workflow</a></p>
+<p>和GO-Task的实现类似，尤其需要注意对基类SubTask、CommSession虚函数的重写。如果你看过GO-Task的实现，本文最终所讲的TCPServer任务其实差不多。因为TCPServer的继承树和GO-Task的继承树不能说相似，只能说一模一样。对称性对框架的设计真的很重要，我认为对称思想（也可以说成抽象思想）是优雅的象征。并且对称性可以帮我们减少出BUG的风险。如果你刷过的LeetCode，你一定会发现，在解答那些对边界条件要求很高的题目时，如果你能给各种情况抽象出一套统一的逻辑说词，大概率就不会wa。</p>
+<span id="more"></span>
+
+<p>重申一下，本系列暂时集中分析workflow的TCPServer端的架构。对于客户端，后面有时间了会另起一个系列进行讲解。像CommSchedGroup、CommSchedTarget、CommSchedObject等属于客户端独有功能。CommSchedGroup主要功能是对客户端的连接按负载（引用数量）进行一个堆排序管理。读者可先忽略掉这些内容。并且因为有些类的设计是同时兼顾客户端和服务端的（如：CommRequest、等），这点在阅读源码的时候需要有自己的判断能力。不要被绕进去了！</p>
+<h2 id="正文"><a href="#正文" class="headerlink" title="正文"></a>正文</h2><p>我们就顺从<a target="_blank" rel="noopener" href="https://blog.csdn.net/m0_52566365/article/details/142903964">WorkFlow GO-Task 源码分析</a>的方式，以workflow给的http_echo_server的示例作为本文的切入点：</p>
+<h3 id="用法"><a href="#用法" class="headerlink" title="用法"></a>用法</h3><p>go-task的用法示例如下：</p>
+<figure class="highlight cpp"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br><span class="line">36</span><br><span class="line">37</span><br><span class="line">38</span><br></pre></td><td class="code"><pre><span class="line"><span class="meta">#<span class="keyword">include</span> <span class="string">&lt;stdio.h&gt;</span></span></span><br><span class="line"><span class="meta">#<span class="keyword">include</span> <span class="string">&lt;utility&gt;</span></span></span><br><span class="line"><span class="meta">#<span class="keyword">include</span> <span class="string">&quot;workflow/HttpMessage.h&quot;</span></span></span><br><span class="line"><span class="meta">#<span class="keyword">include</span> <span class="string">&quot;workflow/HttpUtil.h&quot;</span></span></span><br><span class="line"><span class="meta">#<span class="keyword">include</span> <span class="string">&quot;workflow/WFServer.h&quot;</span></span></span><br><span class="line"><span class="meta">#<span class="keyword">include</span> <span class="string">&quot;workflow/WFHttpServer.h&quot;</span></span></span><br><span class="line"><span class="meta">#<span class="keyword">include</span> <span class="string">&quot;workflow/WFFacilities.h&quot;</span></span></span><br><span class="line"></span><br><span class="line"><span class="function"><span class="type">void</span> <span class="title">process</span><span class="params">(WFHttpTask *server_task)</span> </span>&#123;</span><br><span class="line">	protocol::HttpRequest *req = server_task-&gt;<span class="built_in">get_req</span>();</span><br><span class="line">	protocol::HttpResponse *resp = server_task-&gt;<span class="built_in">get_resp</span>();</span><br><span class="line"></span><br><span class="line">    <span class="comment">/* 根据http请求进行一些业务处理，然后构造出回复报文。 */</span></span><br><span class="line">    <span class="comment">/* ... */</span></span><br><span class="line">&#125;</span><br><span class="line"></span><br><span class="line"><span class="function"><span class="type">int</span> <span class="title">main</span><span class="params">(<span class="type">int</span> argc, <span class="type">char</span> *argv[])</span> </span>&#123;</span><br><span class="line">	<span class="type">unsigned</span> <span class="type">short</span> port;</span><br><span class="line"></span><br><span class="line">	<span class="keyword">if</span> (argc != <span class="number">2</span>) &#123;</span><br><span class="line">		<span class="built_in">fprintf</span>(stderr, <span class="string">&quot;USAGE: %s &lt;port&gt;\n&quot;</span>, argv[<span class="number">0</span>]);</span><br><span class="line">		<span class="built_in">exit</span>(<span class="number">1</span>);</span><br><span class="line">	&#125;</span><br><span class="line"></span><br><span class="line">	<span class="built_in">signal</span>(SIGINT, sig_handler);</span><br><span class="line"></span><br><span class="line">	<span class="function">WFHttpServer <span class="title">server</span><span class="params">(process)</span></span>;</span><br><span class="line">	port = <span class="built_in">atoi</span>(argv[<span class="number">1</span>]);</span><br><span class="line">	<span class="keyword">if</span> (server.<span class="built_in">start</span>(port) == <span class="number">0</span>) &#123;</span><br><span class="line">		wait_group.<span class="built_in">wait</span>();</span><br><span class="line">		server.<span class="built_in">stop</span>();</span><br><span class="line">	&#125; <span class="keyword">else</span> &#123;</span><br><span class="line">		<span class="built_in">perror</span>(<span class="string">&quot;Cannot start server&quot;</span>);</span><br><span class="line">		<span class="built_in">exit</span>(<span class="number">1</span>);</span><br><span class="line">	&#125;</span><br><span class="line"></span><br><span class="line">	<span class="keyword">return</span> <span class="number">0</span>;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p>从workflow的httpserver的使用demo当中可以了解到，核心框架有三步：</p>
+<ol>
+<li><p>将http处理回调函数作为参数，构造一个server对象。</p>
+</li>
+<li><p>调用start接口，启动server。</p>
+</li>
+<li><p>wait_group.wait()阻塞，等待服务的结束。</p>
+</li>
+</ol>
+<p>看到这三步流程，我们其实应该是一脸蒙的，根本无法猜到它底层是如何起服务的；当连接来到时又是如何回调上面的处理函数的。别着急我们先结合前面两篇博客，尽力而为的猜：</p>
+<ol>
+<li><p>看到了process回调函数当中开头定义的两个<strong>指针变量</strong>req和resp都是来自server_task。结合tcp服务端在读取来自客户端的请求报文并解析前会调用Communicator::create_request函数创建一个in对象作为报文解析器，而in又是由session创建，<strong>而在服务端session又是由CommService创建</strong>。同时Communicator::reply接口是以session作为参数，最终tcpserver在发送回复时会取出session当中的out并发送给客户端，很明显的是：out显然是服务端对客户端请求的回复报文。所以种种迹象都表明server_task当中req、resp和session的in和out有着紧密联系。</p>
+</li>
+<li><p>server.start接口一定会调用创建socket，绑定socket、监听sokcet。而这些流程在Communicator当中有提供接口，对应：Communicator::bind。Communicator::bind函数只有一个唯一的参数：CommService，但综合CommService头文件的定义来看，因为它里面有一个纯虚函数：new_session，显然CommService是一个虚基类，这意味着它无法实例化对象。所以一定有继承CommService的子类。</p>
+</li>
+</ol>
+<p>综上，1、2两点都指向了一个关键词————CommService。</p>
+<h3 id="探究WFHttpServer"><a href="#探究WFHttpServer" class="headerlink" title="探究WFHttpServer"></a>探究WFHttpServer</h3><p>根据上小节得到的线索，我们深入跟到WFHttpServer当中去，它的继承树如下：</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">&#123; WFHttpServer == WFServer&lt;protocol::HttpRequest, protocol::HttpResponse&gt; &#125; -&gt; WFServerBase -&gt; CommService</span><br></pre></td></tr></table></figure>
+
+<p>所以，WFHttpServer实际上是<strong>模板类WFServer</strong>的一个<strong>成员函数全特化</strong>实现。下面集中分析一下WFServer和WFServerBase：</p>
+<p>首先是WFServer模板类：</p>
+<figure class="highlight cpp"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">template</span>&lt;<span class="keyword">class</span> <span class="title class_">REQ</span>, <span class="keyword">class</span> <span class="title class_">RESP</span>&gt;</span><br><span class="line"><span class="keyword">class</span> <span class="title class_">WFServer</span> : <span class="keyword">public</span> WFServerBase &#123;</span><br><span class="line"><span class="keyword">public</span>:</span><br><span class="line">	<span class="built_in">WFServer</span>(<span class="type">const</span> <span class="keyword">struct</span> WFServerParams *params,</span><br><span class="line">			 std::function&lt;<span class="built_in">void</span> (WFNetworkTask&lt;REQ, RESP&gt; *)&gt; proc) :</span><br><span class="line">		<span class="built_in">WFServerBase</span>(params),</span><br><span class="line">		<span class="built_in">process</span>(std::<span class="built_in">move</span>(proc)) &#123;  &#125;</span><br><span class="line"></span><br><span class="line">	<span class="built_in">WFServer</span>(std::function&lt;<span class="built_in">void</span> (WFNetworkTask&lt;REQ, RESP&gt; *)&gt; proc) :</span><br><span class="line">		<span class="built_in">WFServerBase</span>(&amp;SERVER_PARAMS_DEFAULT),</span><br><span class="line">		<span class="built_in">process</span>(std::<span class="built_in">move</span>(proc)) &#123;  &#125;</span><br><span class="line"></span><br><span class="line"><span class="keyword">protected</span>:</span><br><span class="line">	<span class="function"><span class="keyword">virtual</span> CommSession *<span class="title">new_session</span><span class="params">(<span class="type">long</span> <span class="type">long</span> seq, CommConnection *conn)</span></span>;</span><br><span class="line"></span><br><span class="line"><span class="keyword">protected</span>:</span><br><span class="line">	std::function&lt;<span class="type">void</span> (WFNetworkTask&lt;REQ, RESP&gt; *)&gt; process;</span><br><span class="line">&#125;;</span><br><span class="line"></span><br><span class="line"><span class="keyword">template</span>&lt;<span class="keyword">class</span> <span class="title class_">REQ</span>, <span class="keyword">class</span> <span class="title class_">RESP</span>&gt;</span><br><span class="line">CommSession *WFServer&lt;REQ, RESP&gt;::<span class="built_in">new_session</span>(<span class="type">long</span> <span class="type">long</span> seq, CommConnection *conn) &#123;</span><br><span class="line">	<span class="keyword">using</span> factory = WFNetworkTaskFactory&lt;REQ, RESP&gt;;</span><br><span class="line">	WFNetworkTask&lt;REQ, RESP&gt; *task;</span><br><span class="line"></span><br><span class="line">	task = factory::<span class="built_in">create_server_task</span>(<span class="keyword">this</span>, <span class="keyword">this</span>-&gt;process);</span><br><span class="line">	task-&gt;<span class="built_in">set_keep_alive</span>(<span class="keyword">this</span>-&gt;params.keep_alive_timeout);</span><br><span class="line">	task-&gt;<span class="built_in">set_receive_timeout</span>(<span class="keyword">this</span>-&gt;params.receive_timeout);</span><br><span class="line">	task-&gt;<span class="built_in">get_req</span>()-&gt;<span class="built_in">set_size_limit</span>(<span class="keyword">this</span>-&gt;params.request_size_limit);</span><br><span class="line"></span><br><span class="line">	<span class="keyword">return</span> task;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p>（PS，代码量很少，读者表示狂喜。）</p>
+<p>如代码所写的那样，WFServer就是继承了一下WFServerBase，并重写了new_session函数。究其根本这里的new_session实际上重写的是CommService当中所定义的纯虚函数。如果你认为应该仔细去阅读这里重写的虚函数，那你就错了，实际上WFHttpServer<strong>又将new_session函数进行全特化实现</strong>。所以WFServer的new_session看看就好。无需深入理解。</p>
+<p>WFServer重点就是将示例在创建server时传入的process回调，保存到了成员变量当中，<strong>以供new_session时将任务回调传给Task</strong>。下面重点研究一下WFServerBase。</p>
+<p>从上面的分析了解到WFServerBase继承自CommService。WFServerBase实现如下：</p>
+<figure class="highlight cpp"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br><span class="line">36</span><br><span class="line">37</span><br><span class="line">38</span><br><span class="line">39</span><br><span class="line">40</span><br><span class="line">41</span><br><span class="line">42</span><br><span class="line">43</span><br><span class="line">44</span><br><span class="line">45</span><br><span class="line">46</span><br><span class="line">47</span><br><span class="line">48</span><br><span class="line">49</span><br><span class="line">50</span><br><span class="line">51</span><br><span class="line">52</span><br><span class="line">53</span><br><span class="line">54</span><br><span class="line">55</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">class</span> <span class="title class_">WFServerBase</span> : <span class="keyword">protected</span> CommService &#123;</span><br><span class="line"><span class="keyword">public</span>:</span><br><span class="line">	<span class="built_in">WFServerBase</span>(<span class="type">const</span> <span class="keyword">struct</span> WFServerParams *params) :</span><br><span class="line">		<span class="built_in">conn_count</span>(<span class="number">0</span>) &#123;</span><br><span class="line">		<span class="keyword">this</span>-&gt;params = *params;</span><br><span class="line">		<span class="keyword">this</span>-&gt;unbind_finish = <span class="literal">false</span>;</span><br><span class="line">		<span class="keyword">this</span>-&gt;listen_fd = <span class="number">-1</span>;</span><br><span class="line">	&#125;</span><br><span class="line"></span><br><span class="line"><span class="keyword">public</span>:</span><br><span class="line">	<span class="comment">/* To start a TCP server */</span></span><br><span class="line">	<span class="comment">/* ... */</span></span><br><span class="line">	<span class="comment">/* Start with binding address. The only necessary start function. */</span></span><br><span class="line">	<span class="function"><span class="type">int</span> <span class="title">start</span><span class="params">(<span class="type">const</span> <span class="keyword">struct</span> sockaddr *bind_addr, <span class="type">socklen_t</span> addrlen)</span></span>;</span><br><span class="line"></span><br><span class="line">	<span class="comment">/* stop() is a blocking operation. */</span></span><br><span class="line">	<span class="function"><span class="type">void</span> <span class="title">stop</span><span class="params">()</span> </span>&#123;</span><br><span class="line">		<span class="keyword">this</span>-&gt;<span class="built_in">shutdown</span>();</span><br><span class="line">		<span class="keyword">this</span>-&gt;<span class="built_in">wait_finish</span>();</span><br><span class="line">	&#125;</span><br><span class="line"></span><br><span class="line">	<span class="comment">/* Nonblocking terminating the server. For stopping multiple servers.</span></span><br><span class="line"><span class="comment">	 * Typically, call shutdown() and then wait_finish().</span></span><br><span class="line"><span class="comment">	 * But indeed wait_finish() can be called before shutdown(), even before</span></span><br><span class="line"><span class="comment">	 * start() in another thread. */</span></span><br><span class="line">	<span class="function"><span class="type">void</span> <span class="title">shutdown</span><span class="params">()</span></span>;</span><br><span class="line">	<span class="function"><span class="type">void</span> <span class="title">wait_finish</span><span class="params">()</span></span>;</span><br><span class="line"></span><br><span class="line"><span class="keyword">public</span>:</span><br><span class="line">	<span class="function"><span class="type">size_t</span> <span class="title">get_conn_count</span><span class="params">()</span> <span class="type">const</span> </span>&#123; <span class="keyword">return</span> <span class="keyword">this</span>-&gt;conn_count; &#125;</span><br><span class="line"></span><br><span class="line"><span class="keyword">protected</span>:</span><br><span class="line">	WFServerParams params;</span><br><span class="line"></span><br><span class="line"><span class="keyword">protected</span>:</span><br><span class="line">	<span class="function"><span class="keyword">virtual</span> <span class="type">int</span> <span class="title">create_listen_fd</span><span class="params">()</span></span>;</span><br><span class="line">	<span class="function"><span class="keyword">virtual</span> WFConnection *<span class="title">new_connection</span><span class="params">(<span class="type">int</span> accept_fd)</span></span>;</span><br><span class="line">	<span class="function"><span class="type">void</span> <span class="title">delete_connection</span><span class="params">(WFConnection *conn)</span></span>;</span><br><span class="line"></span><br><span class="line"><span class="keyword">private</span>:</span><br><span class="line">	<span class="function"><span class="type">int</span> <span class="title">init</span><span class="params">(<span class="type">const</span> <span class="keyword">struct</span> sockaddr *bind_addr, <span class="type">socklen_t</span> addrlen)</span></span>;</span><br><span class="line">	<span class="function"><span class="keyword">virtual</span> <span class="type">void</span> <span class="title">handle_unbound</span><span class="params">()</span></span>;</span><br><span class="line"></span><br><span class="line"><span class="keyword">protected</span>:</span><br><span class="line">	std::atomic&lt;<span class="type">size_t</span>&gt; conn_count;</span><br><span class="line"></span><br><span class="line"><span class="keyword">private</span>:</span><br><span class="line">	<span class="type">int</span> listen_fd;</span><br><span class="line">	<span class="type">bool</span> unbind_finish;</span><br><span class="line"></span><br><span class="line">	std::mutex mutex;</span><br><span class="line">	std::condition_variable cond;</span><br><span class="line"></span><br><span class="line">	<span class="keyword">class</span> <span class="title class_">CommScheduler</span> *scheduler;</span><br><span class="line">&#125;;</span><br></pre></td></tr></table></figure>
+
+<p>首先，我们看到WFServerBase当中有一个类型为CommScheduler的成员变量scheduler。我们应该感到惊喜，因为CommScheduler不就是对Communicator做了一层浅浅的封装吗？这里出现的scheduler不就意味着WFServerBase和Communicator联系起来了吗？那server的启动必定是调用了Communicator::bind接口来创建、绑定、监听listen socket。下面重点研究一下start函数的函数的实现：</p>
+<figure class="highlight cpp"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br></pre></td><td class="code"><pre><span class="line"><span class="function"><span class="type">int</span> <span class="title">WFServerBase::start</span><span class="params">(<span class="type">const</span> <span class="keyword">struct</span> sockaddr *bind_addr, <span class="type">socklen_t</span> addrlen)</span> </span>&#123;</span><br><span class="line">	<span class="keyword">if</span> (<span class="keyword">this</span>-&gt;<span class="built_in">init</span>(bind_addr, addrlen) &gt;= <span class="number">0</span>) &#123;</span><br><span class="line">		<span class="keyword">if</span> (<span class="keyword">this</span>-&gt;scheduler-&gt;<span class="built_in">bind</span>(<span class="keyword">this</span>) &gt;= <span class="number">0</span>)</span><br><span class="line">			<span class="keyword">return</span> <span class="number">0</span>;</span><br><span class="line"></span><br><span class="line">		<span class="keyword">this</span>-&gt;<span class="built_in">deinit</span>();</span><br><span class="line">	&#125;</span><br><span class="line"></span><br><span class="line">	<span class="keyword">this</span>-&gt;listen_fd = <span class="number">-1</span>;</span><br><span class="line">	<span class="keyword">return</span> <span class="number">-1</span>;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p>init函数伪代码如下：</p>
+<figure class="highlight cpp"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br></pre></td><td class="code"><pre><span class="line"><span class="function"><span class="type">int</span> <span class="title">WFServerBase::init</span><span class="params">(<span class="type">const</span> <span class="keyword">struct</span> sockaddr *bind_addr, <span class="type">socklen_t</span> addrlen)</span> </span>&#123;</span><br><span class="line">	<span class="comment">/* ... */</span></span><br><span class="line">	<span class="keyword">if</span> (<span class="keyword">this</span>-&gt;CommService::<span class="built_in">init</span>(bind_addr, addrlen, <span class="number">-1</span>, timeout) &lt; <span class="number">0</span>)	<span class="comment">// 调用基类CommService的初始化函数，就是将listen fd所绑定的地址拷贝一份到基类。</span></span><br><span class="line">		<span class="keyword">return</span> <span class="number">-1</span>;</span><br><span class="line"></span><br><span class="line">	<span class="keyword">this</span>-&gt;scheduler = WFGlobal::<span class="built_in">get_scheduler</span>();						<span class="comment">// 全局的单例CommScheduler对象。</span></span><br><span class="line">	<span class="keyword">return</span> <span class="number">0</span>;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p>主要干了两件事：调用基类的init，将绑定的地址拷贝一份到基类的成员变量当中。然后通过__CommManager获取全局的单例CommScheduler对象。</p>
+<p>特别的是，<strong>这里有个重要的时间点</strong>，在__CommManager被构造时，会<strong>初始化CommScheduler对象</strong>，如果你看过上一篇博客，你一定知道为什么这个时刻重要。因为CommScheduler::init函数会<strong>启动workflow底层的事件池和状态迁移池</strong>。具体的架构模型图可以参考：<a target="_blank" rel="noopener" href="https://blog.csdn.net/m0_52566365/article/details/143493066">WorkFlow源码剖析——Communicator之TCPServer（中）</a>。</p>
+<p>在WFServerBase::start实现中，调用init函数过后，立马调用CommScheduler::bind（实际上就是Communicator::bind），该函数里面会做网络编程三部曲：创建、绑定、监听。至此我们的TCPServer服务器就在这里启动，等待客户端的连接。</p>
+<p>关于WFServerBase其实还有两个有趣的知识点：new_connection 和 服务停止。</p>
+<ul>
+<li><p>new_connection：该函数和WFServerBase::conn_count强相关。new_connection所创建的对象共用WFServerBase::conn_count。每当有客户端连接到来，都会创建一个CommConnection对象，同时会使WFServerBase::conn_count自增一。每当连接断开，Communicator当中就会调用__release_conn释放连接上下文，并且CommConnection对象也随之释放，其构造函数当中，会将WFServerBase::conn_count变量自减一。所以说，每次在连接到来创建的CommConnection对象可以视为连接计数器。（PS，因为目前只了解workflow的部分源码，所以连接计数器存在的具体意义，我目前还未能领悟。后面有时间的话，再去深究吧。）</p>
+</li>
+<li><p>服务停止：如代码注释那样，WFServerBase所提供的stop接口是阻塞的，它其实连续调用了两个函数：shutdown、wait_finish。其中shutdown会调用Communicator::unbind函数，它会直接将listen fd从mpoller当中删除。当调用shutdown函数时，整体<strong>停止的链路是这样的</strong>：</p>
+</li>
+</ul>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br></pre></td><td class="code"><pre><span class="line">WFServerBase::shutdown -&gt; </span><br><span class="line"></span><br><span class="line">CommScheduler::unbind -&gt; </span><br><span class="line"></span><br><span class="line">Communicator::unbind -&gt; </span><br><span class="line"></span><br><span class="line">mpoller_del(listen_fd) - - -&gt; </span><br><span class="line"></span><br><span class="line">Communicator::handle_listen_result -&gt; </span><br><span class="line"></span><br><span class="line">Communicator::shutdown_service -&gt; </span><br><span class="line"></span><br><span class="line">while (直到CommService的ref减为0) &#123; CommService::decref() &#125; -&gt; </span><br><span class="line"></span><br><span class="line">WFServerBase::handle_unbound</span><br></pre></td></tr></table></figure>
+
+<p>Communicator::shutdown_service代码如下：</p>
+<figure class="highlight cpp"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br></pre></td><td class="code"><pre><span class="line"><span class="function"><span class="type">void</span> <span class="title">Communicator::shutdown_service</span><span class="params">(CommService *service)</span> </span>&#123;</span><br><span class="line">	<span class="built_in">close</span>(service-&gt;listen_fd);</span><br><span class="line">	service-&gt;listen_fd = <span class="number">-1</span>;</span><br><span class="line">	service-&gt;<span class="built_in">drain</span>(<span class="number">-1</span>);</span><br><span class="line">	service-&gt;<span class="built_in">decref</span>();</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p>这里的service-&gt;drain(-1)会将server端目前所有的连接都从mpoller当中移除。然后等待所有连接上下文回调CommServiceTarget::decref将server对象的引用计数减为0后，调用WFServerBase::handle_unbound函数</p>
+<figure class="highlight cpp"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><span class="line"><span class="function"><span class="keyword">inline</span> <span class="type">void</span> <span class="title">CommService::decref</span><span class="params">()</span> </span>&#123;</span><br><span class="line">	<span class="keyword">if</span> (__sync_sub_and_fetch(&amp;<span class="keyword">this</span>-&gt;ref, <span class="number">1</span>) == <span class="number">0</span>)</span><br><span class="line">		<span class="keyword">this</span>-&gt;<span class="built_in">handle_unbound</span>();						<span class="comment">// 最终被重写成：WFServerBase::handle_unbound</span></span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p>WFServerBase::stop的注释说明了该函数是阻塞的，其阻塞主要原因就在wait_finish，它会等待所有的连接被释放然后释放WFServerBase的引用计数后才会跳出等待条件变量的循环。</p>
+<figure class="highlight cpp"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br></pre></td><td class="code"><pre><span class="line"><span class="function"><span class="type">void</span> <span class="title">WFServerBase::handle_unbound</span><span class="params">()</span> </span>&#123;</span><br><span class="line">	<span class="keyword">this</span>-&gt;mutex.<span class="built_in">lock</span>();</span><br><span class="line">	<span class="keyword">this</span>-&gt;unbind_finish = <span class="literal">true</span>;</span><br><span class="line">	<span class="keyword">this</span>-&gt;cond.<span class="built_in">notify_one</span>();</span><br><span class="line">	<span class="keyword">this</span>-&gt;mutex.<span class="built_in">unlock</span>();</span><br><span class="line">&#125;</span><br><span class="line"></span><br><span class="line"><span class="function"><span class="type">void</span> <span class="title">WFServerBase::wait_finish</span><span class="params">()</span> </span>&#123;</span><br><span class="line">	<span class="function">std::unique_lock&lt;std::mutex&gt; <span class="title">lock</span><span class="params">(<span class="keyword">this</span>-&gt;mutex)</span></span>;</span><br><span class="line"></span><br><span class="line">	<span class="keyword">while</span> (!<span class="keyword">this</span>-&gt;unbind_finish)</span><br><span class="line">		<span class="keyword">this</span>-&gt;cond.<span class="built_in">wait</span>(lock);</span><br><span class="line"></span><br><span class="line">	<span class="keyword">this</span>-&gt;<span class="built_in">deinit</span>();</span><br><span class="line">	<span class="keyword">this</span>-&gt;unbind_finish = <span class="literal">false</span>;</span><br><span class="line">	lock.<span class="built_in">unlock</span>();</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<h3 id="探究WFHttpServerTask"><a href="#探究WFHttpServerTask" class="headerlink" title="探究WFHttpServerTask"></a>探究WFHttpServerTask</h3><p>好了，tcpserver的启动流程基本流程已经分析完毕，下面我们重点看看WFHttpServer::new_session的实现。该函数在每轮读取客户端请求时会被调用一次。返回值是类型为CommSession的对象。</p>
+<figure class="highlight cpp"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">template</span>&lt;&gt; <span class="function"><span class="keyword">inline</span></span></span><br><span class="line"><span class="function">CommSession *<span class="title">WFHttpServer::new_session</span><span class="params">(<span class="type">long</span> <span class="type">long</span> seq, CommConnection *conn)</span> </span>&#123;</span><br><span class="line">	WFHttpTask *task;</span><br><span class="line"></span><br><span class="line">	task = WFServerTaskFactory::<span class="built_in">create_http_task</span>(<span class="keyword">this</span>, <span class="keyword">this</span>-&gt;process);</span><br><span class="line">	task-&gt;<span class="built_in">set_keep_alive</span>(<span class="keyword">this</span>-&gt;params.keep_alive_timeout);</span><br><span class="line">	task-&gt;<span class="built_in">set_receive_timeout</span>(<span class="keyword">this</span>-&gt;params.receive_timeout);</span><br><span class="line">	task-&gt;<span class="built_in">get_req</span>()-&gt;<span class="built_in">set_size_limit</span>(<span class="keyword">this</span>-&gt;params.request_size_limit);</span><br><span class="line"></span><br><span class="line">	<span class="keyword">return</span> task;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p>可以看到出现了一个新的类——WFHttpTask，我可以明确告诉你，WFHttpTask只是一个基类，我们应该从final类开始深入分析。</p>
+<p>对于WFHttpTask，它的定义如下：</p>
+<figure class="highlight cpp"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">using</span> WFHttpTask = WFNetworkTask&lt;protocol::HttpRequest,</span><br><span class="line">								 protocol::HttpResponse&gt;;</span><br></pre></td></tr></table></figure>
+
+<p>那么WFNetworkTask是啥呢？先别急，后面再来揭晓它的源码。通过WFServerTaskFactory::create_http_task我们可以找到我们所需要的final类——WFHttpServerTask它的定义如下：</p>
+<figure class="highlight cpp"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">class</span> <span class="title class_">WFHttpServerTask</span> : <span class="keyword">public</span> WFServerTask&lt;protocol::HttpRequest,</span><br><span class="line">											 protocol::HttpResponse&gt; &#123;</span><br><span class="line"><span class="keyword">private</span>:</span><br><span class="line">	<span class="keyword">using</span> TASK = WFNetworkTask&lt;protocol::HttpRequest, protocol::HttpResponse&gt;;</span><br><span class="line"></span><br><span class="line"><span class="keyword">public</span>:</span><br><span class="line">	<span class="built_in">WFHttpServerTask</span>(CommService *service, std::function&lt;<span class="built_in">void</span> (TASK *)&gt;&amp; proc) :</span><br><span class="line">		<span class="built_in">WFServerTask</span>(service, WFGlobal::<span class="built_in">get_scheduler</span>(), proc),</span><br><span class="line">		<span class="built_in">req_is_alive_</span>(<span class="literal">false</span>),</span><br><span class="line">		<span class="built_in">req_has_keep_alive_header_</span>(<span class="literal">false</span>) &#123;  &#125;</span><br><span class="line"></span><br><span class="line"><span class="keyword">protected</span>:</span><br><span class="line">	<span class="function"><span class="keyword">virtual</span> <span class="type">void</span> <span class="title">handle</span><span class="params">(<span class="type">int</span> state, <span class="type">int</span> error)</span></span>;</span><br><span class="line">	<span class="function"><span class="keyword">virtual</span> CommMessageOut *<span class="title">message_out</span><span class="params">()</span></span>;</span><br><span class="line"></span><br><span class="line"><span class="keyword">protected</span>:</span><br><span class="line">	<span class="type">bool</span> req_is_alive_;</span><br><span class="line">	<span class="type">bool</span> req_has_keep_alive_header_;</span><br><span class="line">	std::string req_keep_alive_;</span><br><span class="line">&#125;;</span><br></pre></td></tr></table></figure>
+
+<p>从构造函数当可以看到，再一次对全局单例的CommScheduler的引用。类的成员函数包括hanlde、message_out最终实现，我们重点关注handle的实现：</p>
+<figure class="highlight cpp"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br></pre></td><td class="code"><pre><span class="line"><span class="function"><span class="type">void</span> <span class="title">WFHttpServerTask::handle</span><span class="params">(<span class="type">int</span> state, <span class="type">int</span> error)</span> </span>&#123;</span><br><span class="line">	<span class="keyword">if</span> (state == WFT_STATE_TOREPLY) &#123;</span><br><span class="line">		<span class="comment">/* 设置fianl类的成员变量... */</span></span><br><span class="line">	&#125;</span><br><span class="line"></span><br><span class="line">	<span class="keyword">this</span>-&gt;WFServerTask::<span class="built_in">handle</span>(state, error);</span><br><span class="line">&#125;</span><br><span class="line"></span><br></pre></td></tr></table></figure>
+
+<p>在服务端收完并解析完客户端发来的请求报文之后（在Communicator::handle_incoming_request函数当中）会进入该函数，从WFT_STATE_TOREPLY宏的命名也可以推测到，它代表准备回复的状态。在做完final类一些设置后，最终会调用父类的handle，所以下面深入看看WFServerTask模板类的实现。</p>
+<p><strong>tcpserver任务部分最烧脑的就在WFServerTask模板类的实现</strong>，对于WFNetworkTask模板类，它本身的成员函数对我们理解tcpserver本身来说并不重要。但需要注意的是WFNetworkTask继承自CommRequest。</p>
+<p>简单用字符画了一下WFHttpServerTask的继承树。如下：</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br></pre></td><td class="code"><pre><span class="line">SubTask		CommSession</span><br><span class="line">		\/</span><br><span class="line">	CommRequest</span><br><span class="line">		|</span><br><span class="line">		V</span><br><span class="line">WFNetworkTask&lt;REQ, RESP&gt;	# 该类的实现在对我们理解tcpserver不是特别重要，读者可以跳过该类。</span><br><span class="line">		|</span><br><span class="line">		V</span><br><span class="line">WFServerTask&lt;REQ, RESP&gt;</span><br><span class="line">		|</span><br><span class="line">		V</span><br><span class="line">WFHttpServerTask</span><br></pre></td></tr></table></figure>
+
+<p>在正式讲解WFServerTask前，<strong>先学习几个关键知识点：</strong></p>
+<p>首先回顾一下，SubTask::subtask_done函数实现：</p>
+<figure class="highlight cpp"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br></pre></td><td class="code"><pre><span class="line"><span class="function"><span class="type">void</span> <span class="title">SubTask::subtask_done</span><span class="params">()</span> </span>&#123;</span><br><span class="line">	SubTask *cur = <span class="keyword">this</span>;</span><br><span class="line"></span><br><span class="line">	cur = cur-&gt;<span class="built_in">done</span>();</span><br><span class="line">	<span class="keyword">if</span> (cur) &#123;</span><br><span class="line">		cur-&gt;<span class="built_in">dispatch</span>();		<span class="comment">// 下一个任务的dispatch</span></span><br><span class="line">	&#125;</span><br><span class="line">	<span class="keyword">return</span>;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p>更简单点描述，调done后调dispatch触发任务队列的下一个任务。<strong>（关键点一：）其中done函数实现最后都会调用<code>series_of(this)-&gt;pop()</code>，这行代码是获取SeriesWork串行队列的下一个任务，当队列中（没有任何任务了）山穷水尽了会返回nullptr，并且SeriesWork会delete this（SeriesWork对象本身）。</strong></p>
+<p>然后了解一下两个WFServerTask当中的内嵌类的定义：</p>
+<figure class="highlight cpp"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br><span class="line">36</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">class</span> <span class="title class_">Processor</span> : <span class="keyword">public</span> SubTask &#123;</span><br><span class="line"><span class="keyword">public</span>:</span><br><span class="line">	<span class="built_in">Processor</span>(WFServerTask&lt;REQ, RESP&gt; *task,</span><br><span class="line">				std::function&lt;<span class="built_in">void</span> (WFNetworkTask&lt;REQ, RESP&gt; *)&gt;&amp; proc) :</span><br><span class="line">		<span class="built_in">process</span>(proc) &#123;</span><br><span class="line">		<span class="keyword">this</span>-&gt;task = task;</span><br><span class="line">	&#125;</span><br><span class="line"></span><br><span class="line">	<span class="function"><span class="keyword">virtual</span> <span class="type">void</span> <span class="title">dispatch</span><span class="params">()</span> </span>&#123;</span><br><span class="line">		<span class="keyword">this</span>-&gt;<span class="built_in">process</span>(<span class="keyword">this</span>-&gt;task);		<span class="comment">// 调用</span></span><br><span class="line">		<span class="keyword">this</span>-&gt;task = <span class="literal">NULL</span>;	<span class="comment">/* As a flag. get_conneciton() disabled. */</span></span><br><span class="line">		<span class="keyword">this</span>-&gt;<span class="built_in">subtask_done</span>();</span><br><span class="line">	&#125;</span><br><span class="line"></span><br><span class="line">	<span class="function"><span class="keyword">virtual</span> SubTask *<span class="title">done</span><span class="params">()</span> </span>&#123;</span><br><span class="line">		<span class="keyword">return</span> <span class="built_in">series_of</span>(<span class="keyword">this</span>)-&gt;<span class="built_in">pop</span>();	<span class="comment">// 获取串行队列下一个任务</span></span><br><span class="line">	&#125;</span><br><span class="line"></span><br><span class="line">	std::function&lt;<span class="type">void</span> (WFNetworkTask&lt;REQ, RESP&gt; *)&gt;&amp; process;</span><br><span class="line">	WFServerTask&lt;REQ, RESP&gt; *task;</span><br><span class="line">&#125; processor;</span><br><span class="line"></span><br><span class="line"><span class="keyword">class</span> <span class="title class_">Series</span> : <span class="keyword">public</span> SeriesWork &#123;</span><br><span class="line"><span class="keyword">public</span>:</span><br><span class="line">	<span class="built_in">Series</span>(WFServerTask&lt;REQ, RESP&gt; *task) :</span><br><span class="line">		<span class="built_in">SeriesWork</span>(&amp;task-&gt;processor, <span class="literal">nullptr</span>) &#123;</span><br><span class="line">		<span class="keyword">this</span>-&gt;<span class="built_in">set_last_task</span>(task);</span><br><span class="line">		<span class="keyword">this</span>-&gt;task = task;</span><br><span class="line">	&#125;</span><br><span class="line"></span><br><span class="line">	<span class="keyword">virtual</span> ~<span class="built_in">Series</span>() &#123;</span><br><span class="line">		<span class="keyword">delete</span> <span class="keyword">this</span>-&gt;task;</span><br><span class="line">	&#125;</span><br><span class="line"></span><br><span class="line">	WFServerTask&lt;REQ, RESP&gt; *task;</span><br><span class="line">&#125;;</span><br></pre></td></tr></table></figure>
+
+<ul>
+<li><p>Processor::dispatch函数首先调用了一下构造传进来的回调函数process，然后调用subtask_done，结合上面的分析，它会调用串行队列当中的下一个任务的dispatch函数。</p>
+</li>
+<li><p>对于Series，只有析构和构造函数，从构造函数当中可以看出来，它本质上就是 <strong>（关键点二）只有两个任务的串行队列。并且在该串行队列被delete时，顺带会在析构函数当中delete掉二号任务。</strong>此外，<strong>（关键点三）在每个任务被加到串行队列当中时，会将任务的SubTask::pointer指针指向串行队列对象。</strong></p>
+</li>
+</ul>
+<p>好了，下面从WFServerTask&lt;REQ, RESP&gt;::handle函数开始分析其中的奥妙。源代码如下：</p>
+<figure class="highlight cpp"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">template</span>&lt;<span class="keyword">class</span> <span class="title class_">REQ</span>, <span class="keyword">class</span> <span class="title class_">RESP</span>&gt;</span><br><span class="line"><span class="type">void</span> WFServerTask&lt;REQ, RESP&gt;::<span class="built_in">handle</span>(<span class="type">int</span> state, <span class="type">int</span> error) &#123;</span><br><span class="line">	<span class="keyword">if</span> (state == WFT_STATE_TOREPLY) &#123;</span><br><span class="line">		<span class="keyword">this</span>-&gt;state = WFT_STATE_TOREPLY;</span><br><span class="line">		<span class="keyword">this</span>-&gt;target = <span class="keyword">this</span>-&gt;<span class="built_in">get_target</span>();</span><br><span class="line">		<span class="keyword">new</span> <span class="built_in">Series</span>(<span class="keyword">this</span>);</span><br><span class="line">		<span class="keyword">this</span>-&gt;processor.<span class="built_in">dispatch</span>();</span><br><span class="line">	&#125;</span><br><span class="line">	<span class="keyword">else</span> <span class="keyword">if</span> (<span class="keyword">this</span>-&gt;state == WFT_STATE_TOREPLY) &#123;</span><br><span class="line">		<span class="keyword">this</span>-&gt;state = state;</span><br><span class="line">		<span class="keyword">this</span>-&gt;error = error;</span><br><span class="line">		<span class="keyword">if</span> (error == ETIMEDOUT)</span><br><span class="line">			<span class="keyword">this</span>-&gt;timeout_reason = TOR_TRANSMIT_TIMEOUT;</span><br><span class="line"></span><br><span class="line">		<span class="keyword">this</span>-&gt;<span class="built_in">subtask_done</span>();</span><br><span class="line">	&#125;</span><br><span class="line">	<span class="keyword">else</span></span><br><span class="line">		<span class="keyword">delete</span> <span class="keyword">this</span>;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p>因为WFServerTask顶层的基类包括：SubTask + <strong>CommSession</strong>，对这里着重强调CommSession，因为CommSession当中的handle最终被重写成如上所示的代码。服务端在每次读完（并解析完）客户端发来的数据后，状态迁移池都会回调Communicator::handle_incoming_request函数，在每次写完客户端请求的回复后，状态迁移池都会回调Communicator::handle_reply_result函数。这两函数当最后都会调用session-&gt;handle，所不同的是每次传入的state参数有所不同。<strong>正常情况下，在读完后回调session-&gt;handle传入的state为CS_STATE_TOREPLY，而在写完后回调的session-&gt;handle传入的state为CS_STATE_SUCCESS。</strong></p>
+<ul>
+<li><p>所以在解析完客户端请求后所调用的handle会进入第一个if分支，从代码当中可以看到，它先是将WFServerTask::state数据成员设置成了WFT_STATE_TOREPLY，这为发送完回复再次回到handle进入第二个if分支做准备。然后最关键的是<code>new Series(this);</code>这行代码，如果你第一次看workflow的源码这样的写法一定会让你蒙。<strong>什么鬼？new的成员没用什么变量去接？这不典型内存泄漏了吗？</strong>，但是深入研究下去，这样写好像也没问题。结合上面Series的定义，所以最终new的Series串行队列当中第一个任务是WFServerTask::processor，第二个任务是WFServerTask本身。继续分析第一个if分支的代码，接下来调用了<code>this-&gt;processor.dispatch();</code>函数这也是整个业务代码的起始点。深入分析Processor::dispatch实现可知，它首先调用process回调，我可以直接告诉你此回调正是我们在示例当中创建server时传进来的process函数。在调用process处理完业务代码，然后调用了<code>this-&gt;subtask_done();</code>函数，根据前面提到的<strong>关键点一</strong>，我们可以知道这将返回串行队列的第二个任务即WFServerTask。我想这里一定会有读者有疑惑，怎么就返回第二个任务了？不是应该返回第一个任务吗？如果你有这样的疑惑，我建议你仔细阅读一下SeriesWork这部分的源码，所谓的两个任务实际上首个任务是不会入队列的，需要人手动触发，而在WFServerTask&lt;REQ, RESP&gt;::handle当中其实已经手动触发了一号任务————Processor，所以第一次调用subtask_done实际上返回的是第二个任务。好了回到正题，进入二号任务的dispatch（<code>WFServerTask::dispatch</code>），因为我们在前面已经将WFServerTask::state设置成了WFT_STATE_TOREPLY所以，进入if分支，这里应该开个香槟了，因为这里调用了<code>this-&gt;scheduler-&gt;reply</code>，这意味着服务端向客户端发送回复了！！！正常情况下会返回大于零的值，然后直接返回。这里罗列一下调用和返回流程：</p>
+<p>  首先是调用流程：</p>
+  <figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><span class="line">WFServerTask&lt;REQ, RESP&gt;::handle -&gt;</span><br><span class="line">Processor::dispatch -&gt; </span><br><span class="line">Processor::subtask_done -&gt; </span><br><span class="line">WFServerTask::dispatch</span><br></pre></td></tr></table></figure>
+
+<p>  然后是返回流程：</p>
+  <figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><span class="line">从第二个任务的WFServerTask的：dispatch函数当中 返回到 -&gt; </span><br><span class="line">第一个任务Processor的基类函数：subtask_done -&gt; </span><br><span class="line">返回到第一个任务Processor的dispatch函数 -&gt; </span><br><span class="line">返回到WFServerTask&lt;REQ, RESP&gt;::handle函数。</span><br></pre></td></tr></table></figure>
+
+<p>  我这里想表达的是：<strong>WFServerTask&lt;REQ, RESP&gt;::handle第一个if分支的一次dispatch实际上嵌套执行了两个任务。</strong>，注意是<strong>嵌套</strong>，这点很重要！</p>
+</li>
+<li><p>然后在写完回复后，会再次回到WFServerTask&lt;REQ, RESP&gt;::handle，此时会进入第二个if分支，并且根据<strong>关键点一</strong>，<strong>因为此时第一个if分支new的串行队列已经为空，所以WFServerTask::subtask_done操作会将第一个if分支new的串行队列给释放掉，同时因为Series的释放，它的析构函数又会将WFServerTask给释放掉！</strong></p>
+</li>
+</ul>
+<p>下面贴出WFServerTask关键的代码：</p>
+<figure class="highlight cpp"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br><span class="line">36</span><br><span class="line">37</span><br><span class="line">38</span><br><span class="line">39</span><br><span class="line">40</span><br><span class="line">41</span><br><span class="line">42</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">template</span>&lt;<span class="keyword">class</span> <span class="title class_">REQ</span>, <span class="keyword">class</span> <span class="title class_">RESP</span>&gt;</span><br><span class="line"><span class="keyword">class</span> <span class="title class_">WFServerTask</span> : <span class="keyword">public</span> WFNetworkTask&lt;REQ, RESP&gt; &#123;</span><br><span class="line"><span class="keyword">protected</span>:</span><br><span class="line">	<span class="function"><span class="keyword">virtual</span> CommMessageOut *<span class="title">message_out</span><span class="params">()</span> </span>&#123; <span class="keyword">return</span> &amp;<span class="keyword">this</span>-&gt;resp; &#125;</span><br><span class="line">	<span class="function"><span class="keyword">virtual</span> CommMessageIn *<span class="title">message_in</span><span class="params">()</span> </span>&#123; <span class="keyword">return</span> &amp;<span class="keyword">this</span>-&gt;req; &#125;</span><br><span class="line">	<span class="function"><span class="keyword">virtual</span> <span class="type">void</span> <span class="title">handle</span><span class="params">(<span class="type">int</span> state, <span class="type">int</span> error)</span></span>;</span><br><span class="line"></span><br><span class="line"><span class="keyword">protected</span>:</span><br><span class="line">	<span class="function"><span class="keyword">virtual</span> <span class="type">void</span> <span class="title">dispatch</span><span class="params">()</span> </span>&#123;</span><br><span class="line">		<span class="keyword">if</span> (<span class="keyword">this</span>-&gt;state == WFT_STATE_TOREPLY) &#123;</span><br><span class="line">			<span class="comment">/* Enable get_connection() again if the reply() call is success. */</span></span><br><span class="line">			<span class="keyword">this</span>-&gt;processor.task = <span class="keyword">this</span>;</span><br><span class="line">			<span class="keyword">if</span> (<span class="keyword">this</span>-&gt;scheduler-&gt;<span class="built_in">reply</span>(<span class="keyword">this</span>) &gt;= <span class="number">0</span>)	<span class="comment">// 发生回复</span></span><br><span class="line">				<span class="keyword">return</span>;</span><br><span class="line"></span><br><span class="line">			<span class="keyword">this</span>-&gt;state = WFT_STATE_SYS_ERROR;</span><br><span class="line">			<span class="keyword">this</span>-&gt;error = errno;</span><br><span class="line">			<span class="keyword">this</span>-&gt;processor.task = <span class="literal">NULL</span>;</span><br><span class="line">		&#125;</span><br><span class="line">		<span class="keyword">else</span></span><br><span class="line">			<span class="keyword">this</span>-&gt;scheduler-&gt;<span class="built_in">shutdown</span>(<span class="keyword">this</span>);</span><br><span class="line"></span><br><span class="line">		<span class="keyword">this</span>-&gt;<span class="built_in">subtask_done</span>();</span><br><span class="line">	&#125;</span><br><span class="line"></span><br><span class="line">	<span class="function"><span class="keyword">virtual</span> SubTask *<span class="title">done</span><span class="params">()</span> </span>&#123;</span><br><span class="line">		SeriesWork *series = <span class="built_in">series_of</span>(<span class="keyword">this</span>);</span><br><span class="line"></span><br><span class="line">		<span class="keyword">if</span> (<span class="keyword">this</span>-&gt;callback)</span><br><span class="line">			<span class="keyword">this</span>-&gt;<span class="built_in">callback</span>(<span class="keyword">this</span>);</span><br><span class="line"></span><br><span class="line">		<span class="comment">/* Defer deleting the task. */</span></span><br><span class="line">		<span class="keyword">return</span> series-&gt;<span class="built_in">pop</span>();</span><br><span class="line">	&#125;</span><br><span class="line"></span><br><span class="line"><span class="keyword">public</span>:</span><br><span class="line">	<span class="built_in">WFServerTask</span>(CommService *service, CommScheduler *scheduler,</span><br><span class="line">				 std::function&lt;<span class="built_in">void</span> (WFNetworkTask&lt;REQ, RESP&gt; *)&gt;&amp; proc) :</span><br><span class="line">		<span class="built_in">WFNetworkTask</span>&lt;REQ, RESP&gt;(<span class="literal">NULL</span>, scheduler, <span class="literal">nullptr</span>),</span><br><span class="line">		<span class="built_in">processor</span>(<span class="keyword">this</span>, proc)</span><br><span class="line">	&#123; &#125;</span><br><span class="line">&#125;;</span><br></pre></td></tr></table></figure>
+
+<p>好了基本的HTTPServer端处理客户端请求的流程已经梳理完毕，最后贴出我在看源码的过程当中，所梳理流程笔记，可以给读者提供一些思路。同时也作为我个人的备忘笔记：</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br><span class="line">36</span><br><span class="line">37</span><br><span class="line">38</span><br><span class="line">39</span><br><span class="line">40</span><br></pre></td><td class="code"><pre><span class="line"># Workflow服务端处理连接流程分析</span><br><span class="line"></span><br><span class="line">server:</span><br><span class="line"></span><br><span class="line">    entry: </span><br><span class="line">        accept_conn: CONN_STATE_CONNECTED -&gt; </span><br><span class="line">            create_request: CONN_STATE_RECEIVING -&gt;                             // tag1</span><br><span class="line">                append_message: 当http请求接受完毕时：CONN_STATE_SUCCESS -&gt;</span><br><span class="line">                    handle_incoming_request: </span><br><span class="line">                        ==&gt;     CONN_STATE_IDLE &amp;&amp; entry被追加到target-&gt;idle_list上;</span><br><span class="line">                        ==&gt;    session-&gt;passive = 2;</span><br><span class="line">                        ==&gt;    state = CS_STATE_TOREPLY</span><br><span class="line"></span><br><span class="line">    |   |   |</span><br><span class="line">    V   V   V</span><br><span class="line">    WFHttpServerTask::handle -&gt;</span><br><span class="line">        WFServerTask&lt;REQ, RESP&gt;::handle -&gt;</span><br><span class="line">            ```cpp</span><br><span class="line">                template&lt;class REQ, class RESP&gt;</span><br><span class="line">                void WFServerTask&lt;REQ, RESP&gt;::handle(int state, int error)</span><br><span class="line">                &#123;</span><br><span class="line">                    if (state == WFT_STATE_TOREPLY)         // √</span><br><span class="line">                    &#123;</span><br><span class="line">                        this-&gt;state = WFT_STATE_TOREPLY;</span><br><span class="line">                        this-&gt;target = this-&gt;get_target();</span><br><span class="line">                        new Series(this);</span><br><span class="line">                        this-&gt;processor.dispatch();</span><br><span class="line">                    &#125;</span><br><span class="line">                    else if (this-&gt;state == WFT_STATE_TOREPLY)</span><br><span class="line">                    &#123;</span><br><span class="line">                        this-&gt;state = state;</span><br><span class="line">                        this-&gt;error = error;</span><br><span class="line">                        if (error == ETIMEDOUT)</span><br><span class="line">                            this-&gt;timeout_reason = TOR_TRANSMIT_TIMEOUT;</span><br><span class="line"></span><br><span class="line">                        this-&gt;subtask_done();</span><br><span class="line">                    &#125;</span><br><span class="line">                    else</span><br><span class="line">                        delete this;</span><br><span class="line">                &#125;</span><br></pre></td></tr></table></figure>
+
+<pre><code>    WFServerTask&lt;REQ, RESP&gt;::dispatch -&gt;
+        this-&gt;scheduler-&gt;reply(this) -&gt; 以写方式将entry添加到epoll上
+            session-&gt;passive = 3;
+
+|   |   |       
+V   V   V
+handle_reply_result -&gt;
+    ===&gt; entry-&gt;state = CONN_STATE_KEEPALIVE &amp;&amp; entry 被追加到service-&gt;alive_list &amp;&amp; 以读方式将entry添加到epoll上（如果保活的话）
+    ===&gt; state = CS_STATE_SUCCESS
+
+|   |   |
+V   V   V
+WFHttpServerTask::handle -&gt;
+    WFServerTask&lt;REQ, RESP&gt;::handle -&gt;
+        <figure class="highlight cpp"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">template</span>&lt;<span class="keyword">class</span> <span class="title class_">REQ</span>, <span class="keyword">class</span> <span class="title class_">RESP</span>&gt;</span><br><span class="line"><span class="type">void</span> WFServerTask&lt;REQ, RESP&gt;::<span class="built_in">handle</span>(<span class="type">int</span> state, <span class="type">int</span> error)</span><br><span class="line">&#123;</span><br><span class="line">    <span class="keyword">if</span> (state == WFT_STATE_TOREPLY)</span><br><span class="line">    &#123;</span><br><span class="line">        <span class="keyword">this</span>-&gt;state = WFT_STATE_TOREPLY;</span><br><span class="line">        <span class="keyword">this</span>-&gt;target = <span class="keyword">this</span>-&gt;<span class="built_in">get_target</span>();</span><br><span class="line">        <span class="keyword">new</span> <span class="built_in">Series</span>(<span class="keyword">this</span>);</span><br><span class="line">        <span class="keyword">this</span>-&gt;processor.<span class="built_in">dispatch</span>();</span><br><span class="line">    &#125;</span><br><span class="line">    <span class="keyword">else</span> <span class="keyword">if</span> (<span class="keyword">this</span>-&gt;state == WFT_STATE_TOREPLY)  <span class="comment">// √</span></span><br><span class="line">    &#123;</span><br><span class="line">        <span class="keyword">this</span>-&gt;state = state;</span><br><span class="line">        <span class="keyword">this</span>-&gt;error = error;</span><br><span class="line">        <span class="keyword">if</span> (error == ETIMEDOUT)</span><br><span class="line">            <span class="keyword">this</span>-&gt;timeout_reason = TOR_TRANSMIT_TIMEOUT;</span><br><span class="line"></span><br><span class="line">        <span class="keyword">this</span>-&gt;<span class="built_in">subtask_done</span>();       <span class="comment">// will delete Series for first &#x27;if&#x27; branch malloc</span></span><br><span class="line">    &#125;</span><br><span class="line">    <span class="keyword">else</span></span><br><span class="line">        <span class="keyword">delete</span> <span class="keyword">this</span>;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+|   |   |
+V   V   V
+go to tag1.
+</code></pre>
+<pre><code>
+---
+
+**本章完结**
+</code></pre>
+
+    </div>
+
+    
+    
+    
+        <div class="reward-container">
+  <div></div>
+  <button onclick="var qr = document.getElementById('qr'); qr.style.display = (qr.style.display === 'none') ? 'block' : 'none';">
+    打赏
+  </button>
+  <div id="qr" style="display: none;">
+      
+      <div style="display: inline-block;">
+        <img src="/images/wechatpay.jpg" alt="半个馒头 微信支付">
+        <p>微信支付</p>
+      </div>
+
+  </div>
+</div>
+
+
+      <footer class="post-footer">
+          <div class="post-tags">
+              <a href="/tags/%E9%AB%98%E6%80%A7%E8%83%BD%E6%9C%8D%E5%8A%A1%E5%99%A8%E6%A1%86%E6%9E%B6/" rel="tag"># 高性能服务器框架</a>
+          </div>
+
+        
+
+
+        
+    <div class="post-nav">
+      <div class="post-nav-item">
+    <a href="/2024/11/04/mediaserver/OSD/" rel="prev" title="OSD实现原理">
+      <i class="fa fa-chevron-left"></i> OSD实现原理
+    </a></div>
+      <div class="post-nav-item">
+    <a href="/2024/11/17/linux_driver/device_tree/" rel="next" title="Linux驱动开发——设备树随记">
+      Linux驱动开发——设备树随记 <i class="fa fa-chevron-right"></i>
+    </a></div>
+    </div>
+      </footer>
+    
+  </article>
+  
+  
+  
+
+
+
+          </div>
+          
+
+<script>
+  window.addEventListener('tabs:register', () => {
+    let { activeClass } = CONFIG.comments;
+    if (CONFIG.comments.storage) {
+      activeClass = localStorage.getItem('comments_active') || activeClass;
+    }
+    if (activeClass) {
+      let activeTab = document.querySelector(`a[href="#comment-${activeClass}"]`);
+      if (activeTab) {
+        activeTab.click();
+      }
+    }
+  });
+  if (CONFIG.comments.storage) {
+    window.addEventListener('tabs:click', event => {
+      if (!event.target.matches('.tabs-comment .tab-content .tab-pane')) return;
+      let commentClass = event.target.classList[1];
+      localStorage.setItem('comments_active', commentClass);
+    });
+  }
+</script>
+
+        </div>
+          
+  
+  <div class="toggle sidebar-toggle">
+    <span class="toggle-line toggle-line-first"></span>
+    <span class="toggle-line toggle-line-middle"></span>
+    <span class="toggle-line toggle-line-last"></span>
+  </div>
+
+  <aside class="sidebar">
+    <div class="sidebar-inner">
+
+      <ul class="sidebar-nav motion-element">
+        <li class="sidebar-nav-toc">
+          文章目录
+        </li>
+        <li class="sidebar-nav-overview">
+          站点概览
+        </li>
+      </ul>
+
+      <!--noindex-->
+      <div class="post-toc-wrap sidebar-panel">
+          <div class="post-toc motion-element"><ol class="nav"><li class="nav-item nav-level-2"><a class="nav-link" href="#%E5%89%8D%E8%A8%80"><span class="nav-number">1.</span> <span class="nav-text">前言</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#%E6%AD%A3%E6%96%87"><span class="nav-number">2.</span> <span class="nav-text">正文</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#%E7%94%A8%E6%B3%95"><span class="nav-number">2.1.</span> <span class="nav-text">用法</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#%E6%8E%A2%E7%A9%B6WFHttpServer"><span class="nav-number">2.2.</span> <span class="nav-text">探究WFHttpServer</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#%E6%8E%A2%E7%A9%B6WFHttpServerTask"><span class="nav-number">2.3.</span> <span class="nav-text">探究WFHttpServerTask</span></a></li></ol></li></ol></div>
+      </div>
+      <!--/noindex-->
+
+      <div class="site-overview-wrap sidebar-panel">
+        <div class="site-author motion-element" itemprop="author" itemscope itemtype="http://schema.org/Person">
+    <img class="site-author-image" itemprop="image" alt="半个馒头"
+      src="/images/avatar.jpg">
+  <p class="site-author-name" itemprop="name">半个馒头</p>
+  <div class="site-description" itemprop="description"></div>
+</div>
+<div class="site-state-wrap motion-element">
+  <nav class="site-state">
+      <div class="site-state-item site-state-posts">
+          <a href="/archives/">
+        
+          <span class="site-state-item-count">58</span>
+          <span class="site-state-item-name">日志</span>
+        </a>
+      </div>
+      <div class="site-state-item site-state-tags">
+            <a href="/tags/">
+          
+        <span class="site-state-item-count">18</span>
+        <span class="site-state-item-name">标签</span></a>
+      </div>
+  </nav>
+</div>
+  <div class="links-of-author motion-element">
+      <span class="links-of-author-item">
+        <a href="https://github.com/LunarStore" title="GitHub → https:&#x2F;&#x2F;github.com&#x2F;LunarStore" rel="noopener" target="_blank"><i class="fa fa-fw fa-github"></i>GitHub</a>
+      </span>
+      <span class="links-of-author-item">
+        <a href="mailto:18772124875@163.com" title="网易邮箱 → mailto:18772124875@163.com" rel="noopener" target="_blank"><i class="fa fa-fw fa-fas fa-envelope"></i>网易邮箱</a>
+      </span>
+  </div>
+
+
+  <div class="links-of-blogroll motion-element">
+    <div class="links-of-blogroll-title">
+      <i class="fa fa-fw fa-link"></i>
+      友情链接
+    </div>
+    <ul class="links-of-blogroll-list">
+        <li class="links-of-blogroll-item">
+          <a href="https://blog.csdn.net/m0_52566365" title="https:&#x2F;&#x2F;blog.csdn.net&#x2F;m0_52566365" rel="noopener" target="_blank">CSDN博客地址</a>
+        </li>
+    </ul>
+  </div>
+
+      </div>
+        <div class="back-to-top motion-element">
+          <i class="fa fa-arrow-up"></i>
+          <span>0%</span>
+        </div>
+
+    </div>
+  </aside>
+  <div id="sidebar-dimmer"></div>
+
+
+      </div>
+    </main>
+
+    <footer class="footer">
+      <div class="footer-inner">
+        
+
+        
+
+<div class="copyright">
+  
+  &copy; 
+  <span itemprop="copyrightYear">2025</span>
+  <span class="with-love">
+    <i class="fa fa-user"></i>
+  </span>
+  <span class="author" itemprop="copyrightHolder">半个馒头</span>
+</div>
+  <div class="powered-by">由 <a href="https://hexo.io/" class="theme-link" rel="noopener" target="_blank">Hexo</a> & <a href="https://theme-next.org/" class="theme-link" rel="noopener" target="_blank">NexT.Gemini</a> 强力驱动
+  </div>
+
+        
+<div class="busuanzi-count">
+  <script async src="https://busuanzi.ibruce.info/busuanzi/2.3/busuanzi.pure.mini.js"></script>
+    <span class="post-meta-item" id="busuanzi_container_site_uv" style="display: none;">
+      <span class="post-meta-item-icon">
+        <i class="fa fa-user"></i>
+      </span>
+      <span class="site-uv" title="总访客量">
+        <span id="busuanzi_value_site_uv"></span>
+      </span>
+    </span>
+    <span class="post-meta-divider">|</span>
+    <span class="post-meta-item" id="busuanzi_container_site_pv" style="display: none;">
+      <span class="post-meta-item-icon">
+        <i class="fa fa-eye"></i>
+      </span>
+      <span class="site-pv" title="总访问量">
+        <span id="busuanzi_value_site_pv"></span>
+      </span>
+    </span>
+</div>
+
+
+
+
+
+
+
+
+      </div>
+    </footer>
+  </div>
+
+  
+  <script src="/lib/anime.min.js"></script>
+  <script src="/lib/velocity/velocity.min.js"></script>
+  <script src="/lib/velocity/velocity.ui.min.js"></script>
+
+<script src="/js/utils.js"></script>
+
+<script src="/js/motion.js"></script>
+
+
+<script src="/js/schemes/pisces.js"></script>
+
+
+<script src="/js/next-boot.js"></script>
+
+
+
+
+  
+
+
+
+
+  
+<script src="/js/local-search.js"></script>
+
+
+
+
+
+
+
+
+
+
+
+
+
+  
+
+  
+
+</body>
+</html>

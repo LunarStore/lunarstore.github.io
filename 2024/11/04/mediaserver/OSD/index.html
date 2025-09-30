@@ -1,0 +1,632 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=2">
+<meta name="theme-color" content="#222">
+<meta name="generator" content="Hexo 7.3.0">
+  <link rel="apple-touch-icon" sizes="180x180" href="/images/apple-touch-icon-next.png">
+  <link rel="icon" type="image/png" sizes="32x32" href="/images/favicon-32x32-next.png">
+  <link rel="icon" type="image/png" sizes="16x16" href="/images/favicon-16x16-next.png">
+  <link rel="mask-icon" href="/images/logo.svg" color="#222">
+
+<link rel="stylesheet" href="/css/main.css">
+
+
+<link rel="stylesheet" href="/lib/font-awesome/css/font-awesome.min.css">
+  <link rel="stylesheet" href="/lib/pace/pace-theme-flash.min.css">
+  <script src="/lib/pace/pace.min.js"></script>
+
+<script id="hexo-configurations">
+    var NexT = window.NexT || {};
+    var CONFIG = {"hostname":"www.halfmantou.xyz","root":"/","scheme":"Gemini","version":"7.8.0","exturl":false,"sidebar":{"position":"left","display":"post","padding":18,"offset":12,"onmobile":false},"copycode":{"enable":true,"show_result":true,"style":null},"back2top":{"enable":true,"sidebar":true,"scrollpercent":true},"bookmark":{"enable":false,"color":"#222","save":"auto"},"fancybox":false,"mediumzoom":false,"lazyload":false,"pangu":false,"comments":{"style":"tabs","active":null,"storage":true,"lazyload":false,"nav":null},"algolia":{"hits":{"per_page":10},"labels":{"input_placeholder":"Search for Posts","hits_empty":"We didn't find any results for the search: ${query}","hits_stats":"${hits} results found in ${time} ms"}},"localsearch":{"enable":true,"trigger":"auto","top_n_per_article":3,"unescape":false,"preload":false},"motion":{"enable":true,"async":false,"transition":{"post_block":"fadeIn","post_header":"slideDownIn","post_body":"slideDownIn","coll_header":"slideLeftIn","sidebar":"slideUpIn"}},"path":"search.json"};
+  </script>
+
+  <meta name="description" content="前言本文简单记录一下我在学习IPCamera项目的的OSD的原理的过程。 在学习OSD的过程当中，可能需要补充的基础知识：  OSD是什么？  BMP图像文件格式大致组成？  图像调色（Palette）的原理？  RGA常用接口的使用？">
+<meta property="og:type" content="article">
+<meta property="og:title" content="OSD实现原理">
+<meta property="og:url" content="https://www.halfmantou.xyz/2024/11/04/mediaserver/OSD/index.html">
+<meta property="og:site_name" content="碎碎念念">
+<meta property="og:description" content="前言本文简单记录一下我在学习IPCamera项目的的OSD的原理的过程。 在学习OSD的过程当中，可能需要补充的基础知识：  OSD是什么？  BMP图像文件格式大致组成？  图像调色（Palette）的原理？  RGA常用接口的使用？">
+<meta property="og:locale" content="zh_CN">
+<meta property="og:image" content="https://www.halfmantou.xyz/2024/11/04/mediaserver/OSD/photo/OSDInit.drawio.png">
+<meta property="og:image" content="https://www.halfmantou.xyz/2024/11/04/mediaserver/OSD/photo/OSDChart.drawio.png">
+<meta property="article:published_time" content="2024-11-04T04:00:00.000Z">
+<meta property="article:modified_time" content="2025-09-29T14:24:24.870Z">
+<meta property="article:author" content="半个馒头">
+<meta property="article:tag" content="音视频">
+<meta name="twitter:card" content="summary">
+<meta name="twitter:image" content="https://www.halfmantou.xyz/2024/11/04/mediaserver/OSD/photo/OSDInit.drawio.png">
+
+<link rel="canonical" href="https://www.halfmantou.xyz/2024/11/04/mediaserver/OSD/">
+
+
+<script id="page-configurations">
+  // https://hexo.io/docs/variables.html
+  CONFIG.page = {
+    sidebar: "",
+    isHome : false,
+    isPost : true,
+    lang   : 'zh-CN'
+  };
+</script>
+
+  <title>OSD实现原理 | 碎碎念念</title>
+  
+
+
+
+
+
+
+  <noscript>
+  <style>
+  .use-motion .brand,
+  .use-motion .menu-item,
+  .sidebar-inner,
+  .use-motion .post-block,
+  .use-motion .pagination,
+  .use-motion .comments,
+  .use-motion .post-header,
+  .use-motion .post-body,
+  .use-motion .collection-header { opacity: initial; }
+
+  .use-motion .site-title,
+  .use-motion .site-subtitle {
+    opacity: initial;
+    top: initial;
+  }
+
+  .use-motion .logo-line-before i { left: initial; }
+  .use-motion .logo-line-after i { right: initial; }
+  </style>
+</noscript>
+
+</head>
+
+<body itemscope itemtype="http://schema.org/WebPage">
+  <div class="container use-motion">
+    <div class="headband"></div>
+
+    <header class="header" itemscope itemtype="http://schema.org/WPHeader">
+      <div class="header-inner"><div class="site-brand-container">
+  <div class="site-nav-toggle">
+    <div class="toggle" aria-label="切换导航栏">
+      <span class="toggle-line toggle-line-first"></span>
+      <span class="toggle-line toggle-line-middle"></span>
+      <span class="toggle-line toggle-line-last"></span>
+    </div>
+  </div>
+
+  <div class="site-meta">
+
+    <a href="/" class="brand" rel="start">
+      <span class="logo-line-before"><i></i></span>
+      <h1 class="site-title">碎碎念念</h1>
+      <span class="logo-line-after"><i></i></span>
+    </a>
+  </div>
+
+  <div class="site-nav-right">
+    <div class="toggle popup-trigger">
+        <i class="fa fa-search fa-fw fa-lg"></i>
+    </div>
+  </div>
+</div>
+
+
+
+
+<nav class="site-nav">
+  <ul id="menu" class="menu">
+        <li class="menu-item menu-item-home">
+
+    <a href="/" rel="section"><i class="fa fa-fw fa-home"></i>首页</a>
+
+  </li>
+        <li class="menu-item menu-item-about">
+
+    <a href="/about/" rel="section"><i class="fa fa-fw fa-user"></i>关于</a>
+
+  </li>
+        <li class="menu-item menu-item-tags">
+
+    <a href="/tags/" rel="section"><i class="fa fa-fw fa-tags"></i>标签<span class="badge">18</span></a>
+
+  </li>
+        <li class="menu-item menu-item-categories">
+
+    <a href="/categories/" rel="section"><i class="fa fa-fw fa-th"></i>分类<span class="badge">0</span></a>
+
+  </li>
+        <li class="menu-item menu-item-archives">
+
+    <a href="/archives/" rel="section"><i class="fa fa-fw fa-archive"></i>归档<span class="badge">58</span></a>
+
+  </li>
+      <li class="menu-item menu-item-search">
+        <a role="button" class="popup-trigger"><i class="fa fa-search fa-fw"></i>搜索
+        </a>
+      </li>
+  </ul>
+</nav>
+
+
+
+  <div class="search-pop-overlay">
+    <div class="popup search-popup">
+        <div class="search-header">
+  <span class="search-icon">
+    <i class="fa fa-search"></i>
+  </span>
+  <div class="search-input-container">
+    <input autocomplete="off" autocapitalize="off"
+           placeholder="搜索..." spellcheck="false"
+           type="search" class="search-input">
+  </div>
+  <span class="popup-btn-close">
+    <i class="fa fa-times-circle"></i>
+  </span>
+</div>
+<div id="search-result">
+  <div id="no-result">
+    <i class="fa fa-spinner fa-pulse fa-5x fa-fw"></i>
+  </div>
+</div>
+
+    </div>
+  </div>
+
+</div>
+    </header>
+
+    
+  <div class="reading-progress-bar"></div>
+
+  <a href="https://github.com/LunarStore" class="github-corner" title="Follow me on GitHub" aria-label="Follow me on GitHub" rel="noopener" target="_blank"><svg width="80" height="80" viewBox="0 0 250 250" aria-hidden="true"><path d="M0,0 L115,115 L130,115 L142,142 L250,250 L250,0 Z"></path><path d="M128.3,109.0 C113.8,99.7 119.0,89.6 119.0,89.6 C122.0,82.7 120.5,78.6 120.5,78.6 C119.2,72.0 123.4,76.3 123.4,76.3 C127.3,80.9 125.5,87.3 125.5,87.3 C122.9,97.6 130.6,101.9 134.4,103.2" fill="currentColor" style="transform-origin: 130px 106px;" class="octo-arm"></path><path d="M115.0,115.0 C114.9,115.1 118.7,116.5 119.8,115.4 L133.7,101.6 C136.9,99.2 139.9,98.4 142.2,98.6 C133.8,88.0 127.5,74.4 143.8,58.0 C148.5,53.4 154.0,51.2 159.7,51.0 C160.3,49.4 163.2,43.6 171.4,40.1 C171.4,40.1 176.1,42.5 178.8,56.2 C183.1,58.6 187.2,61.8 190.9,65.4 C194.5,69.0 197.7,73.2 200.1,77.6 C213.8,80.2 216.3,84.9 216.3,84.9 C212.7,93.1 206.9,96.0 205.4,96.6 C205.1,102.4 203.0,107.8 198.3,112.5 C181.9,128.9 168.3,122.5 157.7,114.1 C157.9,116.9 156.7,120.9 152.7,124.9 L141.0,136.5 C139.8,137.7 141.6,141.9 141.8,141.8 Z" fill="currentColor" class="octo-body"></path></svg></a>
+
+
+    <main class="main">
+      <div class="main-inner">
+        <div class="content-wrap">
+          
+
+          <div class="content post posts-expand">
+            
+
+    
+  
+  
+  <article itemscope itemtype="http://schema.org/Article" class="post-block" lang="zh-CN">
+    <link itemprop="mainEntityOfPage" href="https://www.halfmantou.xyz/2024/11/04/mediaserver/OSD/">
+
+    <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
+      <meta itemprop="image" content="/images/avatar.jpg">
+      <meta itemprop="name" content="半个馒头">
+      <meta itemprop="description" content="">
+    </span>
+
+    <span hidden itemprop="publisher" itemscope itemtype="http://schema.org/Organization">
+      <meta itemprop="name" content="碎碎念念">
+    </span>
+      <header class="post-header">
+        <h1 class="post-title" itemprop="name headline">
+          OSD实现原理
+        </h1>
+
+        <div class="post-meta">
+            <span class="post-meta-item">
+              <span class="post-meta-item-icon">
+                <i class="fa fa-calendar-o"></i>
+              </span>
+              <span class="post-meta-item-text">发表于</span>
+
+              <time title="创建时间：2024-11-04 12:00:00" itemprop="dateCreated datePublished" datetime="2024-11-04T12:00:00+08:00">2024-11-04</time>
+            </span>
+              <span class="post-meta-item">
+                <span class="post-meta-item-icon">
+                  <i class="fa fa-calendar-check-o"></i>
+                </span>
+                <span class="post-meta-item-text">更新于</span>
+                <time title="修改时间：2025-09-29 22:24:24" itemprop="dateModified" datetime="2025-09-29T22:24:24+08:00">2025-09-29</time>
+              </span>
+
+          
+            <span class="post-meta-item" title="阅读次数" id="busuanzi_container_page_pv" style="display: none;">
+              <span class="post-meta-item-icon">
+                <i class="fa fa-eye"></i>
+              </span>
+              <span class="post-meta-item-text">阅读次数：</span>
+              <span id="busuanzi_value_page_pv"></span>
+            </span>
+
+        </div>
+      </header>
+
+    
+    
+    
+    <div class="post-body" itemprop="articleBody">
+
+      
+        <h2 id="前言"><a href="#前言" class="headerlink" title="前言"></a>前言</h2><p>本文简单记录一下我在学习IPCamera项目的的OSD的原理的过程。</p>
+<p>在学习OSD的过程当中，可能需要补充的基础知识：</p>
+<ol>
+<li><p>OSD是什么？</p>
+</li>
+<li><p>BMP图像文件格式大致组成？</p>
+</li>
+<li><p>图像调色（Palette）的原理？</p>
+</li>
+<li><p>RGA常用接口的使用？</p>
+<span id="more"></span></li>
+</ol>
+<p>涉及的项目的文件路径：</p>
+<ol>
+<li><p>osd服务：app&#x2F;mediaserver&#x2F;src&#x2F;utils&#x2F;osd。最关键的应该是osd_server.h&#x2F;cpp文件。阅读完这个文件的代码，基本就能了解osd大概的实现原理，然后其他的文件都是实现细节相关的。</p>
+</li>
+<li><p>编码器的实现，包括如下文件：</p>
+<ul>
+<li><p>编解码器基类头文件：external&#x2F;rkmedia&#x2F;include&#x2F;easymedia&#x2F;encoder.h和codec.h</p>
+</li>
+<li><p>编解码器基类源文件：external&#x2F;rkmedia&#x2F;src&#x2F;encoder.cc</p>
+</li>
+<li><p>rkmpp编码器的封装：external&#x2F;rkmedia&#x2F;src&#x2F;rkmpp&#x2F;mpp_encoder和mpp_final_encoder</p>
+</li>
+</ul>
+</li>
+<li><p>OSD绘制：包括使用RGA“手动”绘制OSD和使用瑞芯微提供的底层mpp接口“自动”绘制。</p>
+</li>
+</ol>
+<h2 id="OSD是什么？"><a href="#OSD是什么？" class="headerlink" title="OSD是什么？"></a>OSD是什么？</h2><p>首先需要了解OSD是什么？有什么意义？一句话概括：OSD就是给一段原生的实时视频或者录像的每一帧加上一点东西，包括但不限于：logo、时间日期，提示语等。</p>
+<h2 id="在IPCamera中，OSD是如何实现的？"><a href="#在IPCamera中，OSD是如何实现的？" class="headerlink" title="在IPCamera中，OSD是如何实现的？"></a>在IPCamera中，OSD是如何实现的？</h2><p>在IPCamera中，OSD是作为一个服务来实现。实现于mediaserver层。我这里直接放上一段OSD实现最核心的代码：</p>
+<figure class="highlight cpp"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">// 位于文件：app/mediaserver/src/utils/osd/osd_server.cpp</span></span><br><span class="line"><span class="function"><span class="type">static</span> <span class="type">void</span> *<span class="title">ServerProcess</span><span class="params">(<span class="type">void</span> *arg)</span> </span>&#123;</span><br><span class="line">  <span class="keyword">auto</span> os = <span class="built_in">reinterpret_cast</span>&lt;OSDServer *&gt;(arg);</span><br><span class="line">  <span class="type">char</span> thread_name[<span class="number">40</span>];</span><br><span class="line">  <span class="built_in">snprintf</span>(thread_name, <span class="built_in">sizeof</span>(thread_name), <span class="string">&quot;OSDServer[%d]&quot;</span>, os-&gt;<span class="built_in">GetWidth</span>());</span><br><span class="line">  <span class="built_in">prctl</span>(PR_SET_NAME, thread_name);</span><br><span class="line">  <span class="built_in">LOG_DEBUG</span>(<span class="string">&quot;osd ServerProcess in\n&quot;</span>);</span><br><span class="line">  <span class="type">int</span> time_count = <span class="number">0</span>;</span><br><span class="line">  <span class="keyword">while</span> (os-&gt;<span class="built_in">status</span>() == kThreadRunning) &#123;</span><br><span class="line">    os-&gt;<span class="built_in">UpdateTimeDate</span>();   <span class="comment">// 更新日期</span></span><br><span class="line">    os-&gt;<span class="built_in">UpdateImage</span>();      <span class="comment">// 更新logo</span></span><br><span class="line">    os-&gt;<span class="built_in">UpdateMask</span>();       <span class="comment">// 屏蔽某一区域</span></span><br><span class="line">    os-&gt;<span class="built_in">UpdateBlink</span>();      <span class="comment">// 闪烁</span></span><br><span class="line">    <span class="keyword">if</span> (time_count == <span class="number">30</span>) &#123;</span><br><span class="line">      os-&gt;<span class="built_in">UpdateText</span>();     <span class="comment">// 更新文本</span></span><br><span class="line">      time_count = <span class="number">0</span>;</span><br><span class="line">    &#125;</span><br><span class="line">    time_count++;</span><br><span class="line">    std::this_thread::<span class="built_in">sleep_for</span>(std::chrono::<span class="built_in">milliseconds</span>(os-&gt;<span class="built_in">GetDelayMs</span>()));</span><br><span class="line">  &#125;</span><br><span class="line">  <span class="built_in">LOG_DEBUG</span>(<span class="string">&quot;osd ServerProcess out\n&quot;</span>);</span><br><span class="line">  <span class="keyword">return</span> <span class="literal">nullptr</span>;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p>从函数命名就可以很清晰的看出，OSDServer中会起一个线程来运行ServerProcess函数，函数会间隔一定时间去更新最终画到视频帧上的OSD的内容。</p>
+<p>在IPCamera当中，<strong>每个OSD是和video_encoder_flow绑定的。并且OSD是被video_encoder_flow在编码前绘制到每一帧图像上的。</strong></p>
+<p>仔细阅读源码的话，就会发现，因为时间是不断变化的，所以UpdateTimeDate函数能保证每次时间有变化时，都会调用easymedia::video_encoder_set_osd_region，去更新编码器绘制的osd的内容。相反的，因为logo和提示文字因为是几乎不变的，所以只会在系统最开始或者被变更时才会真正调用easymedia::video_encoder_set_osd_region去更新编码器的osd的内容。</p>
+<p>那么系统怎样监视一个OSD是否有更新呢？答案就是简单的通过一个整型数组。为1代表该种osd需要被更新到编码器中，为0就无需更新。这个数组对应osd_server头文件中的osds_db_data_change_。</p>
+<p>为什么是一个数组呢？没错，结合之前提到过的，一帧图像的OSD可能有好几种，每种OSD负责展示不同的信息。所以数组的存在的很有必要的。从osd_server的实现中能更清楚的理解这一点。</p>
+<p>谈到监视更新的变量就不得不提到OSDServer的两个核心成员：osds_db_data_、region_data_，这两成员都是数组，每个元素的类型定义如下：</p>
+<figure class="highlight cpp"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">// osds_db_data_（长度为15的数组）</span></span><br><span class="line"><span class="keyword">typedef</span> <span class="keyword">struct</span> <span class="title class_">osd_data</span> &#123;</span><br><span class="line">  <span class="type">int</span> type;             <span class="comment">// 图像还是文本还是边框</span></span><br><span class="line">  <span class="keyword">union</span> &#123;</span><br><span class="line">    <span class="type">const</span> <span class="type">char</span> *image;</span><br><span class="line">    text_data_s text;</span><br><span class="line">    border_data_s border;</span><br><span class="line">  &#125;;</span><br><span class="line">  <span class="type">int</span> width;            <span class="comment">// osd宽</span></span><br><span class="line">  <span class="type">int</span> height;           <span class="comment">// osd高</span></span><br><span class="line">  <span class="type">uint8_t</span> *buffer;      <span class="comment">// osd内容的buffer</span></span><br><span class="line">  <span class="type">uint32_t</span> size;        <span class="comment">// buffer大小</span></span><br><span class="line"></span><br><span class="line">  <span class="type">int</span> origin_x;         <span class="comment">// x</span></span><br><span class="line">  <span class="type">int</span> origin_y;         <span class="comment">// y</span></span><br><span class="line">  <span class="type">int</span> enable;           <span class="comment">// 是否使能？</span></span><br><span class="line"></span><br><span class="line">&#125; osd_data_s;</span><br><span class="line"></span><br><span class="line"><span class="comment">// region_data_（长度为8的数组）</span></span><br><span class="line"><span class="keyword">typedef</span> <span class="keyword">struct</span> &#123;</span><br><span class="line">  <span class="type">uint8_t</span> *buffer; <span class="comment">// Content: ID of palette</span></span><br><span class="line">  <span class="type">uint32_t</span> pos_x;</span><br><span class="line">  <span class="type">uint32_t</span> pos_y;</span><br><span class="line">  <span class="type">uint32_t</span> width;</span><br><span class="line">  <span class="type">uint32_t</span> height;</span><br><span class="line">  <span class="type">uint32_t</span> inverse;</span><br><span class="line">  <span class="type">uint32_t</span> region_id; <span class="comment">// max = 8.</span></span><br><span class="line">  <span class="type">uint8_t</span> enable;</span><br><span class="line">  REGION_TYPE region_type;</span><br><span class="line">  <span class="type">uint32_t</span> cover_color; <span class="comment">// for REGION_TYPE_COVER</span></span><br><span class="line">&#125; OsdRegionData;</span><br></pre></td></tr></table></figure>
+
+<p>从OSDServer的构造函数中，我们可以看到在一个OSDServer对象创建时会进行一些比较重要的初始化操作，如下：</p>
+<p><img src="/2024/11/04/mediaserver/OSD/photo/OSDInit.drawio.png"></p>
+<ol>
+<li><p>设置调色板。</p>
+</li>
+<li><p>初始化region_data_。</p>
+</li>
+<li><p>查询数据库对osd的配置，并设置到osds_db_data_数组设置osds_db_data_change_相应元素为1，使后台线程能察觉到osd配置的改变，并同步给编码器。</p>
+</li>
+</ol>
+<h2 id="OSD更新的详细流程"><a href="#OSD更新的详细流程" class="headerlink" title="OSD更新的详细流程"></a>OSD更新的详细流程</h2><p>这里梳理一下OSD更新的详细流程：</p>
+<ol>
+<li><p>用户通过网页对OSD进行设置。</p>
+</li>
+<li><p>下位机服务器收到并解析请求。将设置持久化到数据库。（mediaserver那边其实会收到dbus的signal）。</p>
+</li>
+<li><p>服务器向mediaserver发送设置osd的dbus请求。</p>
+</li>
+<li><p>mediaserver收到请求然后调用OSDServer::SetOsdRegion(region_id, map)函数进行osd的设置。（dbus请求的参数会被转换成map然后作为OSDServer::SetOsdRegion参数）。</p>
+</li>
+<li><p>根据map设置osds_db_data_[region_id]。并且相应的osds_db_data_change_[region_id]被设置为1。</p>
+</li>
+<li><p>后台线程检测到osds_db_data_change_[region_id]为1，<strong>根据osds_db_data_[region_id]的配置，生成图像（字体）点阵</strong>，将点阵设置到region_data_数组中。</p>
+</li>
+<li><p>调用easymedia::video_encoder_set_osd_region函数，将osd配置到编码器中。</p>
+</li>
+</ol>
+<p>如下图：</p>
+<p><img src="/2024/11/04/mediaserver/OSD/photo/OSDChart.drawio.png"></p>
+<p><strong>图中红色字体表示Dbus发出的请求，黑色字体代表普通网络请求。</strong></p>
+<p>上文一直在回避三个个比较重要的细节：什么是点阵？字体和图像是怎么绘制成点阵的？编码器是如何将osd绘制到视频的每一帧上的？下面两节就专门来解释这几个问题。</p>
+<h2 id="点阵与调色"><a href="#点阵与调色" class="headerlink" title="点阵与调色"></a>点阵与调色</h2><p>点阵也是一个比较有意思的东西，这里推荐可以先去了解一下RGA里面怎么进行调色的。可以参考external&#x2F;linux-rga&#x2F;samples&#x2F;rgaColorPalette下的实例，这里面是使用rga相关的接口对图像进行调色的一个demo，<strong>源图像就是一个点阵（每个像素是一Byte），通过一个长度为256的数组（调色板，每个元素4Byte），将点阵映射成RGBA格式的图像（目的图像）。</strong></p>
+<p>上面一段粗体其实就已经很好的解释了点阵的作用。总结一下：</p>
+<ol>
+<li><p>如果你想用点阵来显示一段文字（不管中文还是英文），直接将仿照文字的笔画，将你所需要的字节置为一即可。然后告诉mpp&#x2F;rga用什么调色板，将绘制好的位图传给它们，它们就能够将点阵钻换成文字显示到一帧帧画面上了。在OSDServer中，FontFactory类就是封装了ft2build库，在点阵中绘制文字。</p>
+</li>
+<li><p>如果你想用点阵绘制一幅图片，（参考OSDServer的做法）使用bmp图像，bmp图像具体格式的学习参考<a target="_blank" rel="noopener" href="https://blog.csdn.net/weixin_43455834/article/details/105988433">链接</a>，bmp里面使用位图数据来表示图像。OSDServer调用BMPReader类的LoadYuvaMapFromFile函数将RGB格式的位图数据通过find_color函数将三通道（rgb）的数据转换成yuva调色板的索引（一通道），这样拿到yuva的调色板后mpp&#x2F;osd就能将点阵转换成图像。</p>
+</li>
+</ol>
+<p>对于文字的点阵生成参考mediaserver的osd下的font_factory的实现，对于图像的点阵生成参考mediaserver的osd下的bmp_reader的实现。原理其实都是差不多的，只不过文字只有一个颜色，所以点阵中点亮的值恒为1。而图像则是多彩的，所以索引值有多种。</p>
+<p>利用点阵+调色板的方式有两个很好的优势：</p>
+<ol>
+<li><p>点阵是确定的，但调色板是灵活的，用户可以根据自己的喜好，使用不同的调色板映射调色板。</p>
+</li>
+<li><p>典型的点阵每个像素只有1Byte，占用空间小。</p>
+</li>
+</ol>
+<p>最后，我认为点阵源码最重要的是color_table.h文件下的find_color函数。该函数功能是根据rgb三通道反向查找在调色板中<strong>最匹配</strong>的一个索引。</p>
+<p>代码如下：</p>
+<figure class="highlight cpp"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br><span class="line">36</span><br><span class="line">37</span><br><span class="line">38</span><br><span class="line">39</span><br><span class="line">40</span><br><span class="line">41</span><br></pre></td><td class="code"><pre><span class="line"><span class="function"><span class="type">uint8_t</span> <span class="keyword">inline</span> <span class="title">find_color</span><span class="params">(<span class="type">const</span> <span class="type">uint32_t</span> *pal, <span class="type">uint32_t</span> len, <span class="type">uint8_t</span> r,</span></span></span><br><span class="line"><span class="params"><span class="function">                          <span class="type">uint8_t</span> g, <span class="type">uint8_t</span> b)</span> </span>&#123;</span><br><span class="line">    <span class="type">uint32_t</span> i = <span class="number">0</span>;</span><br><span class="line">    <span class="type">uint8_t</span> pixel = <span class="number">0</span>;</span><br><span class="line">    <span class="type">unsigned</span> <span class="type">int</span> smallest = <span class="number">0</span>;</span><br><span class="line">    <span class="type">unsigned</span> <span class="type">int</span> distance = <span class="number">0</span>;</span><br><span class="line">    <span class="type">int</span> rd, gd, bd;</span><br><span class="line">    <span class="type">uint8_t</span> rp, gp, bp;</span><br><span class="line"></span><br><span class="line">    smallest = ~<span class="number">0</span>;</span><br><span class="line"></span><br><span class="line">    <span class="comment">// LOG_DEBUG(&quot;find_color rgba_value %8x&quot;, (0xFF &lt;&lt; 24 | r &lt;&lt; 16 | g &lt;&lt;8 | b</span></span><br><span class="line">    <span class="comment">// &lt;&lt;0));</span></span><br><span class="line"></span><br><span class="line">    <span class="keyword">for</span> (i = <span class="number">0</span>; i &lt; len; ++i) &#123;</span><br><span class="line">        <span class="comment">// rgb : 从低到高</span></span><br><span class="line">        bp = (pal[i] &amp; <span class="number">0xff000000</span>) &gt;&gt; <span class="number">24</span>;</span><br><span class="line">        gp = (pal[i] &amp; <span class="number">0x00ff0000</span>) &gt;&gt; <span class="number">16</span>;</span><br><span class="line">        rp = (pal[i] &amp; <span class="number">0x0000ff00</span>) &gt;&gt; <span class="number">8</span>;</span><br><span class="line"></span><br><span class="line">        rd = rp - r;</span><br><span class="line">        gd = gp - g;</span><br><span class="line">        bd = bp - b;</span><br><span class="line">        <span class="comment">// 计算方差</span></span><br><span class="line">        distance = (rd * rd) + (gd * gd) + (bd * bd);</span><br><span class="line">        <span class="keyword">if</span> (distance &lt; smallest) &#123;</span><br><span class="line">            pixel = i;</span><br><span class="line"></span><br><span class="line">            <span class="comment">/* Perfect match! */</span></span><br><span class="line">            <span class="keyword">if</span> (distance == <span class="number">0</span>)</span><br><span class="line">            <span class="keyword">break</span>;</span><br><span class="line"></span><br><span class="line">            smallest = distance;</span><br><span class="line">        &#125;</span><br><span class="line">    &#125;</span><br><span class="line"></span><br><span class="line">    <span class="comment">// LOG_DEBUG(&quot;find_color pixel %d pal[%d][%d] %8x&quot;, pixel, pixel/6, pixel%6,</span></span><br><span class="line">    <span class="comment">// pal[pixel]);</span></span><br><span class="line"></span><br><span class="line">    <span class="keyword">return</span> pixel;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p>这里备忘一个名词，<strong>色深：色彩深度又叫色彩位数，即位图中要用多少个二进制位来表示每个点的颜色，是分辨率的一个重要指标。</strong></p>
+<h2 id="编码器"><a href="#编码器" class="headerlink" title="编码器"></a>编码器</h2><p>IPCamera的OSD的实现是基于编码器的。而在编码器中，OSD有两种绘制方式：让MPP去绘制或者利用RGA进行OSD的绘制。因为RGA的绘制比较直观，而MPP的绘制需要深入到MPP的API中，目前这方面的基础知识尚缺，所以这里主要介绍一下RGA的绘制方式。</p>
+<p>OSDServer向编码器设置OSD的函数调用连如下：</p>
+<ol>
+<li><p>easymedia::video_encoder_set_osd_region()</p>
+</li>
+<li><p>enc_flow-&gt;Control(VideoEncoder::kOSDDataChange, pbuff);</p>
+</li>
+<li><p>enc-&gt;RequestChange(request, value);</p>
+</li>
+<li><p>(request, value)会被挂到VideoEncoder的编码器设置链表上。</p>
+</li>
+</ol>
+<p>++++++++++++++++++++++++++++++++++++++++++++++</p>
+<p>当有图片到达VideoEncoderFlow后，里面的回调函数会继续调用：</p>
+<ol start="5">
+<li><p>进入函数：MPPEncoder::Process(src, dst, extra_dst);</p>
+<ol>
+<li>处理编码器的设置链表： <figure class="highlight cpp"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">while</span> (<span class="built_in">HasChangeReq</span>()) &#123;</span><br><span class="line">    <span class="keyword">auto</span> change = <span class="built_in">PeekChange</span>();</span><br><span class="line">    <span class="keyword">if</span> (change.first &amp;&amp; !<span class="built_in">CheckConfigChange</span>(change))</span><br><span class="line">    <span class="keyword">return</span> <span class="number">-1</span>;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure></li>
+</ol>
+<p> 对于RGA的OSD，MPPEncoder类中也会有8个类型为RgaOsdData的数组，OSDServer的设置最终通过上面的循环变更到这里。</p>
+<ol start="2">
+<li>RgaOsdRegionProcess，该函数负责调用improcess将各个osd绘制到即将编码的图像帧上。</li>
+</ol>
+</li>
+</ol>
+<p>为了方便梳理流程，最后贴一下MPPEncoder::Process(src, dst, extra_dst)中OSD相关的伪代码：</p>
+<figure class="highlight cpp"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br></pre></td><td class="code"><pre><span class="line"></span><br><span class="line"><span class="function"><span class="type">int</span> <span class="title">MPPEncoder::Process</span><span class="params">(<span class="type">const</span> std::shared_ptr&lt;MediaBuffer&gt; &amp;input,</span></span></span><br><span class="line"><span class="params"><span class="function">                        std::shared_ptr&lt;MediaBuffer&gt; &amp;output,</span></span></span><br><span class="line"><span class="params"><span class="function">                        std::shared_ptr&lt;MediaBuffer&gt; extra_output)</span> </span>&#123;</span><br><span class="line"></span><br><span class="line">    <span class="comment">// 处理编码器配置链表</span></span><br><span class="line">    <span class="keyword">while</span> (<span class="built_in">HasChangeReq</span>()) &#123;</span><br><span class="line">        <span class="keyword">auto</span> change = <span class="built_in">PeekChange</span>();</span><br><span class="line">        <span class="keyword">if</span> (change.first &amp;&amp; !<span class="built_in">CheckConfigChange</span>(change))</span><br><span class="line">            <span class="keyword">return</span> <span class="number">-1</span>;</span><br><span class="line">    &#125;</span><br><span class="line"></span><br><span class="line">    <span class="comment">// ...</span></span><br><span class="line">    <span class="comment">// 使用RGA绘制所有的OSD</span></span><br><span class="line"><span class="meta">#<span class="keyword">ifdef</span> RGA_OSD_ENABLE</span></span><br><span class="line">    <span class="keyword">if</span> (rga_osd_cnt &gt; <span class="number">0</span>)</span><br><span class="line">    <span class="built_in">RgaOsdRegionProcess</span>(hw_buffer);</span><br><span class="line"><span class="meta">#<span class="keyword">endif</span></span></span><br><span class="line"></span><br><span class="line">    <span class="comment">//...</span></span><br><span class="line">    <span class="keyword">return</span> <span class="number">0</span>;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p>RGA的绘制其实就是按一定比例使用图像blend（混合）的方式进行叠加的。RGA的作用呢包括：对图像缩放、裁剪、混合、调色、拷贝等。它是基于RGA硬件独立于CPU的去做这些操作的，所提供的接口以及用法可以参考external&#x2F;linux-rga。对于MPP对OSD的绘制，作者暂时还未能深入了解，感兴趣的读者可以自行深入研究。</p>
+<hr>
+<p><strong>本章完结</strong></p>
+
+    </div>
+
+    
+    
+    
+        <div class="reward-container">
+  <div></div>
+  <button onclick="var qr = document.getElementById('qr'); qr.style.display = (qr.style.display === 'none') ? 'block' : 'none';">
+    打赏
+  </button>
+  <div id="qr" style="display: none;">
+      
+      <div style="display: inline-block;">
+        <img src="/images/wechatpay.jpg" alt="半个馒头 微信支付">
+        <p>微信支付</p>
+      </div>
+
+  </div>
+</div>
+
+
+      <footer class="post-footer">
+          <div class="post-tags">
+              <a href="/tags/%E9%9F%B3%E8%A7%86%E9%A2%91/" rel="tag"># 音视频</a>
+          </div>
+
+        
+
+
+        
+    <div class="post-nav">
+      <div class="post-nav-item">
+    <a href="/2024/11/04/workflow/TCPServer_2/" rel="prev" title="WorkFlow源码剖析——Communicator之TCPServer（中）">
+      <i class="fa fa-chevron-left"></i> WorkFlow源码剖析——Communicator之TCPServer（中）
+    </a></div>
+      <div class="post-nav-item">
+    <a href="/2024/11/07/workflow/TCPServer_3/" rel="next" title="WorkFlow源码剖析——Communicator之TCPServer（下）">
+      WorkFlow源码剖析——Communicator之TCPServer（下） <i class="fa fa-chevron-right"></i>
+    </a></div>
+    </div>
+      </footer>
+    
+  </article>
+  
+  
+  
+
+
+
+          </div>
+          
+
+<script>
+  window.addEventListener('tabs:register', () => {
+    let { activeClass } = CONFIG.comments;
+    if (CONFIG.comments.storage) {
+      activeClass = localStorage.getItem('comments_active') || activeClass;
+    }
+    if (activeClass) {
+      let activeTab = document.querySelector(`a[href="#comment-${activeClass}"]`);
+      if (activeTab) {
+        activeTab.click();
+      }
+    }
+  });
+  if (CONFIG.comments.storage) {
+    window.addEventListener('tabs:click', event => {
+      if (!event.target.matches('.tabs-comment .tab-content .tab-pane')) return;
+      let commentClass = event.target.classList[1];
+      localStorage.setItem('comments_active', commentClass);
+    });
+  }
+</script>
+
+        </div>
+          
+  
+  <div class="toggle sidebar-toggle">
+    <span class="toggle-line toggle-line-first"></span>
+    <span class="toggle-line toggle-line-middle"></span>
+    <span class="toggle-line toggle-line-last"></span>
+  </div>
+
+  <aside class="sidebar">
+    <div class="sidebar-inner">
+
+      <ul class="sidebar-nav motion-element">
+        <li class="sidebar-nav-toc">
+          文章目录
+        </li>
+        <li class="sidebar-nav-overview">
+          站点概览
+        </li>
+      </ul>
+
+      <!--noindex-->
+      <div class="post-toc-wrap sidebar-panel">
+          <div class="post-toc motion-element"><ol class="nav"><li class="nav-item nav-level-2"><a class="nav-link" href="#%E5%89%8D%E8%A8%80"><span class="nav-number">1.</span> <span class="nav-text">前言</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#OSD%E6%98%AF%E4%BB%80%E4%B9%88%EF%BC%9F"><span class="nav-number">2.</span> <span class="nav-text">OSD是什么？</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#%E5%9C%A8IPCamera%E4%B8%AD%EF%BC%8COSD%E6%98%AF%E5%A6%82%E4%BD%95%E5%AE%9E%E7%8E%B0%E7%9A%84%EF%BC%9F"><span class="nav-number">3.</span> <span class="nav-text">在IPCamera中，OSD是如何实现的？</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#OSD%E6%9B%B4%E6%96%B0%E7%9A%84%E8%AF%A6%E7%BB%86%E6%B5%81%E7%A8%8B"><span class="nav-number">4.</span> <span class="nav-text">OSD更新的详细流程</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#%E7%82%B9%E9%98%B5%E4%B8%8E%E8%B0%83%E8%89%B2"><span class="nav-number">5.</span> <span class="nav-text">点阵与调色</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#%E7%BC%96%E7%A0%81%E5%99%A8"><span class="nav-number">6.</span> <span class="nav-text">编码器</span></a></li></ol></div>
+      </div>
+      <!--/noindex-->
+
+      <div class="site-overview-wrap sidebar-panel">
+        <div class="site-author motion-element" itemprop="author" itemscope itemtype="http://schema.org/Person">
+    <img class="site-author-image" itemprop="image" alt="半个馒头"
+      src="/images/avatar.jpg">
+  <p class="site-author-name" itemprop="name">半个馒头</p>
+  <div class="site-description" itemprop="description"></div>
+</div>
+<div class="site-state-wrap motion-element">
+  <nav class="site-state">
+      <div class="site-state-item site-state-posts">
+          <a href="/archives/">
+        
+          <span class="site-state-item-count">58</span>
+          <span class="site-state-item-name">日志</span>
+        </a>
+      </div>
+      <div class="site-state-item site-state-tags">
+            <a href="/tags/">
+          
+        <span class="site-state-item-count">18</span>
+        <span class="site-state-item-name">标签</span></a>
+      </div>
+  </nav>
+</div>
+  <div class="links-of-author motion-element">
+      <span class="links-of-author-item">
+        <a href="https://github.com/LunarStore" title="GitHub → https:&#x2F;&#x2F;github.com&#x2F;LunarStore" rel="noopener" target="_blank"><i class="fa fa-fw fa-github"></i>GitHub</a>
+      </span>
+      <span class="links-of-author-item">
+        <a href="mailto:18772124875@163.com" title="网易邮箱 → mailto:18772124875@163.com" rel="noopener" target="_blank"><i class="fa fa-fw fa-fas fa-envelope"></i>网易邮箱</a>
+      </span>
+  </div>
+
+
+  <div class="links-of-blogroll motion-element">
+    <div class="links-of-blogroll-title">
+      <i class="fa fa-fw fa-link"></i>
+      友情链接
+    </div>
+    <ul class="links-of-blogroll-list">
+        <li class="links-of-blogroll-item">
+          <a href="https://blog.csdn.net/m0_52566365" title="https:&#x2F;&#x2F;blog.csdn.net&#x2F;m0_52566365" rel="noopener" target="_blank">CSDN博客地址</a>
+        </li>
+    </ul>
+  </div>
+
+      </div>
+        <div class="back-to-top motion-element">
+          <i class="fa fa-arrow-up"></i>
+          <span>0%</span>
+        </div>
+
+    </div>
+  </aside>
+  <div id="sidebar-dimmer"></div>
+
+
+      </div>
+    </main>
+
+    <footer class="footer">
+      <div class="footer-inner">
+        
+
+        
+
+<div class="copyright">
+  
+  &copy; 
+  <span itemprop="copyrightYear">2025</span>
+  <span class="with-love">
+    <i class="fa fa-user"></i>
+  </span>
+  <span class="author" itemprop="copyrightHolder">半个馒头</span>
+</div>
+  <div class="powered-by">由 <a href="https://hexo.io/" class="theme-link" rel="noopener" target="_blank">Hexo</a> & <a href="https://theme-next.org/" class="theme-link" rel="noopener" target="_blank">NexT.Gemini</a> 强力驱动
+  </div>
+
+        
+<div class="busuanzi-count">
+  <script async src="https://busuanzi.ibruce.info/busuanzi/2.3/busuanzi.pure.mini.js"></script>
+    <span class="post-meta-item" id="busuanzi_container_site_uv" style="display: none;">
+      <span class="post-meta-item-icon">
+        <i class="fa fa-user"></i>
+      </span>
+      <span class="site-uv" title="总访客量">
+        <span id="busuanzi_value_site_uv"></span>
+      </span>
+    </span>
+    <span class="post-meta-divider">|</span>
+    <span class="post-meta-item" id="busuanzi_container_site_pv" style="display: none;">
+      <span class="post-meta-item-icon">
+        <i class="fa fa-eye"></i>
+      </span>
+      <span class="site-pv" title="总访问量">
+        <span id="busuanzi_value_site_pv"></span>
+      </span>
+    </span>
+</div>
+
+
+
+
+
+
+
+
+      </div>
+    </footer>
+  </div>
+
+  
+  <script src="/lib/anime.min.js"></script>
+  <script src="/lib/velocity/velocity.min.js"></script>
+  <script src="/lib/velocity/velocity.ui.min.js"></script>
+
+<script src="/js/utils.js"></script>
+
+<script src="/js/motion.js"></script>
+
+
+<script src="/js/schemes/pisces.js"></script>
+
+
+<script src="/js/next-boot.js"></script>
+
+
+
+
+  
+
+
+
+
+  
+<script src="/js/local-search.js"></script>
+
+
+
+
+
+
+
+
+
+
+
+
+
+  
+
+  
+
+</body>
+</html>

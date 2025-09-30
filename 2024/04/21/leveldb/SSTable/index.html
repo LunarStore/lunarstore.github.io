@@ -1,0 +1,689 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=2">
+<meta name="theme-color" content="#222">
+<meta name="generator" content="Hexo 7.3.0">
+  <link rel="apple-touch-icon" sizes="180x180" href="/images/apple-touch-icon-next.png">
+  <link rel="icon" type="image/png" sizes="32x32" href="/images/favicon-32x32-next.png">
+  <link rel="icon" type="image/png" sizes="16x16" href="/images/favicon-16x16-next.png">
+  <link rel="mask-icon" href="/images/logo.svg" color="#222">
+
+<link rel="stylesheet" href="/css/main.css">
+
+
+<link rel="stylesheet" href="/lib/font-awesome/css/font-awesome.min.css">
+  <link rel="stylesheet" href="/lib/pace/pace-theme-flash.min.css">
+  <script src="/lib/pace/pace.min.js"></script>
+
+<script id="hexo-configurations">
+    var NexT = window.NexT || {};
+    var CONFIG = {"hostname":"www.halfmantou.xyz","root":"/","scheme":"Gemini","version":"7.8.0","exturl":false,"sidebar":{"position":"left","display":"post","padding":18,"offset":12,"onmobile":false},"copycode":{"enable":true,"show_result":true,"style":null},"back2top":{"enable":true,"sidebar":true,"scrollpercent":true},"bookmark":{"enable":false,"color":"#222","save":"auto"},"fancybox":false,"mediumzoom":false,"lazyload":false,"pangu":false,"comments":{"style":"tabs","active":null,"storage":true,"lazyload":false,"nav":null},"algolia":{"hits":{"per_page":10},"labels":{"input_placeholder":"Search for Posts","hits_empty":"We didn't find any results for the search: ${query}","hits_stats":"${hits} results found in ${time} ms"}},"localsearch":{"enable":true,"trigger":"auto","top_n_per_article":3,"unescape":false,"preload":false},"motion":{"enable":true,"async":false,"transition":{"post_block":"fadeIn","post_header":"slideDownIn","post_body":"slideDownIn","coll_header":"slideLeftIn","sidebar":"slideUpIn"}},"path":"search.json"};
+  </script>
+
+  <meta name="description" content="LeveDB源码笔记系列： LevelDB源码阅读笔记（0、下载编译leveldb） LevelDB源码阅读笔记（1、整体架构） LevelDB源码阅读笔记（2、SSTable源码分析） 前言 本文讨论的Key都是LevelDB里面的Internal Key，至于什么是Internal Key请看LevelDB源码阅读笔记（1、整体架构）。另外本文的源码分析涉及Bloom过滤器的应用，不懂什么是B">
+<meta property="og:type" content="article">
+<meta property="og:title" content="LevelDB源码阅读笔记（2、SSTable源码分析）">
+<meta property="og:url" content="https://www.halfmantou.xyz/2024/04/21/leveldb/SSTable/index.html">
+<meta property="og:site_name" content="碎碎念念">
+<meta property="og:description" content="LeveDB源码笔记系列： LevelDB源码阅读笔记（0、下载编译leveldb） LevelDB源码阅读笔记（1、整体架构） LevelDB源码阅读笔记（2、SSTable源码分析） 前言 本文讨论的Key都是LevelDB里面的Internal Key，至于什么是Internal Key请看LevelDB源码阅读笔记（1、整体架构）。另外本文的源码分析涉及Bloom过滤器的应用，不懂什么是B">
+<meta property="og:locale" content="zh_CN">
+<meta property="og:image" content="https://www.halfmantou.xyz/2024/04/21/leveldb/SSTable/photo/SSTable.drawio.png">
+<meta property="og:image" content="https://www.halfmantou.xyz/2024/04/21/leveldb/SSTable/photo/SSTableDataBlock.drawio.png">
+<meta property="og:image" content="https://www.halfmantou.xyz/2024/04/21/leveldb/SSTable/photo/SSTableDataBlockExample.drawio.png">
+<meta property="og:image" content="https://www.halfmantou.xyz/2024/04/21/leveldb/SSTable/photo/SSTableFilterDataBlock.drawio.png">
+<meta property="article:published_time" content="2024-04-21T04:00:00.000Z">
+<meta property="article:modified_time" content="2025-09-29T14:24:24.806Z">
+<meta property="article:author" content="半个馒头">
+<meta property="article:tag" content="存储">
+<meta name="twitter:card" content="summary">
+<meta name="twitter:image" content="https://www.halfmantou.xyz/2024/04/21/leveldb/SSTable/photo/SSTable.drawio.png">
+
+<link rel="canonical" href="https://www.halfmantou.xyz/2024/04/21/leveldb/SSTable/">
+
+
+<script id="page-configurations">
+  // https://hexo.io/docs/variables.html
+  CONFIG.page = {
+    sidebar: "",
+    isHome : false,
+    isPost : true,
+    lang   : 'zh-CN'
+  };
+</script>
+
+  <title>LevelDB源码阅读笔记（2、SSTable源码分析） | 碎碎念念</title>
+  
+
+
+
+
+
+
+  <noscript>
+  <style>
+  .use-motion .brand,
+  .use-motion .menu-item,
+  .sidebar-inner,
+  .use-motion .post-block,
+  .use-motion .pagination,
+  .use-motion .comments,
+  .use-motion .post-header,
+  .use-motion .post-body,
+  .use-motion .collection-header { opacity: initial; }
+
+  .use-motion .site-title,
+  .use-motion .site-subtitle {
+    opacity: initial;
+    top: initial;
+  }
+
+  .use-motion .logo-line-before i { left: initial; }
+  .use-motion .logo-line-after i { right: initial; }
+  </style>
+</noscript>
+
+</head>
+
+<body itemscope itemtype="http://schema.org/WebPage">
+  <div class="container use-motion">
+    <div class="headband"></div>
+
+    <header class="header" itemscope itemtype="http://schema.org/WPHeader">
+      <div class="header-inner"><div class="site-brand-container">
+  <div class="site-nav-toggle">
+    <div class="toggle" aria-label="切换导航栏">
+      <span class="toggle-line toggle-line-first"></span>
+      <span class="toggle-line toggle-line-middle"></span>
+      <span class="toggle-line toggle-line-last"></span>
+    </div>
+  </div>
+
+  <div class="site-meta">
+
+    <a href="/" class="brand" rel="start">
+      <span class="logo-line-before"><i></i></span>
+      <h1 class="site-title">碎碎念念</h1>
+      <span class="logo-line-after"><i></i></span>
+    </a>
+  </div>
+
+  <div class="site-nav-right">
+    <div class="toggle popup-trigger">
+        <i class="fa fa-search fa-fw fa-lg"></i>
+    </div>
+  </div>
+</div>
+
+
+
+
+<nav class="site-nav">
+  <ul id="menu" class="menu">
+        <li class="menu-item menu-item-home">
+
+    <a href="/" rel="section"><i class="fa fa-fw fa-home"></i>首页</a>
+
+  </li>
+        <li class="menu-item menu-item-about">
+
+    <a href="/about/" rel="section"><i class="fa fa-fw fa-user"></i>关于</a>
+
+  </li>
+        <li class="menu-item menu-item-tags">
+
+    <a href="/tags/" rel="section"><i class="fa fa-fw fa-tags"></i>标签<span class="badge">18</span></a>
+
+  </li>
+        <li class="menu-item menu-item-categories">
+
+    <a href="/categories/" rel="section"><i class="fa fa-fw fa-th"></i>分类<span class="badge">0</span></a>
+
+  </li>
+        <li class="menu-item menu-item-archives">
+
+    <a href="/archives/" rel="section"><i class="fa fa-fw fa-archive"></i>归档<span class="badge">58</span></a>
+
+  </li>
+      <li class="menu-item menu-item-search">
+        <a role="button" class="popup-trigger"><i class="fa fa-search fa-fw"></i>搜索
+        </a>
+      </li>
+  </ul>
+</nav>
+
+
+
+  <div class="search-pop-overlay">
+    <div class="popup search-popup">
+        <div class="search-header">
+  <span class="search-icon">
+    <i class="fa fa-search"></i>
+  </span>
+  <div class="search-input-container">
+    <input autocomplete="off" autocapitalize="off"
+           placeholder="搜索..." spellcheck="false"
+           type="search" class="search-input">
+  </div>
+  <span class="popup-btn-close">
+    <i class="fa fa-times-circle"></i>
+  </span>
+</div>
+<div id="search-result">
+  <div id="no-result">
+    <i class="fa fa-spinner fa-pulse fa-5x fa-fw"></i>
+  </div>
+</div>
+
+    </div>
+  </div>
+
+</div>
+    </header>
+
+    
+  <div class="reading-progress-bar"></div>
+
+  <a href="https://github.com/LunarStore" class="github-corner" title="Follow me on GitHub" aria-label="Follow me on GitHub" rel="noopener" target="_blank"><svg width="80" height="80" viewBox="0 0 250 250" aria-hidden="true"><path d="M0,0 L115,115 L130,115 L142,142 L250,250 L250,0 Z"></path><path d="M128.3,109.0 C113.8,99.7 119.0,89.6 119.0,89.6 C122.0,82.7 120.5,78.6 120.5,78.6 C119.2,72.0 123.4,76.3 123.4,76.3 C127.3,80.9 125.5,87.3 125.5,87.3 C122.9,97.6 130.6,101.9 134.4,103.2" fill="currentColor" style="transform-origin: 130px 106px;" class="octo-arm"></path><path d="M115.0,115.0 C114.9,115.1 118.7,116.5 119.8,115.4 L133.7,101.6 C136.9,99.2 139.9,98.4 142.2,98.6 C133.8,88.0 127.5,74.4 143.8,58.0 C148.5,53.4 154.0,51.2 159.7,51.0 C160.3,49.4 163.2,43.6 171.4,40.1 C171.4,40.1 176.1,42.5 178.8,56.2 C183.1,58.6 187.2,61.8 190.9,65.4 C194.5,69.0 197.7,73.2 200.1,77.6 C213.8,80.2 216.3,84.9 216.3,84.9 C212.7,93.1 206.9,96.0 205.4,96.6 C205.1,102.4 203.0,107.8 198.3,112.5 C181.9,128.9 168.3,122.5 157.7,114.1 C157.9,116.9 156.7,120.9 152.7,124.9 L141.0,136.5 C139.8,137.7 141.6,141.9 141.8,141.8 Z" fill="currentColor" class="octo-body"></path></svg></a>
+
+
+    <main class="main">
+      <div class="main-inner">
+        <div class="content-wrap">
+          
+
+          <div class="content post posts-expand">
+            
+
+    
+  
+  
+  <article itemscope itemtype="http://schema.org/Article" class="post-block" lang="zh-CN">
+    <link itemprop="mainEntityOfPage" href="https://www.halfmantou.xyz/2024/04/21/leveldb/SSTable/">
+
+    <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
+      <meta itemprop="image" content="/images/avatar.jpg">
+      <meta itemprop="name" content="半个馒头">
+      <meta itemprop="description" content="">
+    </span>
+
+    <span hidden itemprop="publisher" itemscope itemtype="http://schema.org/Organization">
+      <meta itemprop="name" content="碎碎念念">
+    </span>
+      <header class="post-header">
+        <h1 class="post-title" itemprop="name headline">
+          LevelDB源码阅读笔记（2、SSTable源码分析）
+        </h1>
+
+        <div class="post-meta">
+            <span class="post-meta-item">
+              <span class="post-meta-item-icon">
+                <i class="fa fa-calendar-o"></i>
+              </span>
+              <span class="post-meta-item-text">发表于</span>
+
+              <time title="创建时间：2024-04-21 12:00:00" itemprop="dateCreated datePublished" datetime="2024-04-21T12:00:00+08:00">2024-04-21</time>
+            </span>
+              <span class="post-meta-item">
+                <span class="post-meta-item-icon">
+                  <i class="fa fa-calendar-check-o"></i>
+                </span>
+                <span class="post-meta-item-text">更新于</span>
+                <time title="修改时间：2025-09-29 22:24:24" itemprop="dateModified" datetime="2025-09-29T22:24:24+08:00">2025-09-29</time>
+              </span>
+
+          
+            <span class="post-meta-item" title="阅读次数" id="busuanzi_container_page_pv" style="display: none;">
+              <span class="post-meta-item-icon">
+                <i class="fa fa-eye"></i>
+              </span>
+              <span class="post-meta-item-text">阅读次数：</span>
+              <span id="busuanzi_value_page_pv"></span>
+            </span>
+
+        </div>
+      </header>
+
+    
+    
+    
+    <div class="post-body" itemprop="articleBody">
+
+      
+        <p><strong>LeveDB源码笔记系列：</strong></p>
+<p><a href="./Start.md">LevelDB源码阅读笔记（0、下载编译leveldb）</a></p>
+<p><a href="./Framework.md">LevelDB源码阅读笔记（1、整体架构）</a></p>
+<p><a href="./SSTable.md">LevelDB源码阅读笔记（2、SSTable源码分析）</a></p>
+<p><strong>前言</strong></p>
+<p>本文讨论的Key都是LevelDB里面的Internal Key，至于什么是Internal Key请看<a href="./Framework.md">LevelDB源码阅读笔记（1、整体架构）</a>。另外本文的源码分析涉及Bloom过滤器的应用，不懂什么是Bloom过滤器的读者需自行学习。</p>
+<p>SSTable的结构有关的的文件全部放在table目录下：</p>
+<span id="more"></span>
+
+<ol>
+<li><p>block_builder：组建一个block结构。data_block、filter_index_block、data_indedx_block都在使用该结构。</p>
+</li>
+<li><p>block：创建一个迭代器，对一个block结构进行读取。该迭代器也是LevelDB最小单元的迭代器。</p>
+</li>
+<li><p>filter_block：在LevelDB中就是bloom data block，区别于block结构。</p>
+</li>
+<li><p>format：对SSTable的Footer进行序列化和反序列化，此外还有从sst文件中读取block结构的功能。</p>
+</li>
+<li><p>iterator：对单层迭代器做定义。</p>
+</li>
+<li><p>merger：对归并迭代器做定义。</p>
+</li>
+<li><p>table_builder：组建一个sst文件。</p>
+</li>
+<li><p>table：解析一个sst文件。</p>
+</li>
+<li><p>two_level_iterator：对双层迭代器做定义。<strong>该迭代器的设计非常精妙，是LevelDB查找的基石。</strong></p>
+</li>
+</ol>
+<h2 id="SSTable整体结构"><a href="#SSTable整体结构" class="headerlink" title="SSTable整体结构"></a>SSTable整体结构</h2><h3 id="总览"><a href="#总览" class="headerlink" title="总览"></a>总览</h3><p>SSTable文件结构如图所示：</p>
+<p><img src="/2024/04/21/leveldb/SSTable/photo/SSTable.drawio.png" alt="SSTable"></p>
+<p>对各个部分的解释：</p>
+<ol>
+<li><p>Data Block：递增的存储键值对。</p>
+</li>
+<li><p>Filter Data Block：本质是bloom过滤器映射块，映射了Data Block中的每一条键值对，减少了无效查询的IO，优化了查询性能。</p>
+</li>
+<li><p>Filter Data Index Block：内部结构和Data Block是一样的，只不过Key代表Filter Data Block的名字，而Value存的是Filter Data Block的文件偏移和大小。</p>
+</li>
+<li><p>Data Index Block：内部结构和Data Block是一样的，只不过Key是Data Block最后一条键值对的Key，而Value存的是Data Block的文件偏移和大小。</p>
+</li>
+<li><p>Footer：存放Meta Index Handle + Data Index Handle + Magic Number。</p>
+</li>
+</ol>
+<p><strong>注意，这里的Meta Index Handle就是Filter Data Index Block的文件偏移和大小； Data Index Handle就是Data Index Block的文件偏移和大小。</strong></p>
+<h3 id="SSTable的写入流程"><a href="#SSTable的写入流程" class="headerlink" title="SSTable的写入流程"></a>SSTable的写入流程</h3><p>通过leveldb::TableBuilder组建一个sst的流程如下：</p>
+<ol>
+<li><p>通过Add函数，不断将输入的&lt;key, value&gt;写入data_block，同时在filter_data_block（（bloom过滤器）中记录该key。当一个data_block大于4k（默认情况下是4k）时，就将data_block  flush到文件并切换新的data_block继续写。同时还会记录每块data_block最后一条key值以及data_block到文件开始的偏移 和 其大小（ Data Block Handle）。将这些信息也作为一对键值对（&lt;data_block_last_key, data_block_handle&gt;）写入到data_index_block中。</p>
+</li>
+<li><p>当sst达到2M（默认是2M）就会调用Finish函数结束sst的构建，结束过程如下。</p>
+</li>
+<li><p>将不足4k的data_block 像1一样Flush到文件。</p>
+</li>
+<li><p>将filter_data_block写到文件，创建filter_data_block_handle记录其文件偏移和大小</p>
+</li>
+<li><p>将filter_name作为key、filter_data_block_handle作为value写到一个filter_data_index_block中，并将filter_data_index_block写入文件，创建filter_data_index_block_handle记录filter_data_index_block的文件偏移和大小。</p>
+</li>
+<li><p>将data_index_block写到文件，创建data_index_block_handle记录其偏移和大小。</p>
+</li>
+<li><p>将filter_data_index_block_handle（Meta Index Handle）、data_index_block_handle（Data Index Handle）以及MagicNumber作为Footer一起写到文件中。至此sst文件构建完毕。</p>
+</li>
+</ol>
+<p>部分代码如下：</p>
+<figure class="highlight cpp"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br><span class="line">36</span><br><span class="line">37</span><br><span class="line">38</span><br><span class="line">39</span><br><span class="line">40</span><br><span class="line">41</span><br><span class="line">42</span><br><span class="line">43</span><br><span class="line">44</span><br><span class="line">45</span><br><span class="line">46</span><br><span class="line">47</span><br><span class="line">48</span><br><span class="line">49</span><br><span class="line">50</span><br><span class="line">51</span><br><span class="line">52</span><br><span class="line">53</span><br><span class="line">54</span><br><span class="line">55</span><br><span class="line">56</span><br><span class="line">57</span><br><span class="line">58</span><br><span class="line">59</span><br><span class="line">60</span><br><span class="line">61</span><br><span class="line">62</span><br><span class="line">63</span><br><span class="line">64</span><br><span class="line">65</span><br><span class="line">66</span><br><span class="line">67</span><br><span class="line">68</span><br><span class="line">69</span><br><span class="line">70</span><br><span class="line">71</span><br><span class="line">72</span><br><span class="line">73</span><br><span class="line">74</span><br><span class="line">75</span><br><span class="line">76</span><br><span class="line">77</span><br><span class="line">78</span><br><span class="line">79</span><br><span class="line">80</span><br><span class="line">81</span><br><span class="line">82</span><br><span class="line">83</span><br><span class="line">84</span><br><span class="line">85</span><br><span class="line">86</span><br><span class="line">87</span><br><span class="line">88</span><br><span class="line">89</span><br><span class="line">90</span><br><span class="line">91</span><br><span class="line">92</span><br><span class="line">93</span><br></pre></td><td class="code"><pre><span class="line"><span class="function"><span class="type">void</span> <span class="title">TableBuilder::Add</span><span class="params">(<span class="type">const</span> Slice&amp; key, <span class="type">const</span> Slice&amp; value)</span> </span>&#123;</span><br><span class="line">  Rep* r = rep_;</span><br><span class="line">  <span class="built_in">assert</span>(!r-&gt;closed);</span><br><span class="line">  <span class="keyword">if</span> (!<span class="built_in">ok</span>()) <span class="keyword">return</span>;</span><br><span class="line">  <span class="keyword">if</span> (r-&gt;num_entries &gt; <span class="number">0</span>) &#123;</span><br><span class="line">    <span class="comment">// 输入的key一定是递增的！</span></span><br><span class="line">    <span class="built_in">assert</span>(r-&gt;options.comparator-&gt;<span class="built_in">Compare</span>(key, <span class="built_in">Slice</span>(r-&gt;last_key)) &gt; <span class="number">0</span>);</span><br><span class="line">  &#125;</span><br><span class="line"> <span class="comment">// 延迟追加index_block，因为需要计算合适的key</span></span><br><span class="line">  <span class="keyword">if</span> (r-&gt;pending_index_entry) &#123; </span><br><span class="line">    <span class="comment">// 下一个datablock写入第一条数据之前，data_block为空</span></span><br><span class="line">    <span class="built_in">assert</span>(r-&gt;data_block.<span class="built_in">empty</span>());</span><br><span class="line">    <span class="comment">// 保证大于等于真正的last_key且小于key的前提压缩last_key</span></span><br><span class="line">    r-&gt;options.comparator-&gt;<span class="built_in">FindShortestSeparator</span>(&amp;r-&gt;last_key, key);</span><br><span class="line">    std::string handle_encoding;</span><br><span class="line">    r-&gt;pending_handle.<span class="built_in">EncodeTo</span>(&amp;handle_encoding);</span><br><span class="line">    r-&gt;index_block.<span class="built_in">Add</span>(r-&gt;last_key, <span class="built_in">Slice</span>(handle_encoding));</span><br><span class="line">    r-&gt;pending_index_entry = <span class="literal">false</span>;</span><br><span class="line">  &#125;</span><br><span class="line"></span><br><span class="line">  <span class="keyword">if</span> (r-&gt;filter_block != <span class="literal">nullptr</span>) &#123;</span><br><span class="line">    <span class="comment">// filter和datablock对应</span></span><br><span class="line">    r-&gt;filter_block-&gt;<span class="built_in">AddKey</span>(key);</span><br><span class="line">  &#125;</span><br><span class="line"></span><br><span class="line">  r-&gt;last_key.<span class="built_in">assign</span>(key.<span class="built_in">data</span>(), key.<span class="built_in">size</span>());</span><br><span class="line">  r-&gt;num_entries++;</span><br><span class="line">  r-&gt;data_block.<span class="built_in">Add</span>(key, value);</span><br><span class="line"></span><br><span class="line">  <span class="type">const</span> <span class="type">size_t</span> estimated_block_size = r-&gt;data_block.<span class="built_in">CurrentSizeEstimate</span>();</span><br><span class="line">  <span class="keyword">if</span> (estimated_block_size &gt;= r-&gt;options.block_size) &#123;  <span class="comment">// 未压缩的block</span></span><br><span class="line">    <span class="built_in">Flush</span>();</span><br><span class="line">  &#125;</span><br><span class="line">&#125;</span><br><span class="line"></span><br><span class="line"><span class="function">Status <span class="title">TableBuilder::Finish</span><span class="params">()</span> </span>&#123;</span><br><span class="line">  Rep* r = rep_;</span><br><span class="line">   <span class="comment">// 将不足4k的datablock存到文件中 data_block</span></span><br><span class="line">  <span class="built_in">Flush</span>(); </span><br><span class="line">  <span class="built_in">assert</span>(!r-&gt;closed);</span><br><span class="line">  r-&gt;closed = <span class="literal">true</span>;</span><br><span class="line"></span><br><span class="line">  BlockHandle filter_block_handle, metaindex_block_handle, index_block_handle;</span><br><span class="line"></span><br><span class="line">  <span class="comment">// Write filter block// 将filter_data_block写到文件，记录其文件偏移和大小</span></span><br><span class="line">  <span class="keyword">if</span> (<span class="built_in">ok</span>() &amp;&amp; r-&gt;filter_block != <span class="literal">nullptr</span>) &#123; <span class="comment">//filter_data_block</span></span><br><span class="line">    <span class="built_in">WriteRawBlock</span>(r-&gt;filter_block-&gt;<span class="built_in">Finish</span>(), kNoCompression,</span><br><span class="line">                  &amp;filter_block_handle);</span><br><span class="line">  &#125;</span><br><span class="line"></span><br><span class="line">  <span class="comment">// Write metaindex block// 将filter_data_block的信息写到一个filter_data_index_block中</span></span><br><span class="line">  <span class="keyword">if</span> (<span class="built_in">ok</span>()) &#123;     <span class="comment">// filter_data_index_block</span></span><br><span class="line">    <span class="function">BlockBuilder <span class="title">meta_index_block</span><span class="params">(&amp;r-&gt;options)</span></span>;</span><br><span class="line">    <span class="keyword">if</span> (r-&gt;filter_block != <span class="literal">nullptr</span>) &#123;</span><br><span class="line">      <span class="comment">// Add mapping from &quot;filter.Name&quot; to location of filter data</span></span><br><span class="line">      std::string key = <span class="string">&quot;filter.&quot;</span>;</span><br><span class="line">      key.<span class="built_in">append</span>(r-&gt;options.filter_policy-&gt;<span class="built_in">Name</span>());</span><br><span class="line">      std::string handle_encoding;</span><br><span class="line">      filter_block_handle.<span class="built_in">EncodeTo</span>(&amp;handle_encoding);</span><br><span class="line">      meta_index_block.<span class="built_in">Add</span>(key, handle_encoding);</span><br><span class="line">    &#125;</span><br><span class="line">    <span class="comment">// 并将filter_data_index_block写入文件，记录filter_data_index_block的文件偏移和大小。</span></span><br><span class="line">    <span class="comment">// TODO(postrelease): Add stats and other meta blocks</span></span><br><span class="line">    <span class="built_in">WriteBlock</span>(&amp;meta_index_block, &amp;metaindex_block_handle);</span><br><span class="line">  &#125;</span><br><span class="line"></span><br><span class="line">  <span class="comment">// Write index block</span></span><br><span class="line">  <span class="keyword">if</span> (<span class="built_in">ok</span>()) &#123;     <span class="comment">// data_index_block</span></span><br><span class="line">    <span class="keyword">if</span> (r-&gt;pending_index_entry) &#123;</span><br><span class="line">      r-&gt;options.comparator-&gt;<span class="built_in">FindShortSuccessor</span>(&amp;r-&gt;last_key);</span><br><span class="line">      std::string handle_encoding;</span><br><span class="line">      r-&gt;pending_handle.<span class="built_in">EncodeTo</span>(&amp;handle_encoding);</span><br><span class="line">      r-&gt;index_block.<span class="built_in">Add</span>(r-&gt;last_key, <span class="built_in">Slice</span>(handle_encoding));</span><br><span class="line">      r-&gt;pending_index_entry = <span class="literal">false</span>;</span><br><span class="line">    &#125;</span><br><span class="line">    <span class="comment">// 将data_index_block写到文件，并记录其偏移和大小。</span></span><br><span class="line">    <span class="built_in">WriteBlock</span>(&amp;r-&gt;index_block, &amp;index_block_handle);</span><br><span class="line">  &#125;</span><br><span class="line"></span><br><span class="line">  <span class="comment">// Write footer   // 将filter_data_index_block、data_index_block的文件偏移和大小以及MagicNumber作为Footer一起写到文件中。至此sst文件构建完毕。</span></span><br><span class="line">  <span class="keyword">if</span> (<span class="built_in">ok</span>()) &#123;</span><br><span class="line">    Footer footer;</span><br><span class="line">    footer.<span class="built_in">set_metaindex_handle</span>(metaindex_block_handle);</span><br><span class="line">    footer.<span class="built_in">set_index_handle</span>(index_block_handle);</span><br><span class="line">    std::string footer_encoding;</span><br><span class="line">    footer.<span class="built_in">EncodeTo</span>(&amp;footer_encoding);</span><br><span class="line">    r-&gt;status = r-&gt;file-&gt;<span class="built_in">Append</span>(footer_encoding);</span><br><span class="line">    <span class="keyword">if</span> (r-&gt;status.<span class="built_in">ok</span>()) &#123;</span><br><span class="line">      r-&gt;offset += footer_encoding.<span class="built_in">size</span>();</span><br><span class="line">    &#125;</span><br><span class="line">  &#125;</span><br><span class="line">  <span class="keyword">return</span> r-&gt;status;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p><strong>这里还需注意，凡是block的结构在写入SSt文件前都会被压缩，比如data_block、filter_data_index_block、data_index_block，而filter data block是未被压缩的！</strong></p>
+<p>我们可以看到Add函数中有对key做了一个断言，断言内容大致是要保证key必须是递增的，所以SST文件内部就是有序的键值对，data_block内部是递增 -&gt; 每个data_block最后一条key之间也是递增 -&gt; data_index_block的key值也会是递增，这样带来的好处就是可以<strong>通过二分查找的方式帮助我们快速定位一个key的位置</strong>，在下面Block块的解析我们就会恍然大悟。</p>
+<h3 id="SSTable的解析流程"><a href="#SSTable的解析流程" class="headerlink" title="SSTable的解析流程"></a>SSTable的解析流程</h3><p>了解了SSTable的写入流程，其解析流程就非常明了了，如下。</p>
+<ol>
+<li><p>先读取SSTable的48字节的Footer，可以获取到Meta Index Handle和Data Index Handle。</p>
+</li>
+<li><p>通过Data Index Handle可以读到SSTable文件中的data_index_block。并将data_index_block存到rep_成员中。有了data_index_block就可以定位所有的data_block了。</p>
+</li>
+<li><p>通过Meta Index Handle找到filter_data_index_block。</p>
+</li>
+<li><p>通过filter_data_index_block从sst中读出filter_data_block，并将其存入rep_的成员中。在查找sst的键值对时，先会在filter_data_block（bloom过滤器）中查看键是否存在，存在，才再磁盘上去读取和解压具体的data_block。</p>
+</li>
+<li><p>至此解析完毕，有了filter_data_block和data_index_block足以定位每一个data_block以及里面的键值对。</p>
+</li>
+</ol>
+<p><strong>需要注意的是和构建SSTable对称的是，每一个data_block、data_index_block、filter_data_index_block从文件中读取后都会涉及到解压！</strong></p>
+<h3 id="SSTable的查询流程"><a href="#SSTable的查询流程" class="headerlink" title="SSTable的查询流程"></a>SSTable的查询流程</h3><p><strong>不使用双层迭代器</strong></p>
+<ol>
+<li><p>调用Table::InternalGet接口。</p>
+</li>
+<li><p>获取data_index_block（结构和data_block一样）的迭代器，对其进行二分查找，找到第一个大于等于traget的data_block的handle_value。</p>
+</li>
+<li><p>到filter_data_lock中验证traget的存在性，不存在直接返回，否者继续。</p>
+</li>
+<li><p>根据handle_value从磁盘中读取data_block。（当然data_block可能被LRU Cache缓存下来）。</p>
+</li>
+<li><p>根据data_block创建一层迭代器对traget进行二分查找。</p>
+</li>
+</ol>
+<p><strong>使用双层迭代器</strong></p>
+<p>调用Table::NewIterator接口，创建一个二层迭代器，该迭代器里面有两个迭代器，一个index迭代器，另一个是data迭代器。基于SSTable创建的双层迭代器其index迭代器是index_data_block的单层迭代器，data迭代器是每一个动态创建的data_block的单层迭代器。双层迭代器的巧妙之处就是能够根据index迭代器，去动态创建data迭代器。这样的特性在进行外部归并排序时是非常有用的！此外双层迭代器还有嵌套的玩法，LevelDB就有利用嵌套双层迭代器去遍历LevelDB的某一层（level &gt; 0，不包括0层，因为0层不具备有序不重叠的特性）。</p>
+<h2 id="Data-Block的整体结构"><a href="#Data-Block的整体结构" class="headerlink" title="Data Block的整体结构"></a>Data Block的整体结构</h2><h3 id="总览-1"><a href="#总览-1" class="headerlink" title="总览"></a>总览</h3><p>Data Block的具体细节如下图：</p>
+<p><img src="/2024/04/21/leveldb/SSTable/photo/SSTableDataBlock.drawio.png" alt="SSTableDataBlock"></p>
+<p>这里难理解的可能就是前缀压缩那块，举个例子有连续的键值对如下：</p>
+<blockquote>
+<p>{ &lt;abcdef, 12345&gt;, &lt;abcdga, 67890&gt;, &lt;abcff, 119&gt;, &lt;abcfff, 200&gt; }</p>
+</blockquote>
+<p>重启点间隔为2的话，在data_block中会被前缀压缩成如下结构：</p>
+<p><img src="/2024/04/21/leveldb/SSTable/photo/SSTableDataBlockExample.drawio.png" alt="SSTableDataBlockExample"></p>
+<p>前缀压缩的好处是，sst消耗的磁盘空间减少了，但其坏处是在查找的时候，考虑到复原重启点间隔内的键需要参考前一个条目的键，就需要从重启点开始进行一段顺序查找。幸运的是，LevelDB提供了设置重启点间隔的参数，Options::block_restart_interval默认值是16，当block_restart_interval太大，会导致压缩率更大而查询性能会降低；当block_restart_interval太小，会导致压缩率更小而查询性能会增加。用户可以根据实际的需求调节参数进行适当的取舍。</p>
+<h3 id="Data-Block的写入流程"><a href="#Data-Block的写入流程" class="headerlink" title="Data Block的写入流程"></a>Data Block的写入流程</h3><p>Data Block的写入流程相对容易理解，如下：</p>
+<ol>
+<li><p>写入key的共享长度。当然如果位于重启点，共享长度恒为0</p>
+</li>
+<li><p>写入key的非共享长度。</p>
+</li>
+<li><p>写入value长度。</p>
+</li>
+<li><p>写入key的非共享长度。</p>
+</li>
+<li><p>写入value值。</p>
+</li>
+<li><p>当data_block大于4K，就会调用Finish函数，Finish函数会将重启数组以及其大小追加到data_block的末尾。</p>
+</li>
+<li><p>data_block在写入文件前会进行一次算法层面的压缩（kSnappyCompression &#x2F; kZstdCompression），并会进行校验和的计算。压缩类型和校验和 会作为data_block的Footer一起写入sst文件中。</p>
+</li>
+</ol>
+<p>代码如下：</p>
+<figure class="highlight cpp"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br><span class="line">36</span><br><span class="line">37</span><br><span class="line">38</span><br><span class="line">39</span><br><span class="line">40</span><br><span class="line">41</span><br><span class="line">42</span><br><span class="line">43</span><br><span class="line">44</span><br><span class="line">45</span><br><span class="line">46</span><br><span class="line">47</span><br><span class="line">48</span><br><span class="line">49</span><br><span class="line">50</span><br><span class="line">51</span><br><span class="line">52</span><br><span class="line">53</span><br><span class="line">54</span><br><span class="line">55</span><br><span class="line">56</span><br><span class="line">57</span><br><span class="line">58</span><br><span class="line">59</span><br><span class="line">60</span><br><span class="line">61</span><br><span class="line">62</span><br><span class="line">63</span><br><span class="line">64</span><br><span class="line">65</span><br><span class="line">66</span><br><span class="line">67</span><br><span class="line">68</span><br><span class="line">69</span><br><span class="line">70</span><br><span class="line">71</span><br><span class="line">72</span><br><span class="line">73</span><br><span class="line">74</span><br><span class="line">75</span><br><span class="line">76</span><br><span class="line">77</span><br></pre></td><td class="code"><pre><span class="line"></span><br><span class="line"><span class="keyword">class</span> <span class="title class_">BlockBuilder</span> &#123;</span><br><span class="line">    <span class="comment">/*</span></span><br><span class="line"><span class="comment">    *   ...</span></span><br><span class="line"><span class="comment">    */</span></span><br><span class="line"></span><br><span class="line"> <span class="keyword">private</span>:</span><br><span class="line">  <span class="type">const</span> Options* options_;</span><br><span class="line">  std::string buffer_;              <span class="comment">// Destination buffer</span></span><br><span class="line">  std::vector&lt;<span class="type">uint32_t</span>&gt; restarts_;  <span class="comment">// Restart points</span></span><br><span class="line">  <span class="type">int</span> counter_;                     <span class="comment">// Number of entries emitted since restart</span></span><br><span class="line">  <span class="type">bool</span> finished_;                   <span class="comment">// Has Finish() been called?</span></span><br><span class="line">  std::string last_key_;</span><br><span class="line">&#125;;</span><br><span class="line"></span><br><span class="line"><span class="function"><span class="type">void</span> <span class="title">BlockBuilder::Reset</span><span class="params">()</span> </span>&#123;</span><br><span class="line">  buffer_.<span class="built_in">clear</span>();</span><br><span class="line">  restarts_.<span class="built_in">clear</span>();</span><br><span class="line">  restarts_.<span class="built_in">push_back</span>(<span class="number">0</span>);  <span class="comment">// First restart point is at offset 0</span></span><br><span class="line">  counter_ = <span class="number">0</span>;</span><br><span class="line">  finished_ = <span class="literal">false</span>;</span><br><span class="line">  last_key_.<span class="built_in">clear</span>();</span><br><span class="line">&#125;</span><br><span class="line"></span><br><span class="line"><span class="function"><span class="type">size_t</span> <span class="title">BlockBuilder::CurrentSizeEstimate</span><span class="params">()</span> <span class="type">const</span> </span>&#123;</span><br><span class="line">  <span class="keyword">return</span> (buffer_.<span class="built_in">size</span>() +                       <span class="comment">// Raw data buffer</span></span><br><span class="line">          restarts_.<span class="built_in">size</span>() * <span class="built_in">sizeof</span>(<span class="type">uint32_t</span>) +  <span class="comment">// Restart array</span></span><br><span class="line">          <span class="built_in">sizeof</span>(<span class="type">uint32_t</span>));                     <span class="comment">// Restart array length</span></span><br><span class="line">&#125;</span><br><span class="line"></span><br><span class="line"><span class="function">Slice <span class="title">BlockBuilder::Finish</span><span class="params">()</span> </span>&#123;</span><br><span class="line">  <span class="comment">// Append restart array</span></span><br><span class="line">  <span class="keyword">for</span> (<span class="type">size_t</span> i = <span class="number">0</span>; i &lt; restarts_.<span class="built_in">size</span>(); i++) &#123;</span><br><span class="line">    <span class="built_in">PutFixed32</span>(&amp;buffer_, restarts_[i]);</span><br><span class="line">  &#125;</span><br><span class="line">  <span class="built_in">PutFixed32</span>(&amp;buffer_, restarts_.<span class="built_in">size</span>());</span><br><span class="line">  finished_ = <span class="literal">true</span>;</span><br><span class="line">  <span class="keyword">return</span> <span class="built_in">Slice</span>(buffer_);</span><br><span class="line">&#125;</span><br><span class="line"><span class="comment">//递增的顺序加进来</span></span><br><span class="line"><span class="comment">//使用前缀共享的方式微压缩了一下</span></span><br><span class="line"><span class="function"><span class="type">void</span> <span class="title">BlockBuilder::Add</span><span class="params">(<span class="type">const</span> Slice&amp; key, <span class="type">const</span> Slice&amp; value)</span> </span>&#123; </span><br><span class="line">  <span class="function">Slice <span class="title">last_key_piece</span><span class="params">(last_key_)</span></span>;</span><br><span class="line">  <span class="built_in">assert</span>(!finished_);</span><br><span class="line">  <span class="built_in">assert</span>(counter_ &lt;= options_-&gt;block_restart_interval);</span><br><span class="line">  <span class="built_in">assert</span>(buffer_.<span class="built_in">empty</span>()  <span class="comment">// No values yet?</span></span><br><span class="line">         || options_-&gt;comparator-&gt;<span class="built_in">Compare</span>(key, last_key_piece) &gt; <span class="number">0</span>);</span><br><span class="line">  <span class="type">size_t</span> shared = <span class="number">0</span>;</span><br><span class="line">  <span class="keyword">if</span> (counter_ &lt; options_-&gt;block_restart_interval) &#123;</span><br><span class="line">    <span class="comment">// See how much sharing to do with previous string</span></span><br><span class="line">    <span class="type">const</span> <span class="type">size_t</span> min_length = std::<span class="built_in">min</span>(last_key_piece.<span class="built_in">size</span>(), key.<span class="built_in">size</span>());</span><br><span class="line">    <span class="keyword">while</span> ((shared &lt; min_length) &amp;&amp; (last_key_piece[shared] == key[shared])) &#123;</span><br><span class="line">      shared++;</span><br><span class="line">    &#125;</span><br><span class="line">  &#125; <span class="keyword">else</span> &#123;</span><br><span class="line">    <span class="comment">// 记录重启点</span></span><br><span class="line">    <span class="comment">// Restart compression</span></span><br><span class="line">    restarts_.<span class="built_in">push_back</span>(buffer_.<span class="built_in">size</span>());</span><br><span class="line">    counter_ = <span class="number">0</span>;</span><br><span class="line">  &#125;</span><br><span class="line">  <span class="type">const</span> <span class="type">size_t</span> non_shared = key.<span class="built_in">size</span>() - shared;</span><br><span class="line"></span><br><span class="line">  <span class="comment">// Add &quot;&lt;shared&gt;&lt;non_shared&gt;&lt;value_size&gt;&quot; to buffer_</span></span><br><span class="line">  <span class="built_in">PutVarint32</span>(&amp;buffer_, shared);</span><br><span class="line">  <span class="built_in">PutVarint32</span>(&amp;buffer_, non_shared);</span><br><span class="line">  <span class="built_in">PutVarint32</span>(&amp;buffer_, value.<span class="built_in">size</span>());</span><br><span class="line"></span><br><span class="line">  <span class="comment">// Add string delta to buffer_ followed by value</span></span><br><span class="line">  buffer_.<span class="built_in">append</span>(key.<span class="built_in">data</span>() + shared, non_shared);</span><br><span class="line">  buffer_.<span class="built_in">append</span>(value.<span class="built_in">data</span>(), value.<span class="built_in">size</span>());</span><br><span class="line"></span><br><span class="line">  <span class="comment">// Update state</span></span><br><span class="line">  last_key_.<span class="built_in">resize</span>(shared);</span><br><span class="line">  last_key_.<span class="built_in">append</span>(key.<span class="built_in">data</span>() + shared, non_shared);</span><br><span class="line">  <span class="built_in">assert</span>(<span class="built_in">Slice</span>(last_key_) == key);</span><br><span class="line">  counter_++;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p><strong>在Add函数的前面，我们又可以看到保证key递增的断言。</strong></p>
+<h3 id="Data-Block的解析和查询流程"><a href="#Data-Block的解析和查询流程" class="headerlink" title="Data Block的解析和查询流程"></a>Data Block的解析和查询流程</h3><h4 id="解析"><a href="#解析" class="headerlink" title="解析"></a>解析</h4><ol>
+<li><p>先根据data_block的Footer核对校验和，然后根据Footer的指示对data_block进行解压。</p>
+</li>
+<li><p>获取重启数组大小，计算重启数组在data_block的偏移。将重启数组的偏移记录在Block::restart_offset_中.</p>
+</li>
+</ol>
+<p>伪代码如下：</p>
+<figure class="highlight cpp"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br><span class="line">36</span><br><span class="line">37</span><br><span class="line">38</span><br><span class="line">39</span><br><span class="line">40</span><br><span class="line">41</span><br><span class="line">42</span><br><span class="line">43</span><br><span class="line">44</span><br><span class="line">45</span><br><span class="line">46</span><br><span class="line">47</span><br><span class="line">48</span><br><span class="line">49</span><br><span class="line">50</span><br><span class="line">51</span><br><span class="line">52</span><br><span class="line">53</span><br><span class="line">54</span><br><span class="line">55</span><br><span class="line">56</span><br><span class="line">57</span><br><span class="line">58</span><br><span class="line">59</span><br><span class="line">60</span><br><span class="line">61</span><br><span class="line">62</span><br><span class="line">63</span><br><span class="line">64</span><br><span class="line">65</span><br><span class="line">66</span><br><span class="line">67</span><br><span class="line">68</span><br><span class="line">69</span><br></pre></td><td class="code"><pre><span class="line"><span class="function"><span class="keyword">inline</span> <span class="type">uint32_t</span> <span class="title">Block::NumRestarts</span><span class="params">()</span> <span class="type">const</span> </span>&#123;</span><br><span class="line">  <span class="built_in">assert</span>(size_ &gt;= <span class="built_in">sizeof</span>(<span class="type">uint32_t</span>));</span><br><span class="line">  <span class="keyword">return</span> <span class="built_in">DecodeFixed32</span>(data_ + size_ - <span class="built_in">sizeof</span>(<span class="type">uint32_t</span>));</span><br><span class="line">&#125;</span><br><span class="line"><span class="comment">//Block Reader</span></span><br><span class="line">Block::<span class="built_in">Block</span>(<span class="type">const</span> BlockContents&amp; contents)</span><br><span class="line">    : <span class="built_in">data_</span>(contents.data.<span class="built_in">data</span>()),</span><br><span class="line">      <span class="built_in">size_</span>(contents.data.<span class="built_in">size</span>()),</span><br><span class="line">      <span class="built_in">owned_</span>(contents.heap_allocated) &#123;</span><br><span class="line">    </span><br><span class="line">    <span class="comment">// 这里的size_就是data_block的大小，减去重启数组本身和重启数组大小值的大小，即可定位到重启数组的偏移。</span></span><br><span class="line">    restart_offset_ = size_ - (<span class="number">1</span> + <span class="built_in">NumRestarts</span>()) * <span class="built_in">sizeof</span>(<span class="type">uint32_t</span>);</span><br><span class="line">&#125;</span><br><span class="line"></span><br><span class="line"><span class="comment">// 从sst中根据handle去解析一个data_block</span></span><br><span class="line"><span class="function">Status <span class="title">ReadBlock</span><span class="params">(RandomAccessFile* file, <span class="type">const</span> ReadOptions&amp; options,</span></span></span><br><span class="line"><span class="params"><span class="function">                 <span class="type">const</span> BlockHandle&amp; handle, BlockContents* result)</span> </span>&#123;</span><br><span class="line">  result-&gt;data = <span class="built_in">Slice</span>();</span><br><span class="line">  result-&gt;cachable = <span class="literal">false</span>;	<span class="comment">// 是否可cache</span></span><br><span class="line">  result-&gt;heap_allocated = <span class="literal">false</span>;	<span class="comment">// 是否需要手动free？</span></span><br><span class="line"></span><br><span class="line">  <span class="comment">// Read the block contents as well as the type/crc footer.</span></span><br><span class="line">  <span class="comment">// See table_builder.cc for the code that built this structure.</span></span><br><span class="line">  <span class="type">size_t</span> n = <span class="built_in">static_cast</span>&lt;<span class="type">size_t</span>&gt;(handle.<span class="built_in">size</span>());</span><br><span class="line">  <span class="type">char</span>* buf = <span class="keyword">new</span> <span class="type">char</span>[n + kBlockTrailerSize];</span><br><span class="line">  Slice contents;</span><br><span class="line">  Status s = file-&gt;<span class="built_in">Read</span>(handle.<span class="built_in">offset</span>(), n + kBlockTrailerSize, &amp;contents, buf);</span><br><span class="line">  <span class="keyword">if</span> (!s.<span class="built_in">ok</span>()) &#123;</span><br><span class="line">    <span class="keyword">delete</span>[] buf;</span><br><span class="line">    <span class="keyword">return</span> s;</span><br><span class="line">  &#125;</span><br><span class="line">  <span class="keyword">if</span> (contents.<span class="built_in">size</span>() != n + kBlockTrailerSize) &#123;</span><br><span class="line">    <span class="keyword">delete</span>[] buf;</span><br><span class="line">    <span class="keyword">return</span> Status::<span class="built_in">Corruption</span>(<span class="string">&quot;truncated block read&quot;</span>);</span><br><span class="line">  &#125;</span><br><span class="line"></span><br><span class="line">	<span class="comment">// 检测校验和。</span></span><br><span class="line">  <span class="comment">// Check the crc of the type and the block contents</span></span><br><span class="line">  <span class="type">const</span> <span class="type">char</span>* data = contents.<span class="built_in">data</span>();  <span class="comment">// Pointer to where Read put the data</span></span><br><span class="line">  <span class="keyword">if</span> (options.verify_checksums) &#123;</span><br><span class="line">    <span class="type">const</span> <span class="type">uint32_t</span> crc = crc32c::<span class="built_in">Unmask</span>(<span class="built_in">DecodeFixed32</span>(data + n + <span class="number">1</span>));</span><br><span class="line">    <span class="type">const</span> <span class="type">uint32_t</span> actual = crc32c::<span class="built_in">Value</span>(data, n + <span class="number">1</span>);</span><br><span class="line">    <span class="keyword">if</span> (actual != crc) &#123;</span><br><span class="line">      <span class="keyword">delete</span>[] buf;</span><br><span class="line">      s = Status::<span class="built_in">Corruption</span>(<span class="string">&quot;block checksum mismatch&quot;</span>);</span><br><span class="line">      <span class="keyword">return</span> s;</span><br><span class="line">    &#125;</span><br><span class="line">  &#125;</span><br><span class="line"></span><br><span class="line">  <span class="keyword">switch</span> (data[n]) &#123;</span><br><span class="line">    <span class="keyword">case</span> kNoCompression:</span><br><span class="line">	<span class="comment">// 解压...</span></span><br><span class="line">      <span class="keyword">break</span>;</span><br><span class="line">    <span class="keyword">case</span> kSnappyCompression: &#123;</span><br><span class="line">	<span class="comment">// 解压...</span></span><br><span class="line">      <span class="keyword">break</span>;</span><br><span class="line">    &#125;</span><br><span class="line">    <span class="keyword">case</span> kZstdCompression: &#123;</span><br><span class="line">	<span class="comment">// 解压...</span></span><br><span class="line">      <span class="keyword">break</span>;</span><br><span class="line">    &#125;</span><br><span class="line">    <span class="keyword">default</span>:</span><br><span class="line">      <span class="keyword">delete</span>[] buf;</span><br><span class="line">      <span class="keyword">return</span> Status::<span class="built_in">Corruption</span>(<span class="string">&quot;bad block type&quot;</span>);</span><br><span class="line">  &#125;</span><br><span class="line"></span><br><span class="line">  <span class="keyword">return</span> Status::<span class="built_in">OK</span>();</span><br><span class="line">&#125;</span><br><span class="line"></span><br></pre></td></tr></table></figure>
+
+<p>至此data_block的解析完毕，接下来介绍data_block如何查询一个key。</p>
+<h4 id="查询"><a href="#查询" class="headerlink" title="查询"></a>查询</h4><p>首先要明确的是，重启点的key是完整的，可以直接进行比较。</p>
+<ol>
+<li><p>对重启数组进行二分，查询最后一个小于target的重启点</p>
+</li>
+<li><p>从被定位到的重启点开始，顺序扫描去解析还原每一个key，知道找到了第一个大于等于target的entry。</p>
+</li>
+</ol>
+<p>二分代码如下：</p>
+<figure class="highlight cpp"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br><span class="line">36</span><br><span class="line">37</span><br><span class="line">38</span><br><span class="line">39</span><br><span class="line">40</span><br><span class="line">41</span><br><span class="line">42</span><br><span class="line">43</span><br><span class="line">44</span><br><span class="line">45</span><br><span class="line">46</span><br><span class="line">47</span><br><span class="line">48</span><br><span class="line">49</span><br><span class="line">50</span><br><span class="line">51</span><br><span class="line">52</span><br><span class="line">53</span><br><span class="line">54</span><br><span class="line">55</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">class</span> <span class="title class_">Block</span>::Iter : <span class="keyword">public</span> Iterator &#123;</span><br><span class="line">  <span class="function"><span class="type">void</span> <span class="title">Seek</span><span class="params">(<span class="type">const</span> Slice&amp; target)</span> <span class="keyword">override</span> </span>&#123;</span><br><span class="line">    <span class="type">uint32_t</span> left = <span class="number">0</span>;</span><br><span class="line">    <span class="type">uint32_t</span> right = num_restarts_ - <span class="number">1</span>;</span><br><span class="line">    <span class="type">int</span> current_key_compare = <span class="number">0</span>;</span><br><span class="line"></span><br><span class="line">    <span class="keyword">if</span> (<span class="built_in">Valid</span>()) &#123;</span><br><span class="line">      current_key_compare = <span class="built_in">Compare</span>(key_, target);</span><br><span class="line">      <span class="keyword">if</span> (current_key_compare &lt; <span class="number">0</span>) &#123;    <span class="comment">// 初步缩小二分范围</span></span><br><span class="line">        <span class="comment">// key_ is smaller than target</span></span><br><span class="line">        left = restart_index_;</span><br><span class="line">      &#125; <span class="keyword">else</span> <span class="keyword">if</span> (current_key_compare &gt; <span class="number">0</span>) &#123;</span><br><span class="line">        right = restart_index_;</span><br><span class="line">      &#125; <span class="keyword">else</span> &#123;</span><br><span class="line">        <span class="comment">// We&#x27;re seeking to the key we&#x27;re already at.</span></span><br><span class="line">        <span class="keyword">return</span>;</span><br><span class="line">      &#125;</span><br><span class="line">    &#125;</span><br><span class="line">    <span class="comment">//找最后一个小于target的重启点</span></span><br><span class="line">    <span class="keyword">while</span> (left &lt; right) &#123;</span><br><span class="line">      <span class="comment">//向上取整以免只有两个元素时死循环</span></span><br><span class="line">      <span class="type">uint32_t</span> mid = (left + right + <span class="number">1</span>) / <span class="number">2</span>;</span><br><span class="line">      <span class="type">uint32_t</span> region_offset = <span class="built_in">GetRestartPoint</span>(mid);</span><br><span class="line">      <span class="type">uint32_t</span> shared, non_shared, value_length;</span><br><span class="line">      <span class="type">const</span> <span class="type">char</span>* key_ptr =</span><br><span class="line">          <span class="built_in">DecodeEntry</span>(data_ + region_offset, data_ + restarts_, &amp;shared,</span><br><span class="line">                      &amp;non_shared, &amp;value_length);</span><br><span class="line">      <span class="keyword">if</span> (key_ptr == <span class="literal">nullptr</span> || (shared != <span class="number">0</span>)) &#123;</span><br><span class="line">        <span class="built_in">CorruptionError</span>();</span><br><span class="line">        <span class="keyword">return</span>;</span><br><span class="line">      &#125;</span><br><span class="line">      <span class="function">Slice <span class="title">mid_key</span><span class="params">(key_ptr, non_shared)</span></span>;   <span class="comment">//重启点的非共享key就是完整的key</span></span><br><span class="line">      <span class="keyword">if</span> (<span class="built_in">Compare</span>(mid_key, target) &lt; <span class="number">0</span>) &#123;</span><br><span class="line">        left = mid;</span><br><span class="line">      &#125; <span class="keyword">else</span> &#123;</span><br><span class="line">        right = mid - <span class="number">1</span>;</span><br><span class="line">      &#125;</span><br><span class="line">    &#125;</span><br><span class="line"></span><br><span class="line">    <span class="built_in">assert</span>(current_key_compare == <span class="number">0</span> || <span class="built_in">Valid</span>());</span><br><span class="line">    <span class="type">bool</span> skip_seek = left == restart_index_ &amp;&amp; current_key_compare &lt; <span class="number">0</span>;   <span class="comment">//如果target所在重启区域和原本的key所在重启区域相同，且target在原本key的右方，就不用重置重启点</span></span><br><span class="line">    <span class="keyword">if</span> (!skip_seek) &#123;</span><br><span class="line">      <span class="built_in">SeekToRestartPoint</span>(left);</span><br><span class="line">    &#125;</span><br><span class="line">    <span class="comment">// 顺序解析，找第一个大于等于target的key</span></span><br><span class="line">    <span class="keyword">while</span> (<span class="literal">true</span>) &#123;   </span><br><span class="line">      <span class="keyword">if</span> (!<span class="built_in">ParseNextKey</span>()) &#123;</span><br><span class="line">        <span class="keyword">return</span>;</span><br><span class="line">      &#125;</span><br><span class="line">      <span class="keyword">if</span> (<span class="built_in">Compare</span>(key_, target) &gt;= <span class="number">0</span>) &#123;</span><br><span class="line">        <span class="keyword">return</span>;</span><br><span class="line">      &#125;</span><br><span class="line">    &#125;</span><br><span class="line">  &#125;</span><br><span class="line">&#125;;</span><br></pre></td></tr></table></figure>
+
+<h2 id="Filter-Data-Block整体结构"><a href="#Filter-Data-Block整体结构" class="headerlink" title="Filter Data Block整体结构"></a>Filter Data Block整体结构</h2><h3 id="总览-2"><a href="#总览-2" class="headerlink" title="总览"></a>总览</h3><p>filter_data_block的结构如下：</p>
+<p><img src="/2024/04/21/leveldb/SSTable/photo/SSTableFilterDataBlock.drawio.png" alt="SSTableFilterDataBlock"></p>
+<p><strong>注意，这里filter data本质就是bloom过滤器的位数组。</strong></p>
+<p>简单理解，LevelDB为每个data_block块都分配了一个filter_data，深入源码分析，其实随着用户对data_block默认大小的调节，当data_block够小时，不同的data_block可能共用同一个filter_data的（多个data_block共用偏移数组的同一个entry）；当data_block够大时，一个data_block可能会占用偏移数组的多个entry（1个、2个、3个…） 我们在filter_data_block的写入分析中做更详细的解释。</p>
+<h3 id="Filter-Data-Block的写入流程"><a href="#Filter-Data-Block的写入流程" class="headerlink" title="Filter Data Block的写入流程"></a>Filter Data Block的写入流程</h3><p>filter_data_block的写入流程如下：</p>
+<ol>
+<li><p>搜集传进来的key。</p>
+</li>
+<li><p>每当一个data_block写入完毕，SST那里就会调用一下FilterBlockBuilder::StartBlock，该函数会根据传进来的<strong>下一个data_block在文件中的偏移（假设为data_block_next_offset）</strong>计算data_block_next_offset在偏移数组中的下标。这里的计算是指求data_block_next_offset &#x2F; kFilterBase值，<strong>并且其间的间隔，都会以上一个filter_data的结尾偏移来填充。</strong></p>
+</li>
+<li><p>SSTable调用的TableBuilder::Finish()时，filter_data_block会调用自己的FilterBlockBuilder::Finish()，计算剩余的filter_data的bloom位数组，然后将偏移数组、将偏移数组本身的偏移、kFilterBaseLg（11）写到filter_block中。</p>
+</li>
+</ol>
+<p>代码如下：</p>
+<figure class="highlight cpp"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br><span class="line">36</span><br><span class="line">37</span><br><span class="line">38</span><br><span class="line">39</span><br><span class="line">40</span><br><span class="line">41</span><br><span class="line">42</span><br><span class="line">43</span><br><span class="line">44</span><br><span class="line">45</span><br><span class="line">46</span><br><span class="line">47</span><br><span class="line">48</span><br><span class="line">49</span><br><span class="line">50</span><br><span class="line">51</span><br><span class="line">52</span><br><span class="line">53</span><br><span class="line">54</span><br><span class="line">55</span><br><span class="line">56</span><br><span class="line">57</span><br><span class="line">58</span><br><span class="line">59</span><br><span class="line">60</span><br><span class="line">61</span><br><span class="line">62</span><br><span class="line">63</span><br><span class="line">64</span><br><span class="line">65</span><br><span class="line">66</span><br><span class="line">67</span><br><span class="line">68</span><br><span class="line">69</span><br><span class="line">70</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">// Generate new filter every 2KB of data</span></span><br><span class="line"><span class="type">static</span> <span class="type">const</span> <span class="type">size_t</span> kFilterBaseLg = <span class="number">11</span>;</span><br><span class="line"><span class="type">static</span> <span class="type">const</span> <span class="type">size_t</span> kFilterBase = <span class="number">1</span> &lt;&lt; kFilterBaseLg;</span><br><span class="line"></span><br><span class="line">FilterBlockBuilder::<span class="built_in">FilterBlockBuilder</span>(<span class="type">const</span> FilterPolicy* policy)</span><br><span class="line">    : <span class="built_in">policy_</span>(policy) &#123;&#125;</span><br><span class="line"><span class="comment">// block_offset 是一个data块（被压缩过的）在sst文件中的偏移</span></span><br><span class="line"><span class="function"><span class="type">void</span> <span class="title">FilterBlockBuilder::StartBlock</span><span class="params">(<span class="type">uint64_t</span> block_offset)</span> </span>&#123;</span><br><span class="line">  <span class="type">uint64_t</span> filter_index = (block_offset / kFilterBase);</span><br><span class="line">  <span class="built_in">assert</span>(filter_index &gt;= filter_offsets_.<span class="built_in">size</span>());</span><br><span class="line">  <span class="comment">// 重点!!!</span></span><br><span class="line">  <span class="comment">// block_ofsset就是block_data到文件头的偏移，filter_offset.size()要和每次传进来的block_offset / kFilterBase算出来的index保持一致,</span></span><br><span class="line">  <span class="comment">// 过大就用filterdata结束偏移填充。</span></span><br><span class="line"></span><br><span class="line"></span><br><span class="line">  <span class="comment">// 两次传入的block_offset计算出来的filter_index差值可能过大（大于2），</span></span><br><span class="line">  <span class="comment">// 此时除了第一次调用的GenerateFilter填充上一个bllom_filter的起点外，</span></span><br><span class="line">  <span class="comment">// 其余的GenerateFilter循环直接用上一个bloom_filter终点填充</span></span><br><span class="line">  <span class="keyword">while</span> (filter_index &gt; filter_offsets_.<span class="built_in">size</span>()) &#123;</span><br><span class="line">    <span class="built_in">GenerateFilter</span>();</span><br><span class="line">  &#125;</span><br><span class="line">&#125;</span><br><span class="line"></span><br><span class="line"><span class="function"><span class="type">void</span> <span class="title">FilterBlockBuilder::AddKey</span><span class="params">(<span class="type">const</span> Slice&amp; key)</span> </span>&#123;</span><br><span class="line">  Slice k = key;</span><br><span class="line">  start_.<span class="built_in">push_back</span>(keys_.<span class="built_in">size</span>());</span><br><span class="line">  keys_.<span class="built_in">append</span>(k.<span class="built_in">data</span>(), k.<span class="built_in">size</span>());</span><br><span class="line">&#125;</span><br><span class="line"></span><br><span class="line"><span class="function">Slice <span class="title">FilterBlockBuilder::Finish</span><span class="params">()</span> </span>&#123;</span><br><span class="line">  <span class="keyword">if</span> (!start_.<span class="built_in">empty</span>()) &#123;</span><br><span class="line">    <span class="built_in">GenerateFilter</span>();</span><br><span class="line">  &#125;</span><br><span class="line"></span><br><span class="line">  <span class="comment">// Append array of per-filter offsets</span></span><br><span class="line">  <span class="type">const</span> <span class="type">uint32_t</span> array_offset = result_.<span class="built_in">size</span>();</span><br><span class="line">  <span class="keyword">for</span> (<span class="type">size_t</span> i = <span class="number">0</span>; i &lt; filter_offsets_.<span class="built_in">size</span>(); i++) &#123;</span><br><span class="line">    <span class="built_in">PutFixed32</span>(&amp;result_, filter_offsets_[i]);</span><br><span class="line">  &#125;</span><br><span class="line"></span><br><span class="line">  <span class="built_in">PutFixed32</span>(&amp;result_, array_offset);</span><br><span class="line">  result_.<span class="built_in">push_back</span>(kFilterBaseLg);  <span class="comment">// Save encoding parameter in result</span></span><br><span class="line">  <span class="keyword">return</span> <span class="built_in">Slice</span>(result_);</span><br><span class="line">&#125;</span><br><span class="line"></span><br><span class="line"><span class="function"><span class="type">void</span> <span class="title">FilterBlockBuilder::GenerateFilter</span><span class="params">()</span> </span>&#123;</span><br><span class="line">  <span class="type">const</span> <span class="type">size_t</span> num_keys = start_.<span class="built_in">size</span>();</span><br><span class="line">  <span class="keyword">if</span> (num_keys == <span class="number">0</span>) &#123;</span><br><span class="line">    <span class="comment">// Fast path if there are no keys for this filter</span></span><br><span class="line">    filter_offsets_.<span class="built_in">push_back</span>(result_.<span class="built_in">size</span>());</span><br><span class="line">    <span class="keyword">return</span>;</span><br><span class="line">  &#125;</span><br><span class="line"></span><br><span class="line">  <span class="comment">// Make list of keys from flattened key structure</span></span><br><span class="line">  start_.<span class="built_in">push_back</span>(keys_.<span class="built_in">size</span>());  <span class="comment">// Simplify length computation // 方便长度计算</span></span><br><span class="line">  tmp_keys_.<span class="built_in">resize</span>(num_keys);</span><br><span class="line">  <span class="keyword">for</span> (<span class="type">size_t</span> i = <span class="number">0</span>; i &lt; num_keys; i++) &#123;   <span class="comment">// 从keys中提取每个key，并保存到tmp_keys中</span></span><br><span class="line">    <span class="type">const</span> <span class="type">char</span>* base = keys_.<span class="built_in">data</span>() + start_[i];</span><br><span class="line">    <span class="type">size_t</span> length = start_[i + <span class="number">1</span>] - start_[i];</span><br><span class="line">    tmp_keys_[i] = <span class="built_in">Slice</span>(base, length);</span><br><span class="line">  &#125;</span><br><span class="line"></span><br><span class="line">  <span class="comment">// Generate filter for current set of keys and append to result_.</span></span><br><span class="line">  filter_offsets_.<span class="built_in">push_back</span>(result_.<span class="built_in">size</span>());<span class="comment">// 压入当前bloom块的偏移量</span></span><br><span class="line">  policy_-&gt;<span class="built_in">CreateFilter</span>(&amp;tmp_keys_[<span class="number">0</span>], <span class="built_in">static_cast</span>&lt;<span class="type">int</span>&gt;(num_keys), &amp;result_);</span><br><span class="line"></span><br><span class="line">  tmp_keys_.<span class="built_in">clear</span>();</span><br><span class="line">  keys_.<span class="built_in">clear</span>();</span><br><span class="line">  start_.<span class="built_in">clear</span>();</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p>这段代码可能难理解的就是：FilterBlockBuilder::StartBlock函数里面的while循环，使用while循环的目的是，data_block的文件偏移到filter_data_block的偏移数组映射的同步。如果data_block的默认大小被用户调的特别大，每个data_block的 <strong>data_block的文件偏移 &#x2F; kFilterBase</strong> 的值差异会非常大，反映在filter_data_block的偏移数组上就是：相邻两个data_block在偏移数组上的索引相差会很大（相差3个、4个、n个索引。）而这段filter data offset所有的值会用后一个data_block的filter_data的起始偏移填充。所以while循环就是起到同步索引的效果。这里要好好体会其涉设计的妙处。</p>
+<h3 id="Filter-Data-Block的读取流程"><a href="#Filter-Data-Block的读取流程" class="headerlink" title="Filter Data Block的读取流程"></a>Filter Data Block的读取流程</h3><p>Filter Data Block在构造函数中会：提取偏移数组的偏移、kFilterBaseLg（11），计算偏移数组的大小。</p>
+<ol>
+<li><p>根据传进来的block_offset计算它在偏移数组的下标。</p>
+</li>
+<li><p>读取filter_data。</p>
+</li>
+<li><p>通过bloom位数组判断target是否存在。</p>
+</li>
+</ol>
+<p>部分代码如下：</p>
+<figure class="highlight cpp"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br></pre></td><td class="code"><pre><span class="line">FilterBlockReader::<span class="built_in">FilterBlockReader</span>(<span class="type">const</span> FilterPolicy* policy,</span><br><span class="line">                                     <span class="type">const</span> Slice&amp; contents)</span><br><span class="line">    : <span class="built_in">policy_</span>(policy), <span class="built_in">data_</span>(<span class="literal">nullptr</span>), <span class="built_in">offset_</span>(<span class="literal">nullptr</span>), <span class="built_in">num_</span>(<span class="number">0</span>), <span class="built_in">base_lg_</span>(<span class="number">0</span>) &#123;</span><br><span class="line">  <span class="type">size_t</span> n = contents.<span class="built_in">size</span>();</span><br><span class="line">  <span class="keyword">if</span> (n &lt; <span class="number">5</span>) <span class="keyword">return</span>;  <span class="comment">// 1 byte for base_lg_ and 4 for start of offset array</span></span><br><span class="line">  base_lg_ = contents[n - <span class="number">1</span>];</span><br><span class="line">  <span class="type">uint32_t</span> last_word = <span class="built_in">DecodeFixed32</span>(contents.<span class="built_in">data</span>() + n - <span class="number">5</span>);</span><br><span class="line">  <span class="keyword">if</span> (last_word &gt; n - <span class="number">5</span>) <span class="keyword">return</span>;</span><br><span class="line">  data_ = contents.<span class="built_in">data</span>();</span><br><span class="line">  offset_ = data_ + last_word;</span><br><span class="line">  num_ = (n - <span class="number">5</span> - last_word) / <span class="number">4</span>;</span><br><span class="line">&#125;</span><br><span class="line"></span><br><span class="line"><span class="function"><span class="type">bool</span> <span class="title">FilterBlockReader::KeyMayMatch</span><span class="params">(<span class="type">uint64_t</span> block_offset, <span class="type">const</span> Slice&amp; key)</span> </span>&#123;</span><br><span class="line">  <span class="type">uint64_t</span> index = block_offset &gt;&gt; base_lg_;</span><br><span class="line">  <span class="keyword">if</span> (index &lt; num_) &#123;</span><br><span class="line">    <span class="type">uint32_t</span> start = <span class="built_in">DecodeFixed32</span>(offset_ + index * <span class="number">4</span>);</span><br><span class="line">    <span class="type">uint32_t</span> limit = <span class="built_in">DecodeFixed32</span>(offset_ + index * <span class="number">4</span> + <span class="number">4</span>);</span><br><span class="line">    <span class="keyword">if</span> (start &lt;= limit &amp;&amp; limit &lt;= <span class="built_in">static_cast</span>&lt;<span class="type">size_t</span>&gt;(offset_ - data_)) &#123;</span><br><span class="line">      Slice filter = <span class="built_in">Slice</span>(data_ + start, limit - start);</span><br><span class="line">      <span class="keyword">return</span> policy_-&gt;<span class="built_in">KeyMayMatch</span>(key, filter);</span><br><span class="line">    &#125; <span class="keyword">else</span> <span class="keyword">if</span> (start == limit) &#123;</span><br><span class="line">      <span class="comment">// Empty filters do not match any keys</span></span><br><span class="line">      <span class="keyword">return</span> <span class="literal">false</span>;</span><br><span class="line">    &#125;</span><br><span class="line">  &#125;</span><br><span class="line">  <span class="keyword">return</span> <span class="literal">true</span>;  <span class="comment">// Errors are treated as potential matches</span></span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+
+
+<hr>
+<p><strong>本章完结</strong></p>
+
+    </div>
+
+    
+    
+    
+        <div class="reward-container">
+  <div></div>
+  <button onclick="var qr = document.getElementById('qr'); qr.style.display = (qr.style.display === 'none') ? 'block' : 'none';">
+    打赏
+  </button>
+  <div id="qr" style="display: none;">
+      
+      <div style="display: inline-block;">
+        <img src="/images/wechatpay.jpg" alt="半个馒头 微信支付">
+        <p>微信支付</p>
+      </div>
+
+  </div>
+</div>
+
+
+      <footer class="post-footer">
+          <div class="post-tags">
+              <a href="/tags/%E5%AD%98%E5%82%A8/" rel="tag"># 存储</a>
+          </div>
+
+        
+
+
+        
+    <div class="post-nav">
+      <div class="post-nav-item">
+    <a href="/2024/04/18/leveldb/Framework/" rel="prev" title="LevelDB源码阅读笔记（1、整体架构）">
+      <i class="fa fa-chevron-left"></i> LevelDB源码阅读笔记（1、整体架构）
+    </a></div>
+      <div class="post-nav-item">
+    <a href="/2024/05/08/stm32/USART/" rel="next" title="STM32快速入门（串口传输之USART）">
+      STM32快速入门（串口传输之USART） <i class="fa fa-chevron-right"></i>
+    </a></div>
+    </div>
+      </footer>
+    
+  </article>
+  
+  
+  
+
+
+
+          </div>
+          
+
+<script>
+  window.addEventListener('tabs:register', () => {
+    let { activeClass } = CONFIG.comments;
+    if (CONFIG.comments.storage) {
+      activeClass = localStorage.getItem('comments_active') || activeClass;
+    }
+    if (activeClass) {
+      let activeTab = document.querySelector(`a[href="#comment-${activeClass}"]`);
+      if (activeTab) {
+        activeTab.click();
+      }
+    }
+  });
+  if (CONFIG.comments.storage) {
+    window.addEventListener('tabs:click', event => {
+      if (!event.target.matches('.tabs-comment .tab-content .tab-pane')) return;
+      let commentClass = event.target.classList[1];
+      localStorage.setItem('comments_active', commentClass);
+    });
+  }
+</script>
+
+        </div>
+          
+  
+  <div class="toggle sidebar-toggle">
+    <span class="toggle-line toggle-line-first"></span>
+    <span class="toggle-line toggle-line-middle"></span>
+    <span class="toggle-line toggle-line-last"></span>
+  </div>
+
+  <aside class="sidebar">
+    <div class="sidebar-inner">
+
+      <ul class="sidebar-nav motion-element">
+        <li class="sidebar-nav-toc">
+          文章目录
+        </li>
+        <li class="sidebar-nav-overview">
+          站点概览
+        </li>
+      </ul>
+
+      <!--noindex-->
+      <div class="post-toc-wrap sidebar-panel">
+          <div class="post-toc motion-element"><ol class="nav"><li class="nav-item nav-level-2"><a class="nav-link" href="#SSTable%E6%95%B4%E4%BD%93%E7%BB%93%E6%9E%84"><span class="nav-number">1.</span> <span class="nav-text">SSTable整体结构</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#%E6%80%BB%E8%A7%88"><span class="nav-number">1.1.</span> <span class="nav-text">总览</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#SSTable%E7%9A%84%E5%86%99%E5%85%A5%E6%B5%81%E7%A8%8B"><span class="nav-number">1.2.</span> <span class="nav-text">SSTable的写入流程</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#SSTable%E7%9A%84%E8%A7%A3%E6%9E%90%E6%B5%81%E7%A8%8B"><span class="nav-number">1.3.</span> <span class="nav-text">SSTable的解析流程</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#SSTable%E7%9A%84%E6%9F%A5%E8%AF%A2%E6%B5%81%E7%A8%8B"><span class="nav-number">1.4.</span> <span class="nav-text">SSTable的查询流程</span></a></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#Data-Block%E7%9A%84%E6%95%B4%E4%BD%93%E7%BB%93%E6%9E%84"><span class="nav-number">2.</span> <span class="nav-text">Data Block的整体结构</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#%E6%80%BB%E8%A7%88-1"><span class="nav-number">2.1.</span> <span class="nav-text">总览</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#Data-Block%E7%9A%84%E5%86%99%E5%85%A5%E6%B5%81%E7%A8%8B"><span class="nav-number">2.2.</span> <span class="nav-text">Data Block的写入流程</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#Data-Block%E7%9A%84%E8%A7%A3%E6%9E%90%E5%92%8C%E6%9F%A5%E8%AF%A2%E6%B5%81%E7%A8%8B"><span class="nav-number">2.3.</span> <span class="nav-text">Data Block的解析和查询流程</span></a><ol class="nav-child"><li class="nav-item nav-level-4"><a class="nav-link" href="#%E8%A7%A3%E6%9E%90"><span class="nav-number">2.3.1.</span> <span class="nav-text">解析</span></a></li><li class="nav-item nav-level-4"><a class="nav-link" href="#%E6%9F%A5%E8%AF%A2"><span class="nav-number">2.3.2.</span> <span class="nav-text">查询</span></a></li></ol></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#Filter-Data-Block%E6%95%B4%E4%BD%93%E7%BB%93%E6%9E%84"><span class="nav-number">3.</span> <span class="nav-text">Filter Data Block整体结构</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#%E6%80%BB%E8%A7%88-2"><span class="nav-number">3.1.</span> <span class="nav-text">总览</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#Filter-Data-Block%E7%9A%84%E5%86%99%E5%85%A5%E6%B5%81%E7%A8%8B"><span class="nav-number">3.2.</span> <span class="nav-text">Filter Data Block的写入流程</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#Filter-Data-Block%E7%9A%84%E8%AF%BB%E5%8F%96%E6%B5%81%E7%A8%8B"><span class="nav-number">3.3.</span> <span class="nav-text">Filter Data Block的读取流程</span></a></li></ol></li></ol></div>
+      </div>
+      <!--/noindex-->
+
+      <div class="site-overview-wrap sidebar-panel">
+        <div class="site-author motion-element" itemprop="author" itemscope itemtype="http://schema.org/Person">
+    <img class="site-author-image" itemprop="image" alt="半个馒头"
+      src="/images/avatar.jpg">
+  <p class="site-author-name" itemprop="name">半个馒头</p>
+  <div class="site-description" itemprop="description"></div>
+</div>
+<div class="site-state-wrap motion-element">
+  <nav class="site-state">
+      <div class="site-state-item site-state-posts">
+          <a href="/archives/">
+        
+          <span class="site-state-item-count">58</span>
+          <span class="site-state-item-name">日志</span>
+        </a>
+      </div>
+      <div class="site-state-item site-state-tags">
+            <a href="/tags/">
+          
+        <span class="site-state-item-count">18</span>
+        <span class="site-state-item-name">标签</span></a>
+      </div>
+  </nav>
+</div>
+  <div class="links-of-author motion-element">
+      <span class="links-of-author-item">
+        <a href="https://github.com/LunarStore" title="GitHub → https:&#x2F;&#x2F;github.com&#x2F;LunarStore" rel="noopener" target="_blank"><i class="fa fa-fw fa-github"></i>GitHub</a>
+      </span>
+      <span class="links-of-author-item">
+        <a href="mailto:18772124875@163.com" title="网易邮箱 → mailto:18772124875@163.com" rel="noopener" target="_blank"><i class="fa fa-fw fa-fas fa-envelope"></i>网易邮箱</a>
+      </span>
+  </div>
+
+
+  <div class="links-of-blogroll motion-element">
+    <div class="links-of-blogroll-title">
+      <i class="fa fa-fw fa-link"></i>
+      友情链接
+    </div>
+    <ul class="links-of-blogroll-list">
+        <li class="links-of-blogroll-item">
+          <a href="https://blog.csdn.net/m0_52566365" title="https:&#x2F;&#x2F;blog.csdn.net&#x2F;m0_52566365" rel="noopener" target="_blank">CSDN博客地址</a>
+        </li>
+    </ul>
+  </div>
+
+      </div>
+        <div class="back-to-top motion-element">
+          <i class="fa fa-arrow-up"></i>
+          <span>0%</span>
+        </div>
+
+    </div>
+  </aside>
+  <div id="sidebar-dimmer"></div>
+
+
+      </div>
+    </main>
+
+    <footer class="footer">
+      <div class="footer-inner">
+        
+
+        
+
+<div class="copyright">
+  
+  &copy; 
+  <span itemprop="copyrightYear">2025</span>
+  <span class="with-love">
+    <i class="fa fa-user"></i>
+  </span>
+  <span class="author" itemprop="copyrightHolder">半个馒头</span>
+</div>
+  <div class="powered-by">由 <a href="https://hexo.io/" class="theme-link" rel="noopener" target="_blank">Hexo</a> & <a href="https://theme-next.org/" class="theme-link" rel="noopener" target="_blank">NexT.Gemini</a> 强力驱动
+  </div>
+
+        
+<div class="busuanzi-count">
+  <script async src="https://busuanzi.ibruce.info/busuanzi/2.3/busuanzi.pure.mini.js"></script>
+    <span class="post-meta-item" id="busuanzi_container_site_uv" style="display: none;">
+      <span class="post-meta-item-icon">
+        <i class="fa fa-user"></i>
+      </span>
+      <span class="site-uv" title="总访客量">
+        <span id="busuanzi_value_site_uv"></span>
+      </span>
+    </span>
+    <span class="post-meta-divider">|</span>
+    <span class="post-meta-item" id="busuanzi_container_site_pv" style="display: none;">
+      <span class="post-meta-item-icon">
+        <i class="fa fa-eye"></i>
+      </span>
+      <span class="site-pv" title="总访问量">
+        <span id="busuanzi_value_site_pv"></span>
+      </span>
+    </span>
+</div>
+
+
+
+
+
+
+
+
+      </div>
+    </footer>
+  </div>
+
+  
+  <script src="/lib/anime.min.js"></script>
+  <script src="/lib/velocity/velocity.min.js"></script>
+  <script src="/lib/velocity/velocity.ui.min.js"></script>
+
+<script src="/js/utils.js"></script>
+
+<script src="/js/motion.js"></script>
+
+
+<script src="/js/schemes/pisces.js"></script>
+
+
+<script src="/js/next-boot.js"></script>
+
+
+
+
+  
+
+
+
+
+  
+<script src="/js/local-search.js"></script>
+
+
+
+
+
+
+
+
+
+
+
+
+
+  
+
+  
+
+</body>
+</html>

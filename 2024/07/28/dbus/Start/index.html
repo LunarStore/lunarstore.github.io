@@ -1,0 +1,645 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=2">
+<meta name="theme-color" content="#222">
+<meta name="generator" content="Hexo 7.3.0">
+  <link rel="apple-touch-icon" sizes="180x180" href="/images/apple-touch-icon-next.png">
+  <link rel="icon" type="image/png" sizes="32x32" href="/images/favicon-32x32-next.png">
+  <link rel="icon" type="image/png" sizes="16x16" href="/images/favicon-16x16-next.png">
+  <link rel="mask-icon" href="/images/logo.svg" color="#222">
+
+<link rel="stylesheet" href="/css/main.css">
+
+
+<link rel="stylesheet" href="/lib/font-awesome/css/font-awesome.min.css">
+  <link rel="stylesheet" href="/lib/pace/pace-theme-flash.min.css">
+  <script src="/lib/pace/pace.min.js"></script>
+
+<script id="hexo-configurations">
+    var NexT = window.NexT || {};
+    var CONFIG = {"hostname":"www.halfmantou.xyz","root":"/","scheme":"Gemini","version":"7.8.0","exturl":false,"sidebar":{"position":"left","display":"post","padding":18,"offset":12,"onmobile":false},"copycode":{"enable":true,"show_result":true,"style":null},"back2top":{"enable":true,"sidebar":true,"scrollpercent":true},"bookmark":{"enable":false,"color":"#222","save":"auto"},"fancybox":false,"mediumzoom":false,"lazyload":false,"pangu":false,"comments":{"style":"tabs","active":null,"storage":true,"lazyload":false,"nav":null},"algolia":{"hits":{"per_page":10},"labels":{"input_placeholder":"Search for Posts","hits_empty":"We didn't find any results for the search: ${query}","hits_stats":"${hits} results found in ${time} ms"}},"localsearch":{"enable":true,"trigger":"auto","top_n_per_article":3,"unescape":false,"preload":false},"motion":{"enable":true,"async":false,"transition":{"post_block":"fadeIn","post_header":"slideDownIn","post_body":"slideDownIn","coll_header":"slideLeftIn","sidebar":"slideUpIn"}},"path":"search.json"};
+  </script>
+
+  <meta name="description" content="参考链接：  中文博客：  https:&#x2F;&#x2F;www.e-learn.cn&#x2F;topic&#x2F;1808992  https:&#x2F;&#x2F;blog.csdn.net&#x2F;u011942101&#x2F;article&#x2F;details&#x2F;123383195  https:&#x2F;&#x2F;blog.csdn.net&#x2F;weixin_44498318&#x2F;article&#x2F;details&#x2F;115803936  https:&#x2F;&#x2F;">
+<meta property="og:type" content="article">
+<meta property="og:title" content="DBus快速入门">
+<meta property="og:url" content="https://www.halfmantou.xyz/2024/07/28/dbus/Start/index.html">
+<meta property="og:site_name" content="碎碎念念">
+<meta property="og:description" content="参考链接：  中文博客：  https:&#x2F;&#x2F;www.e-learn.cn&#x2F;topic&#x2F;1808992  https:&#x2F;&#x2F;blog.csdn.net&#x2F;u011942101&#x2F;article&#x2F;details&#x2F;123383195  https:&#x2F;&#x2F;blog.csdn.net&#x2F;weixin_44498318&#x2F;article&#x2F;details&#x2F;115803936  https:&#x2F;&#x2F;">
+<meta property="og:locale" content="zh_CN">
+<meta property="og:image" content="https://www.halfmantou.xyz/2024/07/28/dbus/Start/photo/dbus_diagram.png">
+<meta property="og:image" content="https://www.halfmantou.xyz/2024/07/28/dbus/Start/photo/d-feet_analyse.png">
+<meta property="og:image" content="https://www.halfmantou.xyz/2024/07/28/dbus/Start/photo/result.png">
+<meta property="article:published_time" content="2024-07-28T04:00:00.000Z">
+<meta property="article:modified_time" content="2025-09-29T14:24:24.787Z">
+<meta property="article:author" content="半个馒头">
+<meta property="article:tag" content="DBus">
+<meta name="twitter:card" content="summary">
+<meta name="twitter:image" content="https://www.halfmantou.xyz/2024/07/28/dbus/Start/photo/dbus_diagram.png">
+
+<link rel="canonical" href="https://www.halfmantou.xyz/2024/07/28/dbus/Start/">
+
+
+<script id="page-configurations">
+  // https://hexo.io/docs/variables.html
+  CONFIG.page = {
+    sidebar: "",
+    isHome : false,
+    isPost : true,
+    lang   : 'zh-CN'
+  };
+</script>
+
+  <title>DBus快速入门 | 碎碎念念</title>
+  
+
+
+
+
+
+
+  <noscript>
+  <style>
+  .use-motion .brand,
+  .use-motion .menu-item,
+  .sidebar-inner,
+  .use-motion .post-block,
+  .use-motion .pagination,
+  .use-motion .comments,
+  .use-motion .post-header,
+  .use-motion .post-body,
+  .use-motion .collection-header { opacity: initial; }
+
+  .use-motion .site-title,
+  .use-motion .site-subtitle {
+    opacity: initial;
+    top: initial;
+  }
+
+  .use-motion .logo-line-before i { left: initial; }
+  .use-motion .logo-line-after i { right: initial; }
+  </style>
+</noscript>
+
+</head>
+
+<body itemscope itemtype="http://schema.org/WebPage">
+  <div class="container use-motion">
+    <div class="headband"></div>
+
+    <header class="header" itemscope itemtype="http://schema.org/WPHeader">
+      <div class="header-inner"><div class="site-brand-container">
+  <div class="site-nav-toggle">
+    <div class="toggle" aria-label="切换导航栏">
+      <span class="toggle-line toggle-line-first"></span>
+      <span class="toggle-line toggle-line-middle"></span>
+      <span class="toggle-line toggle-line-last"></span>
+    </div>
+  </div>
+
+  <div class="site-meta">
+
+    <a href="/" class="brand" rel="start">
+      <span class="logo-line-before"><i></i></span>
+      <h1 class="site-title">碎碎念念</h1>
+      <span class="logo-line-after"><i></i></span>
+    </a>
+  </div>
+
+  <div class="site-nav-right">
+    <div class="toggle popup-trigger">
+        <i class="fa fa-search fa-fw fa-lg"></i>
+    </div>
+  </div>
+</div>
+
+
+
+
+<nav class="site-nav">
+  <ul id="menu" class="menu">
+        <li class="menu-item menu-item-home">
+
+    <a href="/" rel="section"><i class="fa fa-fw fa-home"></i>首页</a>
+
+  </li>
+        <li class="menu-item menu-item-about">
+
+    <a href="/about/" rel="section"><i class="fa fa-fw fa-user"></i>关于</a>
+
+  </li>
+        <li class="menu-item menu-item-tags">
+
+    <a href="/tags/" rel="section"><i class="fa fa-fw fa-tags"></i>标签<span class="badge">18</span></a>
+
+  </li>
+        <li class="menu-item menu-item-categories">
+
+    <a href="/categories/" rel="section"><i class="fa fa-fw fa-th"></i>分类<span class="badge">0</span></a>
+
+  </li>
+        <li class="menu-item menu-item-archives">
+
+    <a href="/archives/" rel="section"><i class="fa fa-fw fa-archive"></i>归档<span class="badge">58</span></a>
+
+  </li>
+      <li class="menu-item menu-item-search">
+        <a role="button" class="popup-trigger"><i class="fa fa-search fa-fw"></i>搜索
+        </a>
+      </li>
+  </ul>
+</nav>
+
+
+
+  <div class="search-pop-overlay">
+    <div class="popup search-popup">
+        <div class="search-header">
+  <span class="search-icon">
+    <i class="fa fa-search"></i>
+  </span>
+  <div class="search-input-container">
+    <input autocomplete="off" autocapitalize="off"
+           placeholder="搜索..." spellcheck="false"
+           type="search" class="search-input">
+  </div>
+  <span class="popup-btn-close">
+    <i class="fa fa-times-circle"></i>
+  </span>
+</div>
+<div id="search-result">
+  <div id="no-result">
+    <i class="fa fa-spinner fa-pulse fa-5x fa-fw"></i>
+  </div>
+</div>
+
+    </div>
+  </div>
+
+</div>
+    </header>
+
+    
+  <div class="reading-progress-bar"></div>
+
+  <a href="https://github.com/LunarStore" class="github-corner" title="Follow me on GitHub" aria-label="Follow me on GitHub" rel="noopener" target="_blank"><svg width="80" height="80" viewBox="0 0 250 250" aria-hidden="true"><path d="M0,0 L115,115 L130,115 L142,142 L250,250 L250,0 Z"></path><path d="M128.3,109.0 C113.8,99.7 119.0,89.6 119.0,89.6 C122.0,82.7 120.5,78.6 120.5,78.6 C119.2,72.0 123.4,76.3 123.4,76.3 C127.3,80.9 125.5,87.3 125.5,87.3 C122.9,97.6 130.6,101.9 134.4,103.2" fill="currentColor" style="transform-origin: 130px 106px;" class="octo-arm"></path><path d="M115.0,115.0 C114.9,115.1 118.7,116.5 119.8,115.4 L133.7,101.6 C136.9,99.2 139.9,98.4 142.2,98.6 C133.8,88.0 127.5,74.4 143.8,58.0 C148.5,53.4 154.0,51.2 159.7,51.0 C160.3,49.4 163.2,43.6 171.4,40.1 C171.4,40.1 176.1,42.5 178.8,56.2 C183.1,58.6 187.2,61.8 190.9,65.4 C194.5,69.0 197.7,73.2 200.1,77.6 C213.8,80.2 216.3,84.9 216.3,84.9 C212.7,93.1 206.9,96.0 205.4,96.6 C205.1,102.4 203.0,107.8 198.3,112.5 C181.9,128.9 168.3,122.5 157.7,114.1 C157.9,116.9 156.7,120.9 152.7,124.9 L141.0,136.5 C139.8,137.7 141.6,141.9 141.8,141.8 Z" fill="currentColor" class="octo-body"></path></svg></a>
+
+
+    <main class="main">
+      <div class="main-inner">
+        <div class="content-wrap">
+          
+
+          <div class="content post posts-expand">
+            
+
+    
+  
+  
+  <article itemscope itemtype="http://schema.org/Article" class="post-block" lang="zh-CN">
+    <link itemprop="mainEntityOfPage" href="https://www.halfmantou.xyz/2024/07/28/dbus/Start/">
+
+    <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
+      <meta itemprop="image" content="/images/avatar.jpg">
+      <meta itemprop="name" content="半个馒头">
+      <meta itemprop="description" content="">
+    </span>
+
+    <span hidden itemprop="publisher" itemscope itemtype="http://schema.org/Organization">
+      <meta itemprop="name" content="碎碎念念">
+    </span>
+      <header class="post-header">
+        <h1 class="post-title" itemprop="name headline">
+          DBus快速入门
+        </h1>
+
+        <div class="post-meta">
+            <span class="post-meta-item">
+              <span class="post-meta-item-icon">
+                <i class="fa fa-calendar-o"></i>
+              </span>
+              <span class="post-meta-item-text">发表于</span>
+
+              <time title="创建时间：2024-07-28 12:00:00" itemprop="dateCreated datePublished" datetime="2024-07-28T12:00:00+08:00">2024-07-28</time>
+            </span>
+              <span class="post-meta-item">
+                <span class="post-meta-item-icon">
+                  <i class="fa fa-calendar-check-o"></i>
+                </span>
+                <span class="post-meta-item-text">更新于</span>
+                <time title="修改时间：2025-09-29 22:24:24" itemprop="dateModified" datetime="2025-09-29T22:24:24+08:00">2025-09-29</time>
+              </span>
+
+          
+            <span class="post-meta-item" title="阅读次数" id="busuanzi_container_page_pv" style="display: none;">
+              <span class="post-meta-item-icon">
+                <i class="fa fa-eye"></i>
+              </span>
+              <span class="post-meta-item-text">阅读次数：</span>
+              <span id="busuanzi_value_page_pv"></span>
+            </span>
+
+        </div>
+      </header>
+
+    
+    
+    
+    <div class="post-body" itemprop="articleBody">
+
+      
+        <p>参考链接：</p>
+<ol>
+<li><p>中文博客：</p>
+<p> <a target="_blank" rel="noopener" href="https://www.e-learn.cn/topic/1808992">https://www.e-learn.cn/topic/1808992</a></p>
+<p> <a target="_blank" rel="noopener" href="https://blog.csdn.net/u011942101/article/details/123383195">https://blog.csdn.net/u011942101/article/details/123383195</a></p>
+<p> <a target="_blank" rel="noopener" href="https://blog.csdn.net/weixin_44498318/article/details/115803936">https://blog.csdn.net/weixin_44498318&#x2F;article&#x2F;details&#x2F;115803936</a></p>
+<p> <a target="_blank" rel="noopener" href="https://www.e-learn.cn/topic/1808992">https://www.e-learn.cn/topic/1808992</a></p>
+<p> <a target="_blank" rel="noopener" href="https://blog.csdn.net/Dontla/article/details/122530765">https://blog.csdn.net/Dontla/article/details/122530765</a></p>
+</li>
+</ol>
+<span id="more"></span>
+
+<ol start="2">
+<li><p>D-Bus Specification：</p>
+<p> <a target="_blank" rel="noopener" href="https://dbus.freedesktop.org/doc/dbus-specification.html">https://dbus.freedesktop.org/doc/dbus-specification.html</a></p>
+<p> <a target="_blank" rel="noopener" href="https://pythonhosted.org/txdbus/dbus_overview.html">https://pythonhosted.org/txdbus/dbus_overview.html</a></p>
+<p> <a target="_blank" rel="noopener" href="https://dbus.freedesktop.org/doc/dbus-tutorial.html">https://dbus.freedesktop.org/doc/dbus-tutorial.html</a></p>
+</li>
+</ol>
+<p>本文主要记录一下我对dbus的认知，当然可能会存在一些错误，欢迎读者指正。</p>
+<h2 id="DBus安装"><a href="#DBus安装" class="headerlink" title="DBus安装"></a>DBus安装</h2><p>命令如下：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment"># 安装dbus</span></span><br><span class="line"><span class="built_in">sudo</span> apt-get install dbus</span><br><span class="line"></span><br><span class="line"><span class="comment"># 安装d-feet工具，用于查看 session bus 和 system bus</span></span><br><span class="line"><span class="built_in">sudo</span> apt-get install d-feet</span><br><span class="line"></span><br><span class="line"><span class="comment"># 安装glib2.0</span></span><br><span class="line"><span class="built_in">sudo</span> apt-get install libgtk2.0-dev</span><br><span class="line"></span><br><span class="line"><span class="comment"># 安装 dbus-glib</span></span><br><span class="line">apt-get install libdbus-glib-1-dev</span><br><span class="line"></span><br><span class="line"><span class="comment"># for dbus-launch</span></span><br><span class="line">apt install dbus-x11</span><br></pre></td></tr></table></figure>
+
+<p>c_cpp_properties.json配置：</p>
+<p>主要注意includePath</p>
+<figure class="highlight json"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br></pre></td><td class="code"><pre><span class="line"><span class="punctuation">&#123;</span></span><br><span class="line">    <span class="attr">&quot;configurations&quot;</span><span class="punctuation">:</span> <span class="punctuation">[</span></span><br><span class="line">        <span class="punctuation">&#123;</span></span><br><span class="line">            <span class="attr">&quot;name&quot;</span><span class="punctuation">:</span> <span class="string">&quot;Linux&quot;</span><span class="punctuation">,</span></span><br><span class="line">            <span class="attr">&quot;includePath&quot;</span><span class="punctuation">:</span> <span class="punctuation">[</span></span><br><span class="line">                <span class="string">&quot;$&#123;workspaceFolder&#125;/**&quot;</span><span class="punctuation">,</span></span><br><span class="line">                <span class="string">&quot;/usr/include/dbus-1.0/&quot;</span><span class="punctuation">,</span></span><br><span class="line">                <span class="string">&quot;/usr/include/glib-2.0/&quot;</span><span class="punctuation">,</span></span><br><span class="line">                <span class="string">&quot;/usr/lib/x86_64-linux-gnu/glib-2.0/include/&quot;</span></span><br><span class="line">            <span class="punctuation">]</span><span class="punctuation">,</span></span><br><span class="line">            <span class="attr">&quot;defines&quot;</span><span class="punctuation">:</span> <span class="punctuation">[</span><span class="punctuation">]</span><span class="punctuation">,</span></span><br><span class="line">            <span class="attr">&quot;compilerPath&quot;</span><span class="punctuation">:</span> <span class="string">&quot;/usr/bin/clang&quot;</span><span class="punctuation">,</span></span><br><span class="line">            <span class="attr">&quot;cStandard&quot;</span><span class="punctuation">:</span> <span class="string">&quot;c17&quot;</span><span class="punctuation">,</span></span><br><span class="line">            <span class="attr">&quot;cppStandard&quot;</span><span class="punctuation">:</span> <span class="string">&quot;c++14&quot;</span><span class="punctuation">,</span></span><br><span class="line">            <span class="attr">&quot;intelliSenseMode&quot;</span><span class="punctuation">:</span> <span class="string">&quot;linux-clang-x64&quot;</span></span><br><span class="line">        <span class="punctuation">&#125;</span></span><br><span class="line">    <span class="punctuation">]</span><span class="punctuation">,</span></span><br><span class="line">    <span class="attr">&quot;version&quot;</span><span class="punctuation">:</span> <span class="number">4</span></span><br><span class="line"><span class="punctuation">&#125;</span></span><br></pre></td></tr></table></figure>
+
+<h2 id="DBus整体结构"><a href="#DBus整体结构" class="headerlink" title="DBus整体结构"></a>DBus整体结构</h2><p>DBus是基于本地套接字实现的IPC框架，可用于进程间的通信或进程与内核的通信。</p>
+<p>这里贴一张官方提供的dbus整体架构图：</p>
+<p><img src="/2024/07/28/dbus/Start/photo/dbus_diagram.png"></p>
+<p>DBUS的优点：</p>
+<ol>
+<li><p>因为DBUS主要应用在同一台机器上，不会跨主机进行IPC通信。所以使用二进制协议，省去序列化的代价。但是如果需要传递像字符串指针的话，就需要通过地址将字符串拷贝到Message中，所以或多或少还是存在一些序列化的过程。</p>
+</li>
+<li><p>DBUS的“报文”在传递时，避免了往返的开销。并且支持异步操作。</p>
+</li>
+<li><p>报文以消息的方式传递而不是（类似于TCP）字节流。</p>
+</li>
+<li><p>D-Bus 库的封装方式可以让开发人员利用其框架现有的对象&#x2F;类型系统，而无需学习新的IPC的特点，然后重构他们的项目。</p>
+</li>
+</ol>
+<p>这里简单解释一下dbus整体架构图的一个交互流程：</p>
+<p>在DBUS中，一个完整的IPC交互流程包括三个部分：Bus Daemon Process、Client Application Process、Server Application Process。Bus Daemon Process有两类：Session Bus、System Bus，这里本文主要讨论Session Bus，这两类Bus主要区别在于：Session Bus是主要负责应用程序之间的一个交互，而System Bus主要负责内核和应用程序之间的一个交互。Bus Daemon Process在两个应用程序交互之中起路由作用。从图中可以看到所有的应用程序和Bus Daemon Process的连接都是通过本地socket。</p>
+<p>主要流程：</p>
+<ol start="0">
+<li><p>app1（client）和app2（server）都通过Bus Daemon Process的套接字地址连接上去。</p>
+</li>
+<li><p>app1请求一个叫com.app1.client的<strong>Bus Name</strong>，app2请求一个叫com.app2.server的<strong>Bus Name</strong>。</p>
+</li>
+<li><p>app1构造一个<strong>method calls消息</strong>，method calls消息至少包括：Dest Bus Name（目的地址，假设这里是com.app2.server）、Object Path、Interface Name 、Method Name（包括参数，这里假设是int add(int n1, int n2)），然后将消息报文发送给Bus Daemon Process。</p>
+</li>
+<li><p>Bus Daemon Process根据消息的Dest Bus Name，将消息路由给app2。</p>
+</li>
+<li><p>app2根据消息的Object Path、Interface Name 、Method Name调用相应的方法（add函数），然后根据返回值以及接收到的<strong>method calls消息</strong>封装成一条<strong>method returns消息</strong>，发回给Bus Daemon Process，进而路由给app1。</p>
+</li>
+<li><p>app1接收到<strong>method returns消息</strong>后解析出里面的返回值，于此一次交互完成。</p>
+</li>
+</ol>
+<p>dbus中消息有四种类型：</p>
+<ol>
+<li><p>signals：信号，一般用于广播，不会有目的地址和返回值。</p>
+</li>
+<li><p>method calls：方法调用，定向传播，有目的地址，可能有返回值。</p>
+</li>
+<li><p>method returns：方法返回，简单理解就是method calls的返回值。</p>
+</li>
+<li><p>errors：错误，简单理解就是错误码。</p>
+</li>
+</ol>
+<p>上面流程主要用到method calls、method returns两种消息类型。</p>
+<p>梳理了一下dbus的交互流程，其实会发现dbus和RPC非常像。不同点在于<strong>dbus更像是一种本地专用的RPC。</strong></p>
+<p>dbus-daemon的地址保存在环境变量DBUS_SESSION_BUS_ADDRESS中，用于表示当前登录用户的session的dbus-daemon进程的地址，可以使用下面命令查看。</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><span class="line">root@lunar-virtual-machine:~# <span class="built_in">echo</span> <span class="variable">$DBUS_SESSION_BUS_ADDRESS</span></span><br><span class="line">unix:path=/run/user/0/bus</span><br></pre></td></tr></table></figure>
+
+<p>session bus由用户登录时dbus-launch脚本自动启动，当然，你也可以自己在<strong>终端启动</strong>一个bus-daemon，方便调试：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><span class="line">root@lunar-virtual-machine:~# DBUS_VERBOSE=1 dbus-daemon --session --print-address</span><br><span class="line">unix:abstract=/tmp/dbus-49gl7TnTcs,guid=864158a61bb94df92e3e1ac866936bd1</span><br><span class="line"></span><br></pre></td></tr></table></figure>
+
+<p>然后将DBUS_SESSION_BUS_ADDRESS修改为：unix:abstract&#x3D;&#x2F;tmp&#x2F;dbus-49gl7TnTcs,guid&#x3D;864158a61bb94df92e3e1ac866936bd1，再启动应用程序即可连接到自己启动的dbus-daemon上。</p>
+<h2 id="DBus深入理解"><a href="#DBus深入理解" class="headerlink" title="DBus深入理解"></a>DBus深入理解</h2><p>先下载一个dbus实例：<a target="_blank" rel="noopener" href="http://www.fmddlmyy.cn/down2/hello-dbus3-0.1.tar.gz">http://www.fmddlmyy.cn/down2/hello-dbus3-0.1.tar.gz</a></p>
+<p>四步构建并运行dbus服务器</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><span class="line">./autogen.sh</span><br><span class="line">./configure</span><br><span class="line">make</span><br><span class="line">./example-service</span><br></pre></td></tr></table></figure>
+
+<p>然后另起一个终端，执行d-feet命令，会弹出一个窗口：</p>
+<p><img src="/2024/07/28/dbus/Start/photo/d-feet_analyse.png"></p>
+<p>双击Methods下的Add方法，会弹出一个对话框，输入参数并确认后你就会看到相加的结果。这个具体的交互过程和。上面我们分析的流程是一样的。</p>
+<p>下面通过该窗口逐步了解DBUS的相关概念。</p>
+<p><strong>Bus Name：</strong> 应用和消息总线的<strong>连接标识符</strong>，有两类，包括：well-known name（熟知名）和unique name（唯一名）</p>
+<p>well-known name形如：”org.fmddlmyy.Test“</p>
+<p>unique name形如：”:1.114“</p>
+<p>well-known name可以被多个连接（<strong>非同时</strong>）所拥有，unique name在所有连接中是唯一的。一个连接可以同时拥有well-known name和unique name，well-known name，但是唯一名是必须的，但熟知名不是必须的。<strong>well-known name可以类比于网络中的域名，unique name可以类比于网络中的IP地址。</strong></p>
+<p>当多个应用连接到消息总线，要求提供同一个公共名的服务。消息总线会把这些连接排在链表中，并选择一个连接提供公共名代表的服务。可以说这个提供服务的连接拥有了这个公共名。如果这个连接退出了，消息总线会从链表中选择下一个连接提供服务。</p>
+<p><strong>Native Objects and Object Paths：</strong> Native Objects类似java中的java.lang.Object、QT中的QObject等等。在最底层的dbus中纯在形式只是一个字符串。</p>
+<p>Object Paths形如：”&#x2F;TestObject“</p>
+<p><strong>Methods and Signals（Name）：</strong> Methods表示被具体调用的方法，而Signals就是信号。Method可以有返回值，Signals一定没有返回值，此外，Signals可以进行广播，应用程序可以向bus订阅要接收的信号的Interface，一旦注册，只要DBUS收到信号，就会根据的信号的接口，将信号广播给相应的应用程序。在最底层的dbus中纯在形式只是一个字符串。</p>
+<p><strong>Interfaces（Name）：</strong> 相当于C++中的纯虚类。每个对象都有一个或者多个接口，一个接口就是多个方法和信号的集合。在最底层的dbus中纯在形式只是一个字符串。</p>
+<p>形如：<br>org.fmddlmyy.Test.Basic</p>
+<p>org.freedesktop.DBus.Introspectable （由消息总线提供的标准接口</p>
+<p>org.freedesktop.DBus.Properties （由消息总线提供的标准接口</p>
+<p>在基于C实现的最底层的dbus中的对象、接口、方法、信号等概念可能很难去理解，我最开始也是比较困惑，但是如果你对dbus框架感兴趣的话，可以去了解一下dbus在面向对象的语言在的用法，比如dbus-c++，他里面的这些概念就非常直观。</p>
+<p>因为D-BUS的底层接口没有对象相关概念，所以它的Object、Methods、Signals、Interfaces都是以<strong>字符串的形式标识</strong>。在面向对象的语言对dbus进行封装后，我们可以通过编写XML来定义接口和方法，并且通过我们编写的XML来<strong>生成</strong>相应的接口代码。接口里面就会包括方法和信号的定义。用户只用去继承这些<strong>接口</strong>，然后去<strong>实现它里面的方法</strong>即可。当然用户还需要去根据这些接口去定义相应的<strong>对象</strong>。</p>
+<p>这里我故意漏掉了一个概念—<strong>Proxies：</strong> 代理对象用来表示其他的remote object。当触发了proxy对象的method时，将会在D-Bus上发送一个method_call的消息，并等待答复，根据答复返回。总线上的对象一般通过代理来访问。总线上的对象位于客户进程以外，而客户可以调用本地接口与对象通信，此时，本地接口充当了代理的角色。当触发了代理对象的方法时，将会在D-Bus上发送一个method_call的消息，并等待答复返回，<strong>就象使用一个本地对象一样</strong>。重点关注最后一句话！代理能够使用户去调用一个本地接口，该本地接口代替你向总线发消息，去调用另一个进程方法，并且接收返回值。<strong>简而言之，代理的概念还是要配合面向对象的语言对dbus的封装才好理解。</strong></p>
+<p>比如不用代理：</p>
+<figure class="highlight cpp"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br></pre></td><td class="code"><pre><span class="line">Message message = <span class="keyword">new</span> <span class="built_in">Message</span>(<span class="string">&quot;/remote/object/path&quot;</span>, <span class="string">&quot;MethodName&quot;</span>, arg1, arg2); </span><br><span class="line">Connection connection = <span class="built_in">getBusConnection</span>();           </span><br><span class="line">connection.<span class="built_in">send</span>(message);           </span><br><span class="line">Message reply = connection.<span class="built_in">waitForReply</span>(message);           </span><br><span class="line"><span class="keyword">if</span> (reply.<span class="built_in">isError</span>()) &#123;                         </span><br><span class="line">&#125;</span><br><span class="line"><span class="keyword">else</span> &#123;              </span><br><span class="line">	Object returnValue = reply.<span class="built_in">getReturnValue</span>();           </span><br><span class="line">&#125; </span><br></pre></td></tr></table></figure>
+
+<p>用代理就是：</p>
+<figure class="highlight cpp"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><span class="line">Proxy proxy = <span class="keyword">new</span> <span class="built_in">Proxy</span>(<span class="built_in">getBusConnection</span>(), <span class="string">&quot;/remote/object/path&quot;</span>);           </span><br><span class="line">Object returnValue = proxy.<span class="built_in">MethodName</span>(arg1, arg2);</span><br></pre></td></tr></table></figure>
+
+<p>dbus规定了一个统一的接口：org.freedesktop.DBus.Introspectable，通过该接口的Introspect方法，可以<strong>递归遍历一个连接的对象树</strong>，包括server的接口和其方法、信号。另外因为Bus Daemon Process也属于进程，应用进程也可以请求Bus Daemon Process的接口和方法。Bus Daemon Process的Bus Name为：org.freedesktop.DBus，利用总线的org.freedesktop.DBus.Introspectable.Introspect方法我们可以查看消息总线对象支持的接口以及其方法、信号。此外我们还可以调用总线的\对象的org.freedesktop.DBus.ListNames方法，来获取消息总线上已连接的所有连接名，包括所有公共名和唯一名。</p>
+<p>这些内容具体细节在<a target="_blank" rel="noopener" href="https://www.e-learn.cn/topic/1808992">https://www.e-learn.cn/topic/1808992</a>有深入讲解，感兴趣的读者可以去看一看。</p>
+<p>dbus是支持提供server的应用程序按需启动，在client请求的server应用程序没有启动时，daemon bus首先会依据配置起一个server应用程序。通过总线的&#x2F;对象的org.freedesktop.DBus.ListActivatableNames方法，可以获取所有能够自启动的服务。</p>
+<p>要想让自己的server应用程序自启动，需要添加一个配置文件，如下：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><span class="line">vim /usr/share/dbus-1/services/org.fmddlmyy.Test.service</span><br><span class="line"></span><br><span class="line"><span class="comment"># [D-BUS Service]</span></span><br><span class="line"><span class="comment"># Name=org.fmddlmyy.Test    # 定义Bus Name</span></span><br><span class="line"><span class="comment"># Exec=/home/lvjie/work/dbus/hello-dbus3-0.1/src/example-service    # 提供可执行程序的路径</span></span><br></pre></td></tr></table></figure>
+
+<p>dbus的方法参数、返回值类型可以是基本类型，也可以是复合类型，具体语法可以参考：<a target="_blank" rel="noopener" href="https://pythonhosted.org/txdbus/dbus_overview.html">https://pythonhosted.org/txdbus/dbus_overview.html</a>。</p>
+<p>这里简单列举一下复合类型：</p>
+<p><strong>数组：</strong></p>
+<p>ai - 32位整型数组</p>
+<p>a(ii) - 元素类型为两个32位整型的结构体的数组</p>
+<p>aai - 元素类型为32位整型的数组的数组</p>
+<p><strong>字典：</strong></p>
+<p>a{ss} - key为string，value为string</p>
+<p>a{is} - key为32位整数 ⇒ value为string</p>
+<p>a{s(ii)} - key为string ⇒ value为包含2个32位整数的数组</p>
+<p>a{sa{ss}} - key为string ⇒ value也是字典。</p>
+<h2 id="DBus示例代码"><a href="#DBus示例代码" class="headerlink" title="DBus示例代码"></a>DBus示例代码</h2><p>Server Application：不断处理来自Client Application的方法调用。</p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br><span class="line">36</span><br><span class="line">37</span><br><span class="line">38</span><br><span class="line">39</span><br><span class="line">40</span><br><span class="line">41</span><br><span class="line">42</span><br><span class="line">43</span><br><span class="line">44</span><br><span class="line">45</span><br><span class="line">46</span><br><span class="line">47</span><br><span class="line">48</span><br><span class="line">49</span><br><span class="line">50</span><br><span class="line">51</span><br><span class="line">52</span><br><span class="line">53</span><br><span class="line">54</span><br><span class="line">55</span><br><span class="line">56</span><br><span class="line">57</span><br><span class="line">58</span><br><span class="line">59</span><br><span class="line">60</span><br><span class="line">61</span><br><span class="line">62</span><br><span class="line">63</span><br><span class="line">64</span><br><span class="line">65</span><br><span class="line">66</span><br><span class="line">67</span><br><span class="line">68</span><br><span class="line">69</span><br><span class="line">70</span><br><span class="line">71</span><br><span class="line">72</span><br><span class="line">73</span><br><span class="line">74</span><br><span class="line">75</span><br><span class="line">76</span><br><span class="line">77</span><br><span class="line">78</span><br><span class="line">79</span><br><span class="line">80</span><br><span class="line">81</span><br><span class="line">82</span><br><span class="line">83</span><br><span class="line">84</span><br><span class="line">85</span><br><span class="line">86</span><br><span class="line">87</span><br><span class="line">88</span><br><span class="line">89</span><br><span class="line">90</span><br><span class="line">91</span><br><span class="line">92</span><br><span class="line">93</span><br><span class="line">94</span><br><span class="line">95</span><br><span class="line">96</span><br><span class="line">97</span><br><span class="line">98</span><br><span class="line">99</span><br><span class="line">100</span><br><span class="line">101</span><br><span class="line">102</span><br><span class="line">103</span><br><span class="line">104</span><br><span class="line">105</span><br><span class="line">106</span><br><span class="line">107</span><br><span class="line">108</span><br><span class="line">109</span><br><span class="line">110</span><br><span class="line">111</span><br><span class="line">112</span><br><span class="line">113</span><br><span class="line">114</span><br></pre></td><td class="code"><pre><span class="line"><span class="meta">#<span class="keyword">include</span> <span class="string">&lt;stdio.h&gt;</span></span></span><br><span class="line"><span class="meta">#<span class="keyword">include</span> <span class="string">&lt;stdlib.h&gt;</span></span></span><br><span class="line"><span class="meta">#<span class="keyword">include</span> <span class="string">&lt;string.h&gt;</span></span></span><br><span class="line"><span class="meta">#<span class="keyword">include</span> <span class="string">&lt;dbus/dbus.h&gt;</span></span></span><br><span class="line"><span class="meta">#<span class="keyword">include</span> <span class="string">&lt;unistd.h&gt;</span></span></span><br><span class="line"></span><br><span class="line"><span class="type">void</span> <span class="title function_">reply_to_method_call</span><span class="params">(DBusMessage *msg, DBusConnection *conn)</span>&#123;</span><br><span class="line">	DBusMessage *reply;</span><br><span class="line">	DBusMessageIter arg;</span><br><span class="line">	<span class="type">char</span> *param = <span class="literal">NULL</span>;</span><br><span class="line">	<span class="type">dbus_bool_t</span> stat = TRUE;</span><br><span class="line">	<span class="type">dbus_uint32_t</span> level = <span class="number">2010</span>;</span><br><span class="line">	<span class="type">dbus_uint32_t</span> serial = <span class="number">0</span>;</span><br><span class="line">	</span><br><span class="line">	<span class="comment">//从msg中读取参数</span></span><br><span class="line">	<span class="keyword">if</span>(!dbus_message_iter_init(msg, &amp;arg))</span><br><span class="line">		<span class="built_in">printf</span>(<span class="string">&quot;Message has noargs\n&quot;</span>);</span><br><span class="line">	<span class="keyword">else</span> <span class="keyword">if</span>(dbus_message_iter_get_arg_type(&amp;arg) != DBUS_TYPE_STRING)</span><br><span class="line">		<span class="built_in">printf</span>(<span class="string">&quot;Arg is notstring!\n&quot;</span>);</span><br><span class="line">	<span class="keyword">else</span></span><br><span class="line">		dbus_message_iter_get_basic(&amp;arg, &amp;param);</span><br><span class="line">	<span class="keyword">if</span>(param == <span class="literal">NULL</span>) <span class="keyword">return</span>;</span><br><span class="line">	</span><br><span class="line">	</span><br><span class="line">	<span class="comment">//创建返回消息reply</span></span><br><span class="line">	reply = dbus_message_new_method_return(msg);</span><br><span class="line">	<span class="comment">//在返回消息中填入两个参数，和信号加入参数的方式是一样的。这次我们将加入两个参数。</span></span><br><span class="line">	dbus_message_iter_init_append(reply, &amp;arg);</span><br><span class="line">	<span class="keyword">if</span>(!dbus_message_iter_append_basic(&amp;arg, DBUS_TYPE_BOOLEAN, &amp;stat))&#123;</span><br><span class="line">		<span class="built_in">printf</span>(<span class="string">&quot;Out ofMemory!\n&quot;</span>);</span><br><span class="line">		<span class="built_in">exit</span>(<span class="number">1</span>);</span><br><span class="line">	&#125;</span><br><span class="line">	<span class="keyword">if</span>(!dbus_message_iter_append_basic(&amp;arg, DBUS_TYPE_UINT32, &amp;level))&#123;</span><br><span class="line">		<span class="built_in">printf</span>(<span class="string">&quot;Out ofMemory!\n&quot;</span>);</span><br><span class="line">		<span class="built_in">exit</span>(<span class="number">1</span>);</span><br><span class="line">	&#125;</span><br><span class="line">	<span class="comment">//发送返回消息</span></span><br><span class="line">	<span class="keyword">if</span>(!dbus_connection_send(conn, reply, &amp;serial))&#123;</span><br><span class="line">		<span class="built_in">printf</span>(<span class="string">&quot;Out of Memory\n&quot;</span>);</span><br><span class="line">		<span class="built_in">exit</span>(<span class="number">1</span>);</span><br><span class="line">	&#125;</span><br><span class="line">	dbus_connection_flush(conn);</span><br><span class="line">	dbus_message_unref(reply);</span><br><span class="line">&#125;</span><br><span class="line"></span><br><span class="line"></span><br><span class="line"><span class="type">void</span> <span class="title function_">listen_dbus</span><span class="params">()</span></span><br><span class="line">&#123;</span><br><span class="line">	DBusMessage *msg;</span><br><span class="line">	DBusMessageIter arg;</span><br><span class="line">	DBusConnection *connection;</span><br><span class="line">	DBusError err;</span><br><span class="line">	<span class="type">int</span> ret;</span><br><span class="line">	<span class="type">char</span> *sigvalue;</span><br><span class="line">	</span><br><span class="line">	dbus_error_init(&amp;err);</span><br><span class="line">	<span class="comment">//创建于session D-Bus的连接</span></span><br><span class="line">	connection = dbus_bus_get(DBUS_BUS_SESSION, &amp;err);</span><br><span class="line">	<span class="keyword">if</span>(dbus_error_is_set(&amp;err))&#123;</span><br><span class="line">		<span class="built_in">fprintf</span>(<span class="built_in">stderr</span>, <span class="string">&quot;ConnectionError %s\n&quot;</span>, err.message);</span><br><span class="line">		dbus_error_free(&amp;err);</span><br><span class="line">	&#125;</span><br><span class="line">	<span class="keyword">if</span>(connection == <span class="literal">NULL</span>)</span><br><span class="line">		<span class="keyword">return</span>;</span><br><span class="line">	<span class="comment">//设置一个BUS name：test.wei.dest</span></span><br><span class="line">	ret = dbus_bus_request_name(connection, <span class="string">&quot;test.wei.dest&quot;</span>, DBUS_NAME_FLAG_REPLACE_EXISTING, &amp;err);</span><br><span class="line">	<span class="keyword">if</span>(dbus_error_is_set(&amp;err))&#123;</span><br><span class="line">		<span class="built_in">fprintf</span>(<span class="built_in">stderr</span>, <span class="string">&quot;Name Error%s\n&quot;</span>, err.message);</span><br><span class="line">		dbus_error_free(&amp;err);</span><br><span class="line">	&#125;</span><br><span class="line">	<span class="keyword">if</span>(ret != DBUS_REQUEST_NAME_REPLY_PRIMARY_OWNER)</span><br><span class="line">		<span class="keyword">return</span>;</span><br><span class="line">	</span><br><span class="line">	<span class="comment">//要求监听某个singal：来自接口test.signal.Type的信号</span></span><br><span class="line">	dbus_bus_add_match(connection, <span class="string">&quot;type=&#x27;signal&#x27;, interface=&#x27;test.signal.Type&#x27;&quot;</span>, &amp;err);</span><br><span class="line">	dbus_connection_flush(connection);</span><br><span class="line">	<span class="keyword">if</span>(dbus_error_is_set(&amp;err))&#123;</span><br><span class="line">		<span class="built_in">fprintf</span>(<span class="built_in">stderr</span>, <span class="string">&quot;Match Error%s\n&quot;</span>, err.message);</span><br><span class="line">		dbus_error_free(&amp;err);</span><br><span class="line">	&#125;</span><br><span class="line">	</span><br><span class="line">	<span class="keyword">while</span>(<span class="number">1</span>)&#123;</span><br><span class="line">		dbus_connection_read_write(connection, <span class="number">0</span>);</span><br><span class="line">		msg = dbus_connection_pop_message(connection);</span><br><span class="line">	</span><br><span class="line">		<span class="keyword">if</span>(msg == <span class="literal">NULL</span>)&#123;</span><br><span class="line">			sleep(<span class="number">1</span>);</span><br><span class="line">			<span class="keyword">continue</span>;</span><br><span class="line">		&#125;</span><br><span class="line">	</span><br><span class="line">		<span class="keyword">if</span>(dbus_message_is_signal(msg, <span class="string">&quot;test.signal.Type&quot;</span>, <span class="string">&quot;Test&quot;</span>))&#123;</span><br><span class="line">			<span class="keyword">if</span>(!dbus_message_iter_init(msg, &amp;arg))</span><br><span class="line">				<span class="built_in">fprintf</span>(<span class="built_in">stderr</span>, <span class="string">&quot;Message Has no Param&quot;</span>);</span><br><span class="line">			<span class="keyword">else</span> <span class="keyword">if</span>(dbus_message_iter_get_arg_type(&amp;arg) != DBUS_TYPE_STRING)</span><br><span class="line">				<span class="built_in">fprintf</span>(<span class="built_in">stderr</span>, <span class="string">&quot;Param isnot string&quot;</span>);</span><br><span class="line">			<span class="keyword">else</span>&#123;</span><br><span class="line">                dbus_message_iter_get_basic(&amp;arg, &amp;sigvalue);</span><br><span class="line">                <span class="built_in">fprintf</span>(<span class="built_in">stdout</span>, <span class="string">&quot;[method_call]Got Singal withvalue : %s\n&quot;</span>, sigvalue);</span><br><span class="line">            &#125;</span><br><span class="line">		&#125;<span class="keyword">else</span> <span class="keyword">if</span>(dbus_message_is_method_call(msg, <span class="string">&quot;test.method.Type&quot;</span>, <span class="string">&quot;Method&quot;</span>))&#123;</span><br><span class="line">			<span class="comment">//我们这里面先比较了接口名字和方法名字，实际上应当现比较路径</span></span><br><span class="line">			<span class="keyword">if</span>(<span class="built_in">strcmp</span>(dbus_message_get_path(msg), <span class="string">&quot;/test/method/Object&quot;</span>) == <span class="number">0</span>)&#123;</span><br><span class="line">				reply_to_method_call(msg, connection);</span><br><span class="line">                <span class="built_in">fprintf</span>(<span class="built_in">stdout</span>, <span class="string">&quot;[method_call]Got method_call, reply to it!\n&quot;</span>);</span><br><span class="line">            &#125;</span><br><span class="line">		&#125;</span><br><span class="line">		dbus_message_unref(msg);</span><br><span class="line">	&#125;</span><br><span class="line">&#125;</span><br><span class="line"></span><br><span class="line"><span class="type">int</span> <span class="title function_">main</span><span class="params">(<span class="type">int</span> argc, <span class="type">char</span> **argv)</span>&#123;</span><br><span class="line">	listen_dbus();</span><br><span class="line">	<span class="keyword">return</span> <span class="number">0</span>;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p>Client Application：发送Method Call消息或者信号。</p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br><span class="line">36</span><br><span class="line">37</span><br><span class="line">38</span><br><span class="line">39</span><br><span class="line">40</span><br><span class="line">41</span><br><span class="line">42</span><br><span class="line">43</span><br><span class="line">44</span><br><span class="line">45</span><br><span class="line">46</span><br><span class="line">47</span><br><span class="line">48</span><br><span class="line">49</span><br><span class="line">50</span><br><span class="line">51</span><br><span class="line">52</span><br><span class="line">53</span><br><span class="line">54</span><br><span class="line">55</span><br><span class="line">56</span><br><span class="line">57</span><br><span class="line">58</span><br><span class="line">59</span><br><span class="line">60</span><br><span class="line">61</span><br><span class="line">62</span><br><span class="line">63</span><br><span class="line">64</span><br><span class="line">65</span><br><span class="line">66</span><br><span class="line">67</span><br><span class="line">68</span><br><span class="line">69</span><br><span class="line">70</span><br><span class="line">71</span><br><span class="line">72</span><br><span class="line">73</span><br><span class="line">74</span><br><span class="line">75</span><br><span class="line">76</span><br><span class="line">77</span><br><span class="line">78</span><br><span class="line">79</span><br><span class="line">80</span><br><span class="line">81</span><br><span class="line">82</span><br><span class="line">83</span><br><span class="line">84</span><br><span class="line">85</span><br><span class="line">86</span><br><span class="line">87</span><br><span class="line">88</span><br><span class="line">89</span><br><span class="line">90</span><br><span class="line">91</span><br><span class="line">92</span><br><span class="line">93</span><br><span class="line">94</span><br><span class="line">95</span><br><span class="line">96</span><br><span class="line">97</span><br><span class="line">98</span><br><span class="line">99</span><br><span class="line">100</span><br><span class="line">101</span><br><span class="line">102</span><br><span class="line">103</span><br><span class="line">104</span><br><span class="line">105</span><br><span class="line">106</span><br><span class="line">107</span><br><span class="line">108</span><br><span class="line">109</span><br><span class="line">110</span><br><span class="line">111</span><br><span class="line">112</span><br><span class="line">113</span><br><span class="line">114</span><br><span class="line">115</span><br><span class="line">116</span><br><span class="line">117</span><br><span class="line">118</span><br><span class="line">119</span><br><span class="line">120</span><br><span class="line">121</span><br><span class="line">122</span><br><span class="line">123</span><br><span class="line">124</span><br><span class="line">125</span><br><span class="line">126</span><br><span class="line">127</span><br><span class="line">128</span><br><span class="line">129</span><br><span class="line">130</span><br><span class="line">131</span><br><span class="line">132</span><br><span class="line">133</span><br><span class="line">134</span><br><span class="line">135</span><br><span class="line">136</span><br><span class="line">137</span><br><span class="line">138</span><br><span class="line">139</span><br><span class="line">140</span><br><span class="line">141</span><br><span class="line">142</span><br><span class="line">143</span><br><span class="line">144</span><br><span class="line">145</span><br><span class="line">146</span><br><span class="line">147</span><br><span class="line">148</span><br><span class="line">149</span><br><span class="line">150</span><br><span class="line">151</span><br><span class="line">152</span><br><span class="line">153</span><br><span class="line">154</span><br><span class="line">155</span><br><span class="line">156</span><br><span class="line">157</span><br></pre></td><td class="code"><pre><span class="line"><span class="meta">#<span class="keyword">include</span> <span class="string">&lt;stdio.h&gt;</span></span></span><br><span class="line"><span class="meta">#<span class="keyword">include</span> <span class="string">&lt;stdlib.h&gt;</span></span></span><br><span class="line"><span class="meta">#<span class="keyword">include</span> <span class="string">&lt;string.h&gt;</span></span></span><br><span class="line"><span class="meta">#<span class="keyword">include</span> <span class="string">&lt;dbus/dbus.h&gt;</span></span></span><br><span class="line"><span class="meta">#<span class="keyword">include</span> <span class="string">&lt;unistd.h&gt;</span></span></span><br><span class="line"></span><br><span class="line"><span class="comment">//建立与session D-Bus daemo的连接，并设定连接的名字，相关的代码已经多次使用过了</span></span><br><span class="line">DBusConnection* <span class="title function_">connect_dbus</span><span class="params">()</span></span><br><span class="line">&#123;</span><br><span class="line">	DBusError err;</span><br><span class="line">	DBusConnection *connection;</span><br><span class="line">	<span class="type">int</span> ret;</span><br><span class="line">	</span><br><span class="line">	<span class="comment">//Step 1: connecting session bus</span></span><br><span class="line">	</span><br><span class="line">	dbus_error_init(&amp;err);</span><br><span class="line">	</span><br><span class="line">	connection = dbus_bus_get(DBUS_BUS_SESSION, &amp;err);</span><br><span class="line">	<span class="keyword">if</span>(dbus_error_is_set(&amp;err))&#123;</span><br><span class="line">		<span class="built_in">fprintf</span>(<span class="built_in">stderr</span>, <span class="string">&quot;ConnectionErr : %s\n&quot;</span>, err.message);</span><br><span class="line">		dbus_error_free(&amp;err);</span><br><span class="line">	&#125;</span><br><span class="line">	<span class="keyword">if</span>(connection == <span class="literal">NULL</span>)</span><br><span class="line">		<span class="keyword">return</span> <span class="literal">NULL</span>;</span><br><span class="line">	</span><br><span class="line">	<span class="comment">//step 2: 设置BUS name，也即连接的名字。</span></span><br><span class="line">	ret = dbus_bus_request_name(connection, <span class="string">&quot;test.wei.source&quot;</span>, DBUS_NAME_FLAG_REPLACE_EXISTING, &amp;err);</span><br><span class="line">	<span class="keyword">if</span>(dbus_error_is_set(&amp;err))&#123;</span><br><span class="line">		<span class="built_in">fprintf</span>(<span class="built_in">stderr</span>, <span class="string">&quot;Name Err :%s\n&quot;</span>, err.message);</span><br><span class="line">		dbus_error_free(&amp;err);</span><br><span class="line">	&#125;</span><br><span class="line">	<span class="keyword">if</span>(ret != DBUS_REQUEST_NAME_REPLY_PRIMARY_OWNER)</span><br><span class="line">		<span class="keyword">return</span> <span class="literal">NULL</span>;</span><br><span class="line">	</span><br><span class="line">	<span class="keyword">return</span> connection;</span><br><span class="line">&#125;</span><br><span class="line"></span><br><span class="line"><span class="type">void</span> <span class="title function_">send_a_method_call</span><span class="params">(DBusConnection *connection,<span class="type">char</span> *param)</span></span><br><span class="line">&#123;</span><br><span class="line">	DBusError err;</span><br><span class="line">	DBusMessage *msg;</span><br><span class="line">	DBusMessageIter arg;</span><br><span class="line">	DBusPendingCall *pending;</span><br><span class="line">	<span class="type">dbus_bool_t</span> *stat;</span><br><span class="line">	<span class="type">dbus_uint32_t</span> *level;</span><br><span class="line">	</span><br><span class="line">	dbus_error_init(&amp;err);</span><br><span class="line">	</span><br><span class="line">	<span class="comment">//针对目的地地址，请参考图，创建一个method call消息。Constructs a new message to invoke a method on a remote object.</span></span><br><span class="line">	msg = dbus_message_new_method_call(<span class="string">&quot;test.wei.dest&quot;</span>, <span class="string">&quot;/test/method/Object&quot;</span>, <span class="string">&quot;test.method.Type&quot;</span>, <span class="string">&quot;Method&quot;</span>);</span><br><span class="line">	<span class="keyword">if</span>(msg == <span class="literal">NULL</span>)&#123;</span><br><span class="line">		<span class="built_in">fprintf</span>(<span class="built_in">stderr</span>, <span class="string">&quot;MessageNULL&quot;</span>);</span><br><span class="line">		<span class="keyword">return</span>;</span><br><span class="line">	&#125;</span><br><span class="line">	</span><br><span class="line">	<span class="comment">//为消息添加参数。Appendarguments</span></span><br><span class="line">	dbus_message_iter_init_append(msg, &amp;arg);</span><br><span class="line">	<span class="keyword">if</span>(!dbus_message_iter_append_basic(&amp;arg, DBUS_TYPE_STRING, &amp;param))&#123;</span><br><span class="line">		<span class="built_in">fprintf</span>(<span class="built_in">stderr</span>, <span class="string">&quot;Out of Memory!&quot;</span>);</span><br><span class="line">		<span class="built_in">exit</span>(<span class="number">1</span>);</span><br><span class="line">	&#125;</span><br><span class="line">	</span><br><span class="line">	<span class="comment">//发送消息并获得reply的handle。Queues amessage to send, as withdbus_connection_send() , but also returns aDBusPendingCall used to receive a reply to the message.</span></span><br><span class="line">	<span class="keyword">if</span>(!dbus_connection_send_with_reply(connection, msg, &amp;pending, <span class="number">-1</span>))&#123;</span><br><span class="line">		<span class="built_in">fprintf</span>(<span class="built_in">stderr</span>, <span class="string">&quot;Out of Memory!&quot;</span>);</span><br><span class="line">		<span class="built_in">exit</span>(<span class="number">1</span>);</span><br><span class="line">	&#125;</span><br><span class="line">	</span><br><span class="line">	<span class="keyword">if</span>(pending == <span class="literal">NULL</span>)&#123;</span><br><span class="line">		<span class="built_in">fprintf</span>(<span class="built_in">stderr</span>, <span class="string">&quot;Pending CallNULL: connection is disconnected &quot;</span>);</span><br><span class="line">		dbus_message_unref(msg);</span><br><span class="line">		<span class="keyword">return</span>;</span><br><span class="line">	&#125;</span><br><span class="line">	</span><br><span class="line">	dbus_connection_flush(connection);</span><br><span class="line">	dbus_message_unref(msg);</span><br><span class="line">	</span><br><span class="line">	<span class="comment">//waiting a reply，在发送的时候，已经获取了methodreply的handle，类型为DBusPendingCall。</span></span><br><span class="line">	<span class="comment">// block until we recieve a reply， Block until the pendingcall is completed.</span></span><br><span class="line">	dbus_pending_call_block(pending);</span><br><span class="line">	<span class="comment">//get the reply message，Gets thereply, or returns NULL if none has been received yet.</span></span><br><span class="line">	msg = dbus_pending_call_steal_reply(pending);</span><br><span class="line">	<span class="keyword">if</span> (msg == <span class="literal">NULL</span>) &#123;</span><br><span class="line">		<span class="built_in">fprintf</span>(<span class="built_in">stderr</span>, <span class="string">&quot;ReplyNull\n&quot;</span>);</span><br><span class="line">		<span class="built_in">exit</span>(<span class="number">1</span>);</span><br><span class="line">	&#125;</span><br><span class="line">	<span class="comment">// free the pendingmessage handle</span></span><br><span class="line">	dbus_pending_call_unref(pending);</span><br><span class="line">	<span class="comment">// read the parameters</span></span><br><span class="line">	<span class="keyword">if</span>(!dbus_message_iter_init(msg, &amp;arg))</span><br><span class="line">		<span class="built_in">fprintf</span>(<span class="built_in">stderr</span>, <span class="string">&quot;Message hasno arguments!\n&quot;</span>);</span><br><span class="line">	<span class="keyword">else</span> <span class="keyword">if</span> (dbus_message_iter_get_arg_type(&amp;arg) != DBUS_TYPE_BOOLEAN)</span><br><span class="line">		<span class="built_in">fprintf</span>(<span class="built_in">stderr</span>, <span class="string">&quot;Argument isnot boolean!\n&quot;</span>);</span><br><span class="line">	<span class="keyword">else</span></span><br><span class="line">		dbus_message_iter_get_basic(&amp;arg, &amp;stat);</span><br><span class="line">	</span><br><span class="line">	<span class="keyword">if</span> (!dbus_message_iter_next(&amp;arg))</span><br><span class="line">		<span class="built_in">fprintf</span>(<span class="built_in">stderr</span>, <span class="string">&quot;Message hastoo few arguments!\n&quot;</span>);</span><br><span class="line">	<span class="keyword">else</span> <span class="keyword">if</span> (dbus_message_iter_get_arg_type(&amp;arg) != DBUS_TYPE_UINT32 )</span><br><span class="line">		<span class="built_in">fprintf</span>(<span class="built_in">stderr</span>, <span class="string">&quot;Argument isnot int!\n&quot;</span>);</span><br><span class="line">	<span class="keyword">else</span></span><br><span class="line">		dbus_message_iter_get_basic(&amp;arg, &amp;level);</span><br><span class="line">	</span><br><span class="line">	<span class="built_in">printf</span>(<span class="string">&quot;Got Reply: %d,%d\n&quot;</span>, stat, level);</span><br><span class="line">	dbus_message_unref(msg);</span><br><span class="line">&#125;</span><br><span class="line"></span><br><span class="line"><span class="type">int</span> <span class="title function_">send_a_signal</span><span class="params">(DBusConnection *connection, <span class="type">char</span> *sigvalue)</span></span><br><span class="line">&#123;</span><br><span class="line">	DBusError err;</span><br><span class="line">	DBusMessage *msg;</span><br><span class="line">	DBusMessageIter arg;</span><br><span class="line">	<span class="type">dbus_uint32_t</span>  serial = <span class="number">0</span>;</span><br><span class="line">	<span class="type">int</span> ret;</span><br><span class="line">	</span><br><span class="line">	<span class="comment">//步骤3:发送一个信号</span></span><br><span class="line">	<span class="comment">//根据图，我们给出这个信号的路径（即可以指向对象），接口，以及信号名，创建一个Message</span></span><br><span class="line">	<span class="keyword">if</span>((msg = dbus_message_new_signal(<span class="string">&quot;/test/signal/Object&quot;</span>, <span class="string">&quot;test.signal.Type&quot;</span>, <span class="string">&quot;Test&quot;</span>))== <span class="literal">NULL</span>)&#123;</span><br><span class="line">		<span class="built_in">fprintf</span>(<span class="built_in">stderr</span>, <span class="string">&quot;MessageNULL\n&quot;</span>);</span><br><span class="line">		<span class="keyword">return</span> <span class="number">-1</span>;</span><br><span class="line">	&#125;</span><br><span class="line">	<span class="comment">//给这个信号（messge）具体的内容</span></span><br><span class="line">	dbus_message_iter_init_append(msg, &amp;arg);</span><br><span class="line">	<span class="keyword">if</span>(!dbus_message_iter_append_basic(&amp;arg, DBUS_TYPE_STRING, &amp;sigvalue))&#123;</span><br><span class="line">		<span class="built_in">fprintf</span>(<span class="built_in">stderr</span>, <span class="string">&quot;Out OfMemory!\n&quot;</span>);</span><br><span class="line">		<span class="keyword">return</span> <span class="number">-1</span>;</span><br><span class="line">	&#125;</span><br><span class="line">	</span><br><span class="line">	<span class="comment">//步骤4: 将信号从连接中发送</span></span><br><span class="line">	<span class="keyword">if</span>(!dbus_connection_send(connection, msg, &amp;serial))&#123;</span><br><span class="line">		<span class="built_in">fprintf</span>(<span class="built_in">stderr</span>, <span class="string">&quot;Out of Memory!\n&quot;</span>);</span><br><span class="line">		<span class="keyword">return</span> <span class="number">-1</span>;</span><br><span class="line">	&#125;</span><br><span class="line">	dbus_connection_flush(connection);</span><br><span class="line">	<span class="built_in">printf</span>(<span class="string">&quot;Signal Send\n&quot;</span>);</span><br><span class="line">	</span><br><span class="line">	<span class="comment">//步骤5: 释放相关的分配的内存。</span></span><br><span class="line">	dbus_message_unref(msg);</span><br><span class="line">	<span class="keyword">return</span> <span class="number">0</span>;</span><br><span class="line">&#125;</span><br><span class="line"></span><br><span class="line"><span class="type">int</span> <span class="title function_">main</span><span class="params">(<span class="type">int</span> argc, <span class="type">char</span> **argv)</span></span><br><span class="line">&#123;</span><br><span class="line">	DBusConnection *connection;</span><br><span class="line">	connection = connect_dbus();</span><br><span class="line">	<span class="keyword">if</span>(connection == <span class="literal">NULL</span>)</span><br><span class="line">		<span class="keyword">return</span> <span class="number">-1</span>;</span><br><span class="line">	</span><br><span class="line">    <span class="keyword">if</span> (argc &gt; <span class="number">1</span>) &#123;</span><br><span class="line">        send_a_method_call(connection,<span class="string">&quot;Hello, D-Bus&quot;</span>);</span><br><span class="line">    &#125; <span class="keyword">else</span> &#123;</span><br><span class="line">        send_a_signal(connection, <span class="string">&quot;Hello,world!&quot;</span>);</span><br><span class="line">    &#125;</span><br><span class="line"></span><br><span class="line"></span><br><span class="line">	<span class="keyword">return</span> <span class="number">0</span>;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><span class="line">gcc -Wall -o server server.c -ldbus-1 -I/usr/include/dbus-1.0/ -I/usr/include/glib-2.0/ -I/usr/lib/x86_64-linux-gnu/glib-2.0/include/ -I/usr/lib/x86_64-linux-gnu/dbus-1.0/include/</span><br><span class="line"></span><br><span class="line">gcc -Wall -o client client.c -ldbus-1 -I/usr/include/dbus-1.0/ -I/usr/include/glib-2.0/ -I/usr/lib/x86_64-linux-gnu/glib-2.0/include/ -I/usr/lib/x86_64-linux-gnu/dbus-1.0/include/</span><br></pre></td></tr></table></figure>
+
+<p>结果如下：</p>
+<p><img src="/2024/07/28/dbus/Start/photo/result.png"></p>
+<hr>
+<p><strong>本章完结</strong></p>
+
+    </div>
+
+    
+    
+    
+        <div class="reward-container">
+  <div></div>
+  <button onclick="var qr = document.getElementById('qr'); qr.style.display = (qr.style.display === 'none') ? 'block' : 'none';">
+    打赏
+  </button>
+  <div id="qr" style="display: none;">
+      
+      <div style="display: inline-block;">
+        <img src="/images/wechatpay.jpg" alt="半个馒头 微信支付">
+        <p>微信支付</p>
+      </div>
+
+  </div>
+</div>
+
+
+      <footer class="post-footer">
+          <div class="post-tags">
+              <a href="/tags/DBus/" rel="tag"># DBus</a>
+          </div>
+
+        
+
+
+        
+    <div class="post-nav">
+      <div class="post-nav-item">
+    <a href="/2024/06/11/stm32/RCC/" rel="prev" title="STM32F103时钟分析">
+      <i class="fa fa-chevron-left"></i> STM32F103时钟分析
+    </a></div>
+      <div class="post-nav-item">
+    <a href="/2024/08/25/web/start/" rel="next" title="Angular快速入门">
+      Angular快速入门 <i class="fa fa-chevron-right"></i>
+    </a></div>
+    </div>
+      </footer>
+    
+  </article>
+  
+  
+  
+
+
+
+          </div>
+          
+
+<script>
+  window.addEventListener('tabs:register', () => {
+    let { activeClass } = CONFIG.comments;
+    if (CONFIG.comments.storage) {
+      activeClass = localStorage.getItem('comments_active') || activeClass;
+    }
+    if (activeClass) {
+      let activeTab = document.querySelector(`a[href="#comment-${activeClass}"]`);
+      if (activeTab) {
+        activeTab.click();
+      }
+    }
+  });
+  if (CONFIG.comments.storage) {
+    window.addEventListener('tabs:click', event => {
+      if (!event.target.matches('.tabs-comment .tab-content .tab-pane')) return;
+      let commentClass = event.target.classList[1];
+      localStorage.setItem('comments_active', commentClass);
+    });
+  }
+</script>
+
+        </div>
+          
+  
+  <div class="toggle sidebar-toggle">
+    <span class="toggle-line toggle-line-first"></span>
+    <span class="toggle-line toggle-line-middle"></span>
+    <span class="toggle-line toggle-line-last"></span>
+  </div>
+
+  <aside class="sidebar">
+    <div class="sidebar-inner">
+
+      <ul class="sidebar-nav motion-element">
+        <li class="sidebar-nav-toc">
+          文章目录
+        </li>
+        <li class="sidebar-nav-overview">
+          站点概览
+        </li>
+      </ul>
+
+      <!--noindex-->
+      <div class="post-toc-wrap sidebar-panel">
+          <div class="post-toc motion-element"><ol class="nav"><li class="nav-item nav-level-2"><a class="nav-link" href="#DBus%E5%AE%89%E8%A3%85"><span class="nav-number">1.</span> <span class="nav-text">DBus安装</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#DBus%E6%95%B4%E4%BD%93%E7%BB%93%E6%9E%84"><span class="nav-number">2.</span> <span class="nav-text">DBus整体结构</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#DBus%E6%B7%B1%E5%85%A5%E7%90%86%E8%A7%A3"><span class="nav-number">3.</span> <span class="nav-text">DBus深入理解</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#DBus%E7%A4%BA%E4%BE%8B%E4%BB%A3%E7%A0%81"><span class="nav-number">4.</span> <span class="nav-text">DBus示例代码</span></a></li></ol></div>
+      </div>
+      <!--/noindex-->
+
+      <div class="site-overview-wrap sidebar-panel">
+        <div class="site-author motion-element" itemprop="author" itemscope itemtype="http://schema.org/Person">
+    <img class="site-author-image" itemprop="image" alt="半个馒头"
+      src="/images/avatar.jpg">
+  <p class="site-author-name" itemprop="name">半个馒头</p>
+  <div class="site-description" itemprop="description"></div>
+</div>
+<div class="site-state-wrap motion-element">
+  <nav class="site-state">
+      <div class="site-state-item site-state-posts">
+          <a href="/archives/">
+        
+          <span class="site-state-item-count">58</span>
+          <span class="site-state-item-name">日志</span>
+        </a>
+      </div>
+      <div class="site-state-item site-state-tags">
+            <a href="/tags/">
+          
+        <span class="site-state-item-count">18</span>
+        <span class="site-state-item-name">标签</span></a>
+      </div>
+  </nav>
+</div>
+  <div class="links-of-author motion-element">
+      <span class="links-of-author-item">
+        <a href="https://github.com/LunarStore" title="GitHub → https:&#x2F;&#x2F;github.com&#x2F;LunarStore" rel="noopener" target="_blank"><i class="fa fa-fw fa-github"></i>GitHub</a>
+      </span>
+      <span class="links-of-author-item">
+        <a href="mailto:18772124875@163.com" title="网易邮箱 → mailto:18772124875@163.com" rel="noopener" target="_blank"><i class="fa fa-fw fa-fas fa-envelope"></i>网易邮箱</a>
+      </span>
+  </div>
+
+
+  <div class="links-of-blogroll motion-element">
+    <div class="links-of-blogroll-title">
+      <i class="fa fa-fw fa-link"></i>
+      友情链接
+    </div>
+    <ul class="links-of-blogroll-list">
+        <li class="links-of-blogroll-item">
+          <a href="https://blog.csdn.net/m0_52566365" title="https:&#x2F;&#x2F;blog.csdn.net&#x2F;m0_52566365" rel="noopener" target="_blank">CSDN博客地址</a>
+        </li>
+    </ul>
+  </div>
+
+      </div>
+        <div class="back-to-top motion-element">
+          <i class="fa fa-arrow-up"></i>
+          <span>0%</span>
+        </div>
+
+    </div>
+  </aside>
+  <div id="sidebar-dimmer"></div>
+
+
+      </div>
+    </main>
+
+    <footer class="footer">
+      <div class="footer-inner">
+        
+
+        
+
+<div class="copyright">
+  
+  &copy; 
+  <span itemprop="copyrightYear">2025</span>
+  <span class="with-love">
+    <i class="fa fa-user"></i>
+  </span>
+  <span class="author" itemprop="copyrightHolder">半个馒头</span>
+</div>
+  <div class="powered-by">由 <a href="https://hexo.io/" class="theme-link" rel="noopener" target="_blank">Hexo</a> & <a href="https://theme-next.org/" class="theme-link" rel="noopener" target="_blank">NexT.Gemini</a> 强力驱动
+  </div>
+
+        
+<div class="busuanzi-count">
+  <script async src="https://busuanzi.ibruce.info/busuanzi/2.3/busuanzi.pure.mini.js"></script>
+    <span class="post-meta-item" id="busuanzi_container_site_uv" style="display: none;">
+      <span class="post-meta-item-icon">
+        <i class="fa fa-user"></i>
+      </span>
+      <span class="site-uv" title="总访客量">
+        <span id="busuanzi_value_site_uv"></span>
+      </span>
+    </span>
+    <span class="post-meta-divider">|</span>
+    <span class="post-meta-item" id="busuanzi_container_site_pv" style="display: none;">
+      <span class="post-meta-item-icon">
+        <i class="fa fa-eye"></i>
+      </span>
+      <span class="site-pv" title="总访问量">
+        <span id="busuanzi_value_site_pv"></span>
+      </span>
+    </span>
+</div>
+
+
+
+
+
+
+
+
+      </div>
+    </footer>
+  </div>
+
+  
+  <script src="/lib/anime.min.js"></script>
+  <script src="/lib/velocity/velocity.min.js"></script>
+  <script src="/lib/velocity/velocity.ui.min.js"></script>
+
+<script src="/js/utils.js"></script>
+
+<script src="/js/motion.js"></script>
+
+
+<script src="/js/schemes/pisces.js"></script>
+
+
+<script src="/js/next-boot.js"></script>
+
+
+
+
+  
+
+
+
+
+  
+<script src="/js/local-search.js"></script>
+
+
+
+
+
+
+
+
+
+
+
+
+
+  
+
+  
+
+</body>
+</html>

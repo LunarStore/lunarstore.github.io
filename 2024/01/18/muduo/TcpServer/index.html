@@ -1,0 +1,589 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=2">
+<meta name="theme-color" content="#222">
+<meta name="generator" content="Hexo 7.3.0">
+  <link rel="apple-touch-icon" sizes="180x180" href="/images/apple-touch-icon-next.png">
+  <link rel="icon" type="image/png" sizes="32x32" href="/images/favicon-32x32-next.png">
+  <link rel="icon" type="image/png" sizes="16x16" href="/images/favicon-16x16-next.png">
+  <link rel="mask-icon" href="/images/logo.svg" color="#222">
+
+<link rel="stylesheet" href="/css/main.css">
+
+
+<link rel="stylesheet" href="/lib/font-awesome/css/font-awesome.min.css">
+  <link rel="stylesheet" href="/lib/pace/pace-theme-flash.min.css">
+  <script src="/lib/pace/pace.min.js"></script>
+
+<script id="hexo-configurations">
+    var NexT = window.NexT || {};
+    var CONFIG = {"hostname":"www.halfmantou.xyz","root":"/","scheme":"Gemini","version":"7.8.0","exturl":false,"sidebar":{"position":"left","display":"post","padding":18,"offset":12,"onmobile":false},"copycode":{"enable":true,"show_result":true,"style":null},"back2top":{"enable":true,"sidebar":true,"scrollpercent":true},"bookmark":{"enable":false,"color":"#222","save":"auto"},"fancybox":false,"mediumzoom":false,"lazyload":false,"pangu":false,"comments":{"style":"tabs","active":null,"storage":true,"lazyload":false,"nav":null},"algolia":{"hits":{"per_page":10},"labels":{"input_placeholder":"Search for Posts","hits_empty":"We didn't find any results for the search: ${query}","hits_stats":"${hits} results found in ${time} ms"}},"localsearch":{"enable":true,"trigger":"auto","top_n_per_article":3,"unescape":false,"preload":false},"motion":{"enable":true,"async":false,"transition":{"post_block":"fadeIn","post_header":"slideDownIn","post_body":"slideDownIn","coll_header":"slideLeftIn","sidebar":"slideUpIn"}},"path":"search.json"};
+  </script>
+
+  <meta name="description" content="Muduo源码笔记系列： muduo源码阅读笔记（0、下载编译muduo） muduo源码阅读笔记（1、同步日志） muduo源码阅读笔记（2、对C语言原生的线程安全以及同步的API的封装） muduo源码阅读笔记（3、线程和线程池的封装） muduo源码阅读笔记（4、异步日志） muduo源码阅读笔记（5、Channel和Poller） muduo源码阅读笔记（6、ExevntLoop和Thre">
+<meta property="og:type" content="article">
+<meta property="og:title" content="muduo源码阅读笔记（9、TcpServer）">
+<meta property="og:url" content="https://www.halfmantou.xyz/2024/01/18/muduo/TcpServer/index.html">
+<meta property="og:site_name" content="碎碎念念">
+<meta property="og:description" content="Muduo源码笔记系列： muduo源码阅读笔记（0、下载编译muduo） muduo源码阅读笔记（1、同步日志） muduo源码阅读笔记（2、对C语言原生的线程安全以及同步的API的封装） muduo源码阅读笔记（3、线程和线程池的封装） muduo源码阅读笔记（4、异步日志） muduo源码阅读笔记（5、Channel和Poller） muduo源码阅读笔记（6、ExevntLoop和Thre">
+<meta property="og:locale" content="zh_CN">
+<meta property="og:image" content="https://www.halfmantou.xyz/2024/01/18/muduo/TcpServer/photo/TcpServer.drawio.png">
+<meta property="article:published_time" content="2024-01-18T04:00:00.000Z">
+<meta property="article:modified_time" content="2025-09-29T14:24:25.067Z">
+<meta property="article:author" content="半个馒头">
+<meta property="article:tag" content="高性能服务器框架">
+<meta name="twitter:card" content="summary">
+<meta name="twitter:image" content="https://www.halfmantou.xyz/2024/01/18/muduo/TcpServer/photo/TcpServer.drawio.png">
+
+<link rel="canonical" href="https://www.halfmantou.xyz/2024/01/18/muduo/TcpServer/">
+
+
+<script id="page-configurations">
+  // https://hexo.io/docs/variables.html
+  CONFIG.page = {
+    sidebar: "",
+    isHome : false,
+    isPost : true,
+    lang   : 'zh-CN'
+  };
+</script>
+
+  <title>muduo源码阅读笔记（9、TcpServer） | 碎碎念念</title>
+  
+
+
+
+
+
+
+  <noscript>
+  <style>
+  .use-motion .brand,
+  .use-motion .menu-item,
+  .sidebar-inner,
+  .use-motion .post-block,
+  .use-motion .pagination,
+  .use-motion .comments,
+  .use-motion .post-header,
+  .use-motion .post-body,
+  .use-motion .collection-header { opacity: initial; }
+
+  .use-motion .site-title,
+  .use-motion .site-subtitle {
+    opacity: initial;
+    top: initial;
+  }
+
+  .use-motion .logo-line-before i { left: initial; }
+  .use-motion .logo-line-after i { right: initial; }
+  </style>
+</noscript>
+
+</head>
+
+<body itemscope itemtype="http://schema.org/WebPage">
+  <div class="container use-motion">
+    <div class="headband"></div>
+
+    <header class="header" itemscope itemtype="http://schema.org/WPHeader">
+      <div class="header-inner"><div class="site-brand-container">
+  <div class="site-nav-toggle">
+    <div class="toggle" aria-label="切换导航栏">
+      <span class="toggle-line toggle-line-first"></span>
+      <span class="toggle-line toggle-line-middle"></span>
+      <span class="toggle-line toggle-line-last"></span>
+    </div>
+  </div>
+
+  <div class="site-meta">
+
+    <a href="/" class="brand" rel="start">
+      <span class="logo-line-before"><i></i></span>
+      <h1 class="site-title">碎碎念念</h1>
+      <span class="logo-line-after"><i></i></span>
+    </a>
+  </div>
+
+  <div class="site-nav-right">
+    <div class="toggle popup-trigger">
+        <i class="fa fa-search fa-fw fa-lg"></i>
+    </div>
+  </div>
+</div>
+
+
+
+
+<nav class="site-nav">
+  <ul id="menu" class="menu">
+        <li class="menu-item menu-item-home">
+
+    <a href="/" rel="section"><i class="fa fa-fw fa-home"></i>首页</a>
+
+  </li>
+        <li class="menu-item menu-item-about">
+
+    <a href="/about/" rel="section"><i class="fa fa-fw fa-user"></i>关于</a>
+
+  </li>
+        <li class="menu-item menu-item-tags">
+
+    <a href="/tags/" rel="section"><i class="fa fa-fw fa-tags"></i>标签<span class="badge">18</span></a>
+
+  </li>
+        <li class="menu-item menu-item-categories">
+
+    <a href="/categories/" rel="section"><i class="fa fa-fw fa-th"></i>分类<span class="badge">0</span></a>
+
+  </li>
+        <li class="menu-item menu-item-archives">
+
+    <a href="/archives/" rel="section"><i class="fa fa-fw fa-archive"></i>归档<span class="badge">58</span></a>
+
+  </li>
+      <li class="menu-item menu-item-search">
+        <a role="button" class="popup-trigger"><i class="fa fa-search fa-fw"></i>搜索
+        </a>
+      </li>
+  </ul>
+</nav>
+
+
+
+  <div class="search-pop-overlay">
+    <div class="popup search-popup">
+        <div class="search-header">
+  <span class="search-icon">
+    <i class="fa fa-search"></i>
+  </span>
+  <div class="search-input-container">
+    <input autocomplete="off" autocapitalize="off"
+           placeholder="搜索..." spellcheck="false"
+           type="search" class="search-input">
+  </div>
+  <span class="popup-btn-close">
+    <i class="fa fa-times-circle"></i>
+  </span>
+</div>
+<div id="search-result">
+  <div id="no-result">
+    <i class="fa fa-spinner fa-pulse fa-5x fa-fw"></i>
+  </div>
+</div>
+
+    </div>
+  </div>
+
+</div>
+    </header>
+
+    
+  <div class="reading-progress-bar"></div>
+
+  <a href="https://github.com/LunarStore" class="github-corner" title="Follow me on GitHub" aria-label="Follow me on GitHub" rel="noopener" target="_blank"><svg width="80" height="80" viewBox="0 0 250 250" aria-hidden="true"><path d="M0,0 L115,115 L130,115 L142,142 L250,250 L250,0 Z"></path><path d="M128.3,109.0 C113.8,99.7 119.0,89.6 119.0,89.6 C122.0,82.7 120.5,78.6 120.5,78.6 C119.2,72.0 123.4,76.3 123.4,76.3 C127.3,80.9 125.5,87.3 125.5,87.3 C122.9,97.6 130.6,101.9 134.4,103.2" fill="currentColor" style="transform-origin: 130px 106px;" class="octo-arm"></path><path d="M115.0,115.0 C114.9,115.1 118.7,116.5 119.8,115.4 L133.7,101.6 C136.9,99.2 139.9,98.4 142.2,98.6 C133.8,88.0 127.5,74.4 143.8,58.0 C148.5,53.4 154.0,51.2 159.7,51.0 C160.3,49.4 163.2,43.6 171.4,40.1 C171.4,40.1 176.1,42.5 178.8,56.2 C183.1,58.6 187.2,61.8 190.9,65.4 C194.5,69.0 197.7,73.2 200.1,77.6 C213.8,80.2 216.3,84.9 216.3,84.9 C212.7,93.1 206.9,96.0 205.4,96.6 C205.1,102.4 203.0,107.8 198.3,112.5 C181.9,128.9 168.3,122.5 157.7,114.1 C157.9,116.9 156.7,120.9 152.7,124.9 L141.0,136.5 C139.8,137.7 141.6,141.9 141.8,141.8 Z" fill="currentColor" class="octo-body"></path></svg></a>
+
+
+    <main class="main">
+      <div class="main-inner">
+        <div class="content-wrap">
+          
+
+          <div class="content post posts-expand">
+            
+
+    
+  
+  
+  <article itemscope itemtype="http://schema.org/Article" class="post-block" lang="zh-CN">
+    <link itemprop="mainEntityOfPage" href="https://www.halfmantou.xyz/2024/01/18/muduo/TcpServer/">
+
+    <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
+      <meta itemprop="image" content="/images/avatar.jpg">
+      <meta itemprop="name" content="半个馒头">
+      <meta itemprop="description" content="">
+    </span>
+
+    <span hidden itemprop="publisher" itemscope itemtype="http://schema.org/Organization">
+      <meta itemprop="name" content="碎碎念念">
+    </span>
+      <header class="post-header">
+        <h1 class="post-title" itemprop="name headline">
+          muduo源码阅读笔记（9、TcpServer）
+        </h1>
+
+        <div class="post-meta">
+            <span class="post-meta-item">
+              <span class="post-meta-item-icon">
+                <i class="fa fa-calendar-o"></i>
+              </span>
+              <span class="post-meta-item-text">发表于</span>
+
+              <time title="创建时间：2024-01-18 12:00:00" itemprop="dateCreated datePublished" datetime="2024-01-18T12:00:00+08:00">2024-01-18</time>
+            </span>
+              <span class="post-meta-item">
+                <span class="post-meta-item-icon">
+                  <i class="fa fa-calendar-check-o"></i>
+                </span>
+                <span class="post-meta-item-text">更新于</span>
+                <time title="修改时间：2025-09-29 22:24:25" itemprop="dateModified" datetime="2025-09-29T22:24:25+08:00">2025-09-29</time>
+              </span>
+
+          
+            <span class="post-meta-item" title="阅读次数" id="busuanzi_container_page_pv" style="display: none;">
+              <span class="post-meta-item-icon">
+                <i class="fa fa-eye"></i>
+              </span>
+              <span class="post-meta-item-text">阅读次数：</span>
+              <span id="busuanzi_value_page_pv"></span>
+            </span>
+
+        </div>
+      </header>
+
+    
+    
+    
+    <div class="post-body" itemprop="articleBody">
+
+      
+        <p><strong>Muduo源码笔记系列：</strong></p>
+<p><a href="./Start.md">muduo源码阅读笔记（0、下载编译muduo）</a></p>
+<p><a href="./SynLogging.md">muduo源码阅读笔记（1、同步日志）</a></p>
+<p><a href="./ThreadSafeAndSync.md">muduo源码阅读笔记（2、对C语言原生的线程安全以及同步的API的封装）</a></p>
+<p><a href="./ThreadAndThreadPool.md">muduo源码阅读笔记（3、线程和线程池的封装）</a></p>
+<p><a href="./AsyncLogging.md">muduo源码阅读笔记（4、异步日志）</a></p>
+<p><a href="./ChannelAndPoller.md">muduo源码阅读笔记（5、Channel和Poller）</a></p>
+<p><a href="./EvevntLoopAndThread.md">muduo源码阅读笔记（6、ExevntLoop和Thread）</a></p>
+<p><a href="./EventLoopThreadPool.md">muduo源码阅读笔记（7、EventLoopThreadPool）</a></p>
+<p><a href="./TimerQueue.md">muduo源码阅读笔记（8、定时器TimerQueue）</a></p>
+<p><a href="./TcpServer.md">muduo源码阅读笔记（9、TcpServer）</a></p>
+<p><a href="./TcpConnection.md">muduo源码阅读笔记（10、TcpConnection）</a></p>
+<p><strong>前言</strong></p>
+<p>本章涉及的文件有：</p>
+<ol>
+<li><p>TcpServer.h&#x2F;cc：一个主从Reactor模型的TcpServer，主EventLoop接收连接，并且将连接sock fd负载均衡分发给一个IOLoop。</p>
+</li>
+<li><p>Acceptor.h&#x2F;cc：一个监听套接字的包装器，内部创建了一个Channel管理连接套接字的回调。</p>
+</li>
+<li><p>Socket.h&#x2F;cc：封装原生socket，提供绑定、监听、接受连接、设置socket属性等接口。</p>
+</li>
+<li><p>SocketsOps.h&#x2F;cc：Socket.h&#x2F;cc接口的底层实现，在创建套接字（::socket()&#x2F;::accept()）时，会将socketfd设置为非阻塞。</p>
+</li>
+<li><p>InetAddress.h&#x2F;cc：对sockaddr_in&#x2F;sockaddr_in6网络地址进行封装，使其更方便使用。</p>
+</li>
+</ol>
+<p>本章重点集中在1、2，对于3、4、5，见名知意即可，感兴趣的读者，可以自行深入阅读。</p>
+<h2 id="Acceptor的实现"><a href="#Acceptor的实现" class="headerlink" title="Acceptor的实现"></a>Acceptor的实现</h2><p><strong>提供的接口：</strong></p>
+<span id="more"></span>
+
+<figure class="highlight cpp"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">///</span></span><br><span class="line"><span class="comment">/// Acceptor of incoming TCP connections.</span></span><br><span class="line"><span class="comment">///</span></span><br><span class="line"><span class="keyword">class</span> <span class="title class_">Acceptor</span> : noncopyable&#123;</span><br><span class="line"><span class="keyword">public</span>:</span><br><span class="line">    <span class="keyword">typedef</span> std::function&lt;<span class="type">void</span> (<span class="type">int</span> sockfd, <span class="type">const</span> InetAddress&amp;)&gt; NewConnectionCallback;</span><br><span class="line"></span><br><span class="line">    <span class="built_in">Acceptor</span>(EventLoop* loop, <span class="type">const</span> InetAddress&amp; listenAddr, <span class="type">bool</span> reuseport);</span><br><span class="line">    ~<span class="built_in">Acceptor</span>();</span><br><span class="line"></span><br><span class="line">    <span class="function"><span class="type">void</span> <span class="title">setNewConnectionCallback</span><span class="params">(<span class="type">const</span> NewConnectionCallback&amp; cb)</span></span></span><br><span class="line"><span class="function">    </span>&#123; newConnectionCallback_ = cb; &#125;</span><br><span class="line"></span><br><span class="line">    <span class="function"><span class="type">void</span> <span class="title">listen</span><span class="params">()</span></span>;</span><br><span class="line"></span><br><span class="line">    <span class="function"><span class="type">bool</span> <span class="title">listening</span><span class="params">()</span> <span class="type">const</span> </span>&#123; <span class="keyword">return</span> listening_; &#125;</span><br><span class="line"></span><br><span class="line">    <span class="comment">// Deprecated, use the correct spelling one above.</span></span><br><span class="line">    <span class="comment">// Leave the wrong spelling here in case one needs to grep it for error messages.</span></span><br><span class="line">    <span class="comment">// bool listenning() const &#123; return listening(); &#125;</span></span><br><span class="line"></span><br><span class="line"><span class="keyword">private</span>:</span><br><span class="line">    <span class="function"><span class="type">void</span> <span class="title">handleRead</span><span class="params">()</span></span>;</span><br><span class="line"></span><br><span class="line">    EventLoop* loop_; <span class="comment">// 绑定在哪个EventLoop上</span></span><br><span class="line">    Socket acceptSocket_; <span class="comment">// accept sock fd</span></span><br><span class="line">    Channel acceptChannel_; <span class="comment">// 对accept sock fd channel的封装</span></span><br><span class="line">    NewConnectionCallback newConnectionCallback_;   <span class="comment">// 连接sock fd分发器</span></span><br><span class="line">    <span class="type">bool</span> listening_;  <span class="comment">// accept sock fd已经listen？</span></span><br><span class="line">    <span class="type">int</span> idleFd_;  <span class="comment">// 预留一个fd，以免文件描述符消耗完毕，无法继续处理连接。</span></span><br><span class="line">&#125;;</span><br></pre></td></tr></table></figure>
+
+<p>其实从成员变量就可以看出来，Acceptor和TimeQueue有着及其相似的地方。</p>
+<p><strong>实现的伪代码：</strong></p>
+<figure class="highlight cpp"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br><span class="line">36</span><br><span class="line">37</span><br><span class="line">38</span><br><span class="line">39</span><br><span class="line">40</span><br><span class="line">41</span><br><span class="line">42</span><br><span class="line">43</span><br><span class="line">44</span><br><span class="line">45</span><br><span class="line">46</span><br><span class="line">47</span><br><span class="line">48</span><br><span class="line">49</span><br><span class="line">50</span><br><span class="line">51</span><br><span class="line">52</span><br><span class="line">53</span><br><span class="line">54</span><br><span class="line">55</span><br></pre></td><td class="code"><pre><span class="line">Acceptor::<span class="built_in">Acceptor</span>(EventLoop* loop, <span class="type">const</span> InetAddress&amp; listenAddr, <span class="type">bool</span> reuseport)</span><br><span class="line">  : <span class="built_in">loop_</span>(loop),</span><br><span class="line">    <span class="built_in">acceptSocket_</span>(sockets::<span class="built_in">createNonblockingOrDie</span>(listenAddr.<span class="built_in">family</span>())),</span><br><span class="line">    <span class="built_in">acceptChannel_</span>(loop, acceptSocket_.<span class="built_in">fd</span>()),</span><br><span class="line">    <span class="built_in">listening_</span>(<span class="literal">false</span>),</span><br><span class="line">    <span class="built_in">idleFd_</span>(::<span class="built_in">open</span>(<span class="string">&quot;/dev/null&quot;</span>, O_RDONLY | O_CLOEXEC))&#123;</span><br><span class="line"></span><br><span class="line">    <span class="built_in">assert</span>(idleFd_ &gt;= <span class="number">0</span>);</span><br><span class="line">    acceptSocket_.<span class="built_in">setReuseAddr</span>(<span class="literal">true</span>);       <span class="comment">// 地址重用</span></span><br><span class="line">    acceptSocket_.<span class="built_in">setReusePort</span>(reuseport);  <span class="comment">// 端口重用</span></span><br><span class="line">    acceptSocket_.<span class="built_in">bindAddress</span>(listenAddr);  <span class="comment">// 地址绑定</span></span><br><span class="line">    acceptChannel_.<span class="built_in">setReadCallback</span>(         <span class="comment">// 设置回调</span></span><br><span class="line">        std::<span class="built_in">bind</span>(&amp;Acceptor::handleRead, <span class="keyword">this</span>));</span><br><span class="line">&#125;</span><br><span class="line"></span><br><span class="line">Acceptor::~<span class="built_in">Acceptor</span>()&#123;</span><br><span class="line">    acceptChannel_.<span class="built_in">disableAll</span>();</span><br><span class="line">    acceptChannel_.<span class="built_in">remove</span>();</span><br><span class="line">    ::<span class="built_in">close</span>(idleFd_);</span><br><span class="line">&#125;</span><br><span class="line"></span><br><span class="line"><span class="function"><span class="type">void</span> <span class="title">Acceptor::listen</span><span class="params">()</span></span>&#123;</span><br><span class="line">    loop_-&gt;<span class="built_in">assertInLoopThread</span>();</span><br><span class="line">    listening_ = <span class="literal">true</span>;</span><br><span class="line">    acceptSocket_.<span class="built_in">listen</span>(); <span class="comment">// sock fd 开始listen</span></span><br><span class="line">    acceptChannel_.<span class="built_in">enableReading</span>(); <span class="comment">// 向Poller注册sock fd</span></span><br><span class="line">&#125;</span><br><span class="line"></span><br><span class="line"><span class="function"><span class="type">void</span> <span class="title">Acceptor::handleRead</span><span class="params">()</span></span>&#123;</span><br><span class="line">    loop_-&gt;<span class="built_in">assertInLoopThread</span>();</span><br><span class="line">    InetAddress peerAddr;</span><br><span class="line">    <span class="comment">//FIXME loop until no more</span></span><br><span class="line">    <span class="type">int</span> connfd = acceptSocket_.<span class="built_in">accept</span>(&amp;peerAddr);</span><br><span class="line">    <span class="keyword">if</span> (connfd &gt;= <span class="number">0</span>)&#123;</span><br><span class="line">        <span class="comment">// string hostport = peerAddr.toIpPort();</span></span><br><span class="line">        <span class="comment">// LOG_TRACE &lt;&lt; &quot;Accepts of &quot; &lt;&lt; hostport;</span></span><br><span class="line">        <span class="keyword">if</span> (newConnectionCallback_)&#123;</span><br><span class="line">            <span class="built_in">newConnectionCallback_</span>(connfd, peerAddr);   <span class="comment">// 连接分发器</span></span><br><span class="line">        &#125;<span class="keyword">else</span>&#123;</span><br><span class="line">            sockets::<span class="built_in">close</span>(connfd);</span><br><span class="line">        &#125;</span><br><span class="line">    &#125;<span class="keyword">else</span>&#123;</span><br><span class="line">        LOG_SYSERR &lt;&lt; <span class="string">&quot;in Acceptor::handleRead&quot;</span>;</span><br><span class="line">        <span class="comment">// Read the section named &quot;The special problem of</span></span><br><span class="line">        <span class="comment">// accept()ing when you can&#x27;t&quot; in libev&#x27;s doc.</span></span><br><span class="line">        <span class="comment">// By Marc Lehmann, author of libev.</span></span><br><span class="line">        <span class="keyword">if</span> (errno == EMFILE) &#123; <span class="comment">// 超过文件描述符最大限制</span></span><br><span class="line">            ::<span class="built_in">close</span>(idleFd_);   <span class="comment">// 归还预留的idleFd_，利用idleFd_来接收连接</span></span><br><span class="line">            idleFd_ = ::<span class="built_in">accept</span>(acceptSocket_.<span class="built_in">fd</span>(), <span class="literal">NULL</span>, <span class="literal">NULL</span>); <span class="comment">// 接受连接</span></span><br><span class="line">            <span class="comment">// 什么也不做就关闭连接。</span></span><br><span class="line">            ::<span class="built_in">close</span>(idleFd_);</span><br><span class="line">            idleFd_ = ::<span class="built_in">open</span>(<span class="string">&quot;/dev/null&quot;</span>, O_RDONLY | O_CLOEXEC);    <span class="comment">// 继续预留fd。</span></span><br><span class="line">        &#125;</span><br><span class="line">    &#125;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<h3 id="细节明细："><a href="#细节明细：" class="headerlink" title="细节明细："></a>细节明细：</h3><p><strong>疑问</strong></p>
+<p>Acceptor::idleFd_成员变量存在的意义？Acceptor::handleRead函数中为什么出现EMFILE错误时，关闭idleFd_，::accept接受连接，又关闭idleFd_，又打开idleFd_？</p>
+<p><strong>解答</strong></p>
+<p>出现EMFILE错误，关闭 idleFd_ 后，执行 ::accept 操作，通常情况下这个操作并不会失败。这是因为在 ::accept 函数成功返回时，会返回一个值和关闭idleFd_前值相同的连接文件描述符，这个文件描述符会被用于处理新连接。这里主要目的是消耗一个连接，尽管什么也不做。但可以确保服务器能够继续正常运行。</p>
+<h2 id="TcpServer的实现"><a href="#TcpServer的实现" class="headerlink" title="TcpServer的实现"></a>TcpServer的实现</h2><p><strong>提供的接口：</strong></p>
+<figure class="highlight cpp"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br><span class="line">36</span><br><span class="line">37</span><br><span class="line">38</span><br><span class="line">39</span><br><span class="line">40</span><br><span class="line">41</span><br><span class="line">42</span><br><span class="line">43</span><br><span class="line">44</span><br><span class="line">45</span><br><span class="line">46</span><br><span class="line">47</span><br><span class="line">48</span><br><span class="line">49</span><br><span class="line">50</span><br><span class="line">51</span><br><span class="line">52</span><br><span class="line">53</span><br><span class="line">54</span><br><span class="line">55</span><br><span class="line">56</span><br><span class="line">57</span><br><span class="line">58</span><br><span class="line">59</span><br><span class="line">60</span><br><span class="line">61</span><br><span class="line">62</span><br><span class="line">63</span><br><span class="line">64</span><br><span class="line">65</span><br><span class="line">66</span><br><span class="line">67</span><br><span class="line">68</span><br><span class="line">69</span><br><span class="line">70</span><br><span class="line">71</span><br><span class="line">72</span><br><span class="line">73</span><br><span class="line">74</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">///</span></span><br><span class="line"><span class="comment">/// TCP server, supports single-threaded and thread-pool models.</span></span><br><span class="line"><span class="comment">///</span></span><br><span class="line"><span class="comment">/// This is an interface class, so don&#x27;t expose too much details.</span></span><br><span class="line"><span class="keyword">class</span> <span class="title class_">TcpServer</span> : noncopyable&#123;</span><br><span class="line"><span class="keyword">public</span>:</span><br><span class="line">    <span class="keyword">typedef</span> std::function&lt;<span class="type">void</span>(EventLoop*)&gt; ThreadInitCallback;</span><br><span class="line">    <span class="keyword">enum</span> <span class="title class_">Option</span>&#123;</span><br><span class="line">        kNoReusePort,</span><br><span class="line">        kReusePort,</span><br><span class="line">    &#125;;</span><br><span class="line">    <span class="built_in">TcpServer</span>(EventLoop* loop,</span><br><span class="line">            <span class="type">const</span> InetAddress&amp; listenAddr,</span><br><span class="line">            <span class="type">const</span> string&amp; nameArg,</span><br><span class="line">            Option option = kNoReusePort);</span><br><span class="line">    ~<span class="built_in">TcpServer</span>();  <span class="comment">// force out-line dtor, for std::unique_ptr members.</span></span><br><span class="line"></span><br><span class="line">    <span class="function"><span class="type">const</span> string&amp; <span class="title">ipPort</span><span class="params">()</span> <span class="type">const</span> </span>&#123; <span class="keyword">return</span> ipPort_; &#125;</span><br><span class="line">    <span class="function"><span class="type">const</span> string&amp; <span class="title">name</span><span class="params">()</span> <span class="type">const</span> </span>&#123; <span class="keyword">return</span> name_; &#125;</span><br><span class="line">    <span class="function">EventLoop* <span class="title">getLoop</span><span class="params">()</span> <span class="type">const</span> </span>&#123; <span class="keyword">return</span> loop_; &#125;</span><br><span class="line"></span><br><span class="line">    <span class="comment">// 必须再start前调用</span></span><br><span class="line">    <span class="function"><span class="type">void</span> <span class="title">setThreadNum</span><span class="params">(<span class="type">int</span> numThreads)</span></span>;</span><br><span class="line">    <span class="function"><span class="type">void</span> <span class="title">setThreadInitCallback</span><span class="params">(<span class="type">const</span> ThreadInitCallback&amp; cb)</span></span></span><br><span class="line"><span class="function">    </span>&#123; threadInitCallback_ = cb; &#125;</span><br><span class="line">    <span class="comment">/// valid after calling start()</span></span><br><span class="line">    <span class="function">std::shared_ptr&lt;EventLoopThreadPool&gt; <span class="title">threadPool</span><span class="params">()</span></span></span><br><span class="line"><span class="function">    </span>&#123; <span class="keyword">return</span> threadPool_; &#125;</span><br><span class="line"></span><br><span class="line">    <span class="comment">/// Starts the server if it&#x27;s not listening.</span></span><br><span class="line">    <span class="comment">///</span></span><br><span class="line">    <span class="comment">/// It&#x27;s harmless to call it multiple times.</span></span><br><span class="line">    <span class="comment">/// Thread safe.</span></span><br><span class="line">    <span class="function"><span class="type">void</span> <span class="title">start</span><span class="params">()</span></span>;</span><br><span class="line"></span><br><span class="line">    <span class="comment">/// Set connection callback.</span></span><br><span class="line">    <span class="comment">/// Not thread safe.</span></span><br><span class="line">    <span class="function"><span class="type">void</span> <span class="title">setConnectionCallback</span><span class="params">(<span class="type">const</span> ConnectionCallback&amp; cb)</span></span></span><br><span class="line"><span class="function">    </span>&#123; connectionCallback_ = cb; &#125;</span><br><span class="line"></span><br><span class="line">    <span class="comment">/// Set message callback.</span></span><br><span class="line">    <span class="comment">/// Not thread safe.</span></span><br><span class="line">    <span class="function"><span class="type">void</span> <span class="title">setMessageCallback</span><span class="params">(<span class="type">const</span> MessageCallback&amp; cb)</span></span></span><br><span class="line"><span class="function">    </span>&#123; messageCallback_ = cb; &#125;</span><br><span class="line"></span><br><span class="line">    <span class="comment">/// Set write complete callback.</span></span><br><span class="line">    <span class="comment">/// Not thread safe.</span></span><br><span class="line">    <span class="function"><span class="type">void</span> <span class="title">setWriteCompleteCallback</span><span class="params">(<span class="type">const</span> WriteCompleteCallback&amp; cb)</span></span></span><br><span class="line"><span class="function">    </span>&#123; writeCompleteCallback_ = cb; &#125;</span><br><span class="line"></span><br><span class="line"><span class="keyword">private</span>:</span><br><span class="line">    <span class="comment">/// Not thread safe, but in loop</span></span><br><span class="line">    <span class="function"><span class="type">void</span> <span class="title">newConnection</span><span class="params">(<span class="type">int</span> sockfd, <span class="type">const</span> InetAddress&amp; peerAddr)</span></span>;</span><br><span class="line">    <span class="comment">/// Thread safe.</span></span><br><span class="line">    <span class="function"><span class="type">void</span> <span class="title">removeConnection</span><span class="params">(<span class="type">const</span> TcpConnectionPtr&amp; conn)</span></span>;</span><br><span class="line">    <span class="comment">/// Not thread safe, but in loop</span></span><br><span class="line">    <span class="function"><span class="type">void</span> <span class="title">removeConnectionInLoop</span><span class="params">(<span class="type">const</span> TcpConnectionPtr&amp; conn)</span></span>;</span><br><span class="line"></span><br><span class="line">    <span class="keyword">typedef</span> std::map&lt;string, TcpConnectionPtr&gt; ConnectionMap;</span><br><span class="line"></span><br><span class="line">    EventLoop* loop_;  <span class="comment">// the acceptor loop</span></span><br><span class="line">    <span class="type">const</span> string ipPort_; <span class="comment">// ip:port</span></span><br><span class="line">    <span class="type">const</span> string name_; <span class="comment">// TcpServer Name</span></span><br><span class="line">    std::unique_ptr&lt;Acceptor&gt; acceptor_; <span class="comment">// avoid revealing Acceptor</span></span><br><span class="line">    std::shared_ptr&lt;EventLoopThreadPool&gt; threadPool_; <span class="comment">// 线程池</span></span><br><span class="line">    ConnectionCallback connectionCallback_; <span class="comment">// 连接建立和断开回调</span></span><br><span class="line">    MessageCallback messageCallback_;   <span class="comment">// 读数据回调</span></span><br><span class="line">    WriteCompleteCallback writeCompleteCallback_;   <span class="comment">// 数据发送完毕的回调</span></span><br><span class="line">    ThreadInitCallback threadInitCallback_;</span><br><span class="line">    AtomicInt32 started_; <span class="comment">// TcpServer启动了？</span></span><br><span class="line">    <span class="comment">// always in loop thread</span></span><br><span class="line">    <span class="type">int</span> nextConnId_;  <span class="comment">// 连接计数器</span></span><br><span class="line">    ConnectionMap connections_; <span class="comment">// 连接信息维护</span></span><br><span class="line">&#125;;</span><br></pre></td></tr></table></figure>
+
+<p>简单画了一下TcpServer整体架构图：</p>
+<p><img src="/2024/01/18/muduo/TcpServer/photo/TcpServer.drawio.png" alt="TcpServer"></p>
+<p>整体流程就是：</p>
+<ol>
+<li><p>客户端发送连接请求。</p>
+</li>
+<li><p>listen套接字所在的EventLoop（假设为base loop）接受连接请求并创建io套接字。</p>
+</li>
+<li><p>base loop 通过EventLoopThreadPool的负载均衡算法选择一个io EventLoop，将io套接字传给该loop。</p>
+</li>
+<li><p>客户端和指定的loop进行TCP通信。</p>
+</li>
+</ol>
+<hr>
+<p><strong>实现伪代码：</strong></p>
+<figure class="highlight cpp"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br><span class="line">36</span><br><span class="line">37</span><br><span class="line">38</span><br><span class="line">39</span><br><span class="line">40</span><br><span class="line">41</span><br><span class="line">42</span><br><span class="line">43</span><br><span class="line">44</span><br><span class="line">45</span><br><span class="line">46</span><br><span class="line">47</span><br><span class="line">48</span><br><span class="line">49</span><br><span class="line">50</span><br><span class="line">51</span><br><span class="line">52</span><br><span class="line">53</span><br><span class="line">54</span><br><span class="line">55</span><br><span class="line">56</span><br><span class="line">57</span><br><span class="line">58</span><br><span class="line">59</span><br><span class="line">60</span><br><span class="line">61</span><br><span class="line">62</span><br><span class="line">63</span><br><span class="line">64</span><br><span class="line">65</span><br><span class="line">66</span><br><span class="line">67</span><br><span class="line">68</span><br><span class="line">69</span><br><span class="line">70</span><br><span class="line">71</span><br><span class="line">72</span><br><span class="line">73</span><br><span class="line">74</span><br><span class="line">75</span><br><span class="line">76</span><br><span class="line">77</span><br><span class="line">78</span><br><span class="line">79</span><br><span class="line">80</span><br><span class="line">81</span><br><span class="line">82</span><br><span class="line">83</span><br><span class="line">84</span><br><span class="line">85</span><br><span class="line">86</span><br><span class="line">87</span><br><span class="line">88</span><br><span class="line">89</span><br></pre></td><td class="code"><pre><span class="line"></span><br><span class="line">TcpServer::<span class="built_in">TcpServer</span>(EventLoop* loop,</span><br><span class="line">                     <span class="type">const</span> InetAddress&amp; listenAddr,</span><br><span class="line">                     <span class="type">const</span> string&amp; nameArg,</span><br><span class="line">                     Option option)</span><br><span class="line">  : <span class="built_in">loop_</span>(<span class="built_in">CHECK_NOTNULL</span>(loop)),</span><br><span class="line">    <span class="built_in">ipPort_</span>(listenAddr.<span class="built_in">toIpPort</span>()),</span><br><span class="line">    <span class="built_in">name_</span>(nameArg),</span><br><span class="line">    <span class="built_in">acceptor_</span>(<span class="keyword">new</span> <span class="built_in">Acceptor</span>(loop, listenAddr, option == kReusePort)),</span><br><span class="line">    <span class="built_in">threadPool_</span>(<span class="keyword">new</span> <span class="built_in">EventLoopThreadPool</span>(loop, name_)),</span><br><span class="line">    <span class="built_in">connectionCallback_</span>(defaultConnectionCallback),</span><br><span class="line">    <span class="built_in">messageCallback_</span>(defaultMessageCallback),</span><br><span class="line">    <span class="built_in">nextConnId_</span>(<span class="number">1</span>)&#123;</span><br><span class="line"></span><br><span class="line">    acceptor_-&gt;<span class="built_in">setNewConnectionCallback</span>(    <span class="comment">// 设定连接分发器</span></span><br><span class="line">        std::<span class="built_in">bind</span>(&amp;TcpServer::newConnection, <span class="keyword">this</span>, _1, _2));    </span><br><span class="line">&#125;</span><br><span class="line"></span><br><span class="line">TcpServer::~<span class="built_in">TcpServer</span>()&#123;</span><br><span class="line">    loop_-&gt;<span class="built_in">assertInLoopThread</span>();</span><br><span class="line">    LOG_TRACE &lt;&lt; <span class="string">&quot;TcpServer::~TcpServer [&quot;</span> &lt;&lt; name_ &lt;&lt; <span class="string">&quot;] destructing&quot;</span>;</span><br><span class="line"></span><br><span class="line">    <span class="keyword">for</span> (<span class="keyword">auto</span>&amp; item : connections_)&#123;</span><br><span class="line">        <span class="function">TcpConnectionPtr <span class="title">conn</span><span class="params">(item.second)</span></span>;</span><br><span class="line">        item.second.<span class="built_in">reset</span>();    <span class="comment">// 释放引用计数</span></span><br><span class="line">        conn-&gt;<span class="built_in">getLoop</span>()-&gt;<span class="built_in">runInLoop</span>( <span class="comment">// 在自己的loop中执行连接销毁。</span></span><br><span class="line">            std::<span class="built_in">bind</span>(&amp;TcpConnection::connectDestroyed, conn));</span><br><span class="line">    &#125;</span><br><span class="line">&#125;</span><br><span class="line"><span class="comment">// 在start前调用</span></span><br><span class="line"><span class="function"><span class="type">void</span> <span class="title">TcpServer::setThreadNum</span><span class="params">(<span class="type">int</span> numThreads)</span></span>&#123;</span><br><span class="line">    <span class="built_in">assert</span>(<span class="number">0</span> &lt;= numThreads);</span><br><span class="line">    threadPool_-&gt;<span class="built_in">setThreadNum</span>(numThreads);</span><br><span class="line">&#125;</span><br><span class="line"></span><br><span class="line"><span class="function"><span class="type">void</span> <span class="title">TcpServer::start</span><span class="params">()</span></span>&#123;</span><br><span class="line">    <span class="keyword">if</span> (started_.<span class="built_in">getAndSet</span>(<span class="number">1</span>) == <span class="number">0</span>)&#123;</span><br><span class="line">    threadPool_-&gt;<span class="built_in">start</span>(threadInitCallback_);</span><br><span class="line"></span><br><span class="line">    <span class="built_in">assert</span>(!acceptor_-&gt;<span class="built_in">listening</span>());</span><br><span class="line">    loop_-&gt;<span class="built_in">runInLoop</span>(</span><br><span class="line">        std::<span class="built_in">bind</span>(&amp;Acceptor::listen, <span class="built_in">get_pointer</span>(acceptor_)));  <span class="comment">// get_pointer(acceptor_)获取裸指针。</span></span><br><span class="line">    &#125;</span><br><span class="line">&#125;</span><br><span class="line"></span><br><span class="line"><span class="function"><span class="type">void</span> <span class="title">TcpServer::newConnection</span><span class="params">(<span class="type">int</span> sockfd, <span class="type">const</span> InetAddress&amp; peerAddr)</span></span>&#123;</span><br><span class="line">    loop_-&gt;<span class="built_in">assertInLoopThread</span>();</span><br><span class="line">    EventLoop* ioLoop = threadPool_-&gt;<span class="built_in">getNextLoop</span>();</span><br><span class="line">    <span class="type">char</span> buf[<span class="number">64</span>];</span><br><span class="line">    <span class="built_in">snprintf</span>(buf, <span class="keyword">sizeof</span> buf, <span class="string">&quot;-%s#%d&quot;</span>, ipPort_.<span class="built_in">c_str</span>(), nextConnId_);</span><br><span class="line">    ++nextConnId_;</span><br><span class="line">    string connName = name_ + buf;</span><br><span class="line"></span><br><span class="line">    LOG_INFO &lt;&lt; <span class="string">&quot;TcpServer::newConnection [&quot;</span> &lt;&lt; name_</span><br><span class="line">            &lt;&lt; <span class="string">&quot;] - new connection [&quot;</span> &lt;&lt; connName</span><br><span class="line">            &lt;&lt; <span class="string">&quot;] from &quot;</span> &lt;&lt; peerAddr.<span class="built_in">toIpPort</span>();</span><br><span class="line">    <span class="function">InetAddress <span class="title">localAddr</span><span class="params">(sockets::getLocalAddr(sockfd))</span></span>;</span><br><span class="line">    <span class="comment">// FIXME poll with zero timeout to double confirm the new connection</span></span><br><span class="line">    <span class="comment">// FIXME use make_shared if necessary</span></span><br><span class="line">    <span class="function">TcpConnectionPtr <span class="title">conn</span><span class="params">(<span class="keyword">new</span> TcpConnection(ioLoop,</span></span></span><br><span class="line"><span class="params"><span class="function">                                            connName,</span></span></span><br><span class="line"><span class="params"><span class="function">                                            sockfd,</span></span></span><br><span class="line"><span class="params"><span class="function">                                            localAddr,</span></span></span><br><span class="line"><span class="params"><span class="function">                                            peerAddr))</span></span>;</span><br><span class="line">    connections_[connName] = conn;</span><br><span class="line">    conn-&gt;<span class="built_in">setConnectionCallback</span>(connectionCallback_);</span><br><span class="line">    conn-&gt;<span class="built_in">setMessageCallback</span>(messageCallback_);</span><br><span class="line">    conn-&gt;<span class="built_in">setWriteCompleteCallback</span>(writeCompleteCallback_);</span><br><span class="line">    conn-&gt;<span class="built_in">setCloseCallback</span>(</span><br><span class="line">        std::<span class="built_in">bind</span>(&amp;TcpServer::removeConnection, <span class="keyword">this</span>, _1)); <span class="comment">// <span class="doctag">FIXME:</span> unsafe</span></span><br><span class="line">    ioLoop-&gt;<span class="built_in">runInLoop</span>(std::<span class="built_in">bind</span>(&amp;TcpConnection::connectEstablished, conn));</span><br><span class="line">&#125;</span><br><span class="line"></span><br><span class="line"><span class="function"><span class="type">void</span> <span class="title">TcpServer::removeConnection</span><span class="params">(<span class="type">const</span> TcpConnectionPtr&amp; conn)</span></span>&#123;</span><br><span class="line">    <span class="comment">// <span class="doctag">FIXME:</span> unsafe</span></span><br><span class="line">    loop_-&gt;<span class="built_in">runInLoop</span>(std::<span class="built_in">bind</span>(&amp;TcpServer::removeConnectionInLoop, <span class="keyword">this</span>, conn));    <span class="comment">// 尽管conn是引用，bind包装后也会增加引用计数</span></span><br><span class="line">&#125;</span><br><span class="line"></span><br><span class="line"><span class="function"><span class="type">void</span> <span class="title">TcpServer::removeConnectionInLoop</span><span class="params">(<span class="type">const</span> TcpConnectionPtr&amp; conn)</span></span>&#123;</span><br><span class="line">    loop_-&gt;<span class="built_in">assertInLoopThread</span>();</span><br><span class="line">    LOG_INFO &lt;&lt; <span class="string">&quot;TcpServer::removeConnectionInLoop [&quot;</span> &lt;&lt; name_</span><br><span class="line">            &lt;&lt; <span class="string">&quot;] - connection &quot;</span> &lt;&lt; conn-&gt;<span class="built_in">name</span>();</span><br><span class="line">    <span class="type">size_t</span> n = connections_.<span class="built_in">erase</span>(conn-&gt;<span class="built_in">name</span>());</span><br><span class="line">    (<span class="type">void</span>)n;</span><br><span class="line">    <span class="built_in">assert</span>(n == <span class="number">1</span>);</span><br><span class="line">    EventLoop* ioLoop = conn-&gt;<span class="built_in">getLoop</span>();</span><br><span class="line">    ioLoop-&gt;<span class="built_in">queueInLoop</span>(</span><br><span class="line">        std::<span class="built_in">bind</span>(&amp;TcpConnection::connectDestroyed, conn));</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p><strong>这里简单备忘一下</strong></p>
+<p>连接建立的回调过程：</p>
+<ol>
+<li><p>base loop中listen套接字触发可读事件，调用Acceptor::handleRead函数处理事件（由Acceptor::acceptChannel_注册）</p>
+</li>
+<li><p>调用::accept接受连接并创建sockfd。将sockfd作为参数，调用Acceptor::newConnectionCallback_连接分发回调，也即TcpServer::newConnection（由TcpServer构造函数设置）</p>
+</li>
+<li><p>利用负载均衡算法，选择一个合适的ioloop，然后为连接拼接一个唯一的connect name，并用sockfd、ioloop等创建一个TcpConnection对象（智能指针），设置好回调。将 <strong>&lt;key : connect name, value : TcpConnection&gt;</strong> 作为TcpServer::connections_的一个记录（TcpConnection对象引用计数加一）。最后向ioloop的任务队列中添加一项回调任务：TcpConnection::connectEstablished，并将TcpConnection对象作为回调任务的参数。</p>
+</li>
+<li><p>执行TcpConnection::connectEstablished，连接建立。</p>
+</li>
+</ol>
+<p>连接拆除的回调过程：</p>
+<ol>
+<li><p>调用TcpConnection::closeCallback_回调，即TcpServer::removeConnection，传入TcpConnection对象（引用）作为参数。</p>
+</li>
+<li><p>向base loop任务队列添加一项回调任务：TcpServer::removeConnectionInLoop，传入TcpConnection对象（引用）作为参数。</p>
+</li>
+<li><p>执行TcpServer::removeConnectionInLoop：通过TcpConnection对象的name，在TcpServer::connections_上删除连接记录（智能指针引用计数减一），然后向TcpConnection对象的ioloop的任务队列添加一项回调任务：TcpConnection::connectDestroyed，同样以TcpConnection对象作为回调任务的参数。</p>
+</li>
+</ol>
+<p><strong>本章完结</strong></p>
+
+    </div>
+
+    
+    
+    
+        <div class="reward-container">
+  <div></div>
+  <button onclick="var qr = document.getElementById('qr'); qr.style.display = (qr.style.display === 'none') ? 'block' : 'none';">
+    打赏
+  </button>
+  <div id="qr" style="display: none;">
+      
+      <div style="display: inline-block;">
+        <img src="/images/wechatpay.jpg" alt="半个馒头 微信支付">
+        <p>微信支付</p>
+      </div>
+
+  </div>
+</div>
+
+
+      <footer class="post-footer">
+          <div class="post-tags">
+              <a href="/tags/%E9%AB%98%E6%80%A7%E8%83%BD%E6%9C%8D%E5%8A%A1%E5%99%A8%E6%A1%86%E6%9E%B6/" rel="tag"># 高性能服务器框架</a>
+          </div>
+
+        
+
+
+        
+    <div class="post-nav">
+      <div class="post-nav-item">
+    <a href="/2024/01/17/muduo/TimerQueue/" rel="prev" title="muduo源码阅读笔记（8、定时器TimerQueue）">
+      <i class="fa fa-chevron-left"></i> muduo源码阅读笔记（8、定时器TimerQueue）
+    </a></div>
+      <div class="post-nav-item">
+    <a href="/2024/01/19/muduo/TcpConnection/" rel="next" title="muduo源码阅读笔记（10、TcpConnection）">
+      muduo源码阅读笔记（10、TcpConnection） <i class="fa fa-chevron-right"></i>
+    </a></div>
+    </div>
+      </footer>
+    
+  </article>
+  
+  
+  
+
+
+
+          </div>
+          
+
+<script>
+  window.addEventListener('tabs:register', () => {
+    let { activeClass } = CONFIG.comments;
+    if (CONFIG.comments.storage) {
+      activeClass = localStorage.getItem('comments_active') || activeClass;
+    }
+    if (activeClass) {
+      let activeTab = document.querySelector(`a[href="#comment-${activeClass}"]`);
+      if (activeTab) {
+        activeTab.click();
+      }
+    }
+  });
+  if (CONFIG.comments.storage) {
+    window.addEventListener('tabs:click', event => {
+      if (!event.target.matches('.tabs-comment .tab-content .tab-pane')) return;
+      let commentClass = event.target.classList[1];
+      localStorage.setItem('comments_active', commentClass);
+    });
+  }
+</script>
+
+        </div>
+          
+  
+  <div class="toggle sidebar-toggle">
+    <span class="toggle-line toggle-line-first"></span>
+    <span class="toggle-line toggle-line-middle"></span>
+    <span class="toggle-line toggle-line-last"></span>
+  </div>
+
+  <aside class="sidebar">
+    <div class="sidebar-inner">
+
+      <ul class="sidebar-nav motion-element">
+        <li class="sidebar-nav-toc">
+          文章目录
+        </li>
+        <li class="sidebar-nav-overview">
+          站点概览
+        </li>
+      </ul>
+
+      <!--noindex-->
+      <div class="post-toc-wrap sidebar-panel">
+          <div class="post-toc motion-element"><ol class="nav"><li class="nav-item nav-level-2"><a class="nav-link" href="#Acceptor%E7%9A%84%E5%AE%9E%E7%8E%B0"><span class="nav-number">1.</span> <span class="nav-text">Acceptor的实现</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#%E7%BB%86%E8%8A%82%E6%98%8E%E7%BB%86%EF%BC%9A"><span class="nav-number">1.1.</span> <span class="nav-text">细节明细：</span></a></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#TcpServer%E7%9A%84%E5%AE%9E%E7%8E%B0"><span class="nav-number">2.</span> <span class="nav-text">TcpServer的实现</span></a></li></ol></div>
+      </div>
+      <!--/noindex-->
+
+      <div class="site-overview-wrap sidebar-panel">
+        <div class="site-author motion-element" itemprop="author" itemscope itemtype="http://schema.org/Person">
+    <img class="site-author-image" itemprop="image" alt="半个馒头"
+      src="/images/avatar.jpg">
+  <p class="site-author-name" itemprop="name">半个馒头</p>
+  <div class="site-description" itemprop="description"></div>
+</div>
+<div class="site-state-wrap motion-element">
+  <nav class="site-state">
+      <div class="site-state-item site-state-posts">
+          <a href="/archives/">
+        
+          <span class="site-state-item-count">58</span>
+          <span class="site-state-item-name">日志</span>
+        </a>
+      </div>
+      <div class="site-state-item site-state-tags">
+            <a href="/tags/">
+          
+        <span class="site-state-item-count">18</span>
+        <span class="site-state-item-name">标签</span></a>
+      </div>
+  </nav>
+</div>
+  <div class="links-of-author motion-element">
+      <span class="links-of-author-item">
+        <a href="https://github.com/LunarStore" title="GitHub → https:&#x2F;&#x2F;github.com&#x2F;LunarStore" rel="noopener" target="_blank"><i class="fa fa-fw fa-github"></i>GitHub</a>
+      </span>
+      <span class="links-of-author-item">
+        <a href="mailto:18772124875@163.com" title="网易邮箱 → mailto:18772124875@163.com" rel="noopener" target="_blank"><i class="fa fa-fw fa-fas fa-envelope"></i>网易邮箱</a>
+      </span>
+  </div>
+
+
+  <div class="links-of-blogroll motion-element">
+    <div class="links-of-blogroll-title">
+      <i class="fa fa-fw fa-link"></i>
+      友情链接
+    </div>
+    <ul class="links-of-blogroll-list">
+        <li class="links-of-blogroll-item">
+          <a href="https://blog.csdn.net/m0_52566365" title="https:&#x2F;&#x2F;blog.csdn.net&#x2F;m0_52566365" rel="noopener" target="_blank">CSDN博客地址</a>
+        </li>
+    </ul>
+  </div>
+
+      </div>
+        <div class="back-to-top motion-element">
+          <i class="fa fa-arrow-up"></i>
+          <span>0%</span>
+        </div>
+
+    </div>
+  </aside>
+  <div id="sidebar-dimmer"></div>
+
+
+      </div>
+    </main>
+
+    <footer class="footer">
+      <div class="footer-inner">
+        
+
+        
+
+<div class="copyright">
+  
+  &copy; 
+  <span itemprop="copyrightYear">2025</span>
+  <span class="with-love">
+    <i class="fa fa-user"></i>
+  </span>
+  <span class="author" itemprop="copyrightHolder">半个馒头</span>
+</div>
+  <div class="powered-by">由 <a href="https://hexo.io/" class="theme-link" rel="noopener" target="_blank">Hexo</a> & <a href="https://theme-next.org/" class="theme-link" rel="noopener" target="_blank">NexT.Gemini</a> 强力驱动
+  </div>
+
+        
+<div class="busuanzi-count">
+  <script async src="https://busuanzi.ibruce.info/busuanzi/2.3/busuanzi.pure.mini.js"></script>
+    <span class="post-meta-item" id="busuanzi_container_site_uv" style="display: none;">
+      <span class="post-meta-item-icon">
+        <i class="fa fa-user"></i>
+      </span>
+      <span class="site-uv" title="总访客量">
+        <span id="busuanzi_value_site_uv"></span>
+      </span>
+    </span>
+    <span class="post-meta-divider">|</span>
+    <span class="post-meta-item" id="busuanzi_container_site_pv" style="display: none;">
+      <span class="post-meta-item-icon">
+        <i class="fa fa-eye"></i>
+      </span>
+      <span class="site-pv" title="总访问量">
+        <span id="busuanzi_value_site_pv"></span>
+      </span>
+    </span>
+</div>
+
+
+
+
+
+
+
+
+      </div>
+    </footer>
+  </div>
+
+  
+  <script src="/lib/anime.min.js"></script>
+  <script src="/lib/velocity/velocity.min.js"></script>
+  <script src="/lib/velocity/velocity.ui.min.js"></script>
+
+<script src="/js/utils.js"></script>
+
+<script src="/js/motion.js"></script>
+
+
+<script src="/js/schemes/pisces.js"></script>
+
+
+<script src="/js/next-boot.js"></script>
+
+
+
+
+  
+
+
+
+
+  
+<script src="/js/local-search.js"></script>
+
+
+
+
+
+
+
+
+
+
+
+
+
+  
+
+  
+
+</body>
+</html>

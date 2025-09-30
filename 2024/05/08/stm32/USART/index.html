@@ -1,0 +1,641 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=2">
+<meta name="theme-color" content="#222">
+<meta name="generator" content="Hexo 7.3.0">
+  <link rel="apple-touch-icon" sizes="180x180" href="/images/apple-touch-icon-next.png">
+  <link rel="icon" type="image/png" sizes="32x32" href="/images/favicon-32x32-next.png">
+  <link rel="icon" type="image/png" sizes="16x16" href="/images/favicon-16x16-next.png">
+  <link rel="mask-icon" href="/images/logo.svg" color="#222">
+
+<link rel="stylesheet" href="/css/main.css">
+
+
+<link rel="stylesheet" href="/lib/font-awesome/css/font-awesome.min.css">
+  <link rel="stylesheet" href="/lib/pace/pace-theme-flash.min.css">
+  <script src="/lib/pace/pace.min.js"></script>
+
+<script id="hexo-configurations">
+    var NexT = window.NexT || {};
+    var CONFIG = {"hostname":"www.halfmantou.xyz","root":"/","scheme":"Gemini","version":"7.8.0","exturl":false,"sidebar":{"position":"left","display":"post","padding":18,"offset":12,"onmobile":false},"copycode":{"enable":true,"show_result":true,"style":null},"back2top":{"enable":true,"sidebar":true,"scrollpercent":true},"bookmark":{"enable":false,"color":"#222","save":"auto"},"fancybox":false,"mediumzoom":false,"lazyload":false,"pangu":false,"comments":{"style":"tabs","active":null,"storage":true,"lazyload":false,"nav":null},"algolia":{"hits":{"per_page":10},"labels":{"input_placeholder":"Search for Posts","hits_empty":"We didn't find any results for the search: ${query}","hits_stats":"${hits} results found in ${time} ms"}},"localsearch":{"enable":true,"trigger":"auto","top_n_per_article":3,"unescape":false,"preload":false},"motion":{"enable":true,"async":false,"transition":{"post_block":"fadeIn","post_header":"slideDownIn","post_body":"slideDownIn","coll_header":"slideLeftIn","sidebar":"slideUpIn"}},"path":"search.json"};
+  </script>
+
+  <meta name="description" content="前言USART串口传输能实现信息在设备之间的点对点传输，支持单工、半双工、全全双工，一般是有三个引脚：TX、RX、SW_RX（共地）。不需要一根线来同步时钟。最大优点是可以和电脑通信，实现程序调试的功能。 导航图248 USART框图：  图片引自STM32 F1XX系列的中文参考手册。 USART发送和接收的实现细节">
+<meta property="og:type" content="article">
+<meta property="og:title" content="STM32快速入门（串口传输之USART）">
+<meta property="og:url" content="https://www.halfmantou.xyz/2024/05/08/stm32/USART/index.html">
+<meta property="og:site_name" content="碎碎念念">
+<meta property="og:description" content="前言USART串口传输能实现信息在设备之间的点对点传输，支持单工、半双工、全全双工，一般是有三个引脚：TX、RX、SW_RX（共地）。不需要一根线来同步时钟。最大优点是可以和电脑通信，实现程序调试的功能。 导航图248 USART框图：  图片引自STM32 F1XX系列的中文参考手册。 USART发送和接收的实现细节">
+<meta property="og:locale" content="zh_CN">
+<meta property="og:image" content="https://www.halfmantou.xyz/2024/05/08/stm32/USART/photo/USART.png">
+<meta property="og:image" content="https://www.halfmantou.xyz/2024/05/08/stm32/USART/photo/USARTShow.png">
+<meta property="og:image" content="https://www.halfmantou.xyz/2024/05/08/stm32/USART/photo/USART_SR.png">
+<meta property="og:image" content="https://www.halfmantou.xyz/2024/05/08/stm32/USART/photo/USART_SR1.png">
+<meta property="og:image" content="https://www.halfmantou.xyz/2024/05/08/stm32/USART/photo/USARTITTable.png">
+<meta property="og:image" content="https://www.halfmantou.xyz/2024/05/08/stm32/USART/photo/BRRCreate.png">
+<meta property="og:image" content="https://www.halfmantou.xyz/2024/05/08/stm32/USART/photo/USART_BRR.png">
+<meta property="og:image" content="https://www.halfmantou.xyz/2024/05/08/stm32/USART/photo/StartDetect.png">
+<meta property="og:image" content="https://www.halfmantou.xyz/2024/05/08/stm32/USART/photo/NoiseError.png">
+<meta property="og:image" content="https://www.halfmantou.xyz/2024/05/08/stm32/USART/photo/USARTHardware.png">
+<meta property="og:image" content="https://www.halfmantou.xyz/2024/05/08/stm32/USART/photo/AFIO.png">
+<meta property="og:image" content="https://www.halfmantou.xyz/2024/05/08/stm32/USART/photo/GPIOCfg.png">
+<meta property="article:published_time" content="2024-05-08T04:00:00.000Z">
+<meta property="article:modified_time" content="2025-09-29T14:24:25.452Z">
+<meta property="article:author" content="半个馒头">
+<meta property="article:tag" content="STM32">
+<meta name="twitter:card" content="summary">
+<meta name="twitter:image" content="https://www.halfmantou.xyz/2024/05/08/stm32/USART/photo/USART.png">
+
+<link rel="canonical" href="https://www.halfmantou.xyz/2024/05/08/stm32/USART/">
+
+
+<script id="page-configurations">
+  // https://hexo.io/docs/variables.html
+  CONFIG.page = {
+    sidebar: "",
+    isHome : false,
+    isPost : true,
+    lang   : 'zh-CN'
+  };
+</script>
+
+  <title>STM32快速入门（串口传输之USART） | 碎碎念念</title>
+  
+
+
+
+
+
+
+  <noscript>
+  <style>
+  .use-motion .brand,
+  .use-motion .menu-item,
+  .sidebar-inner,
+  .use-motion .post-block,
+  .use-motion .pagination,
+  .use-motion .comments,
+  .use-motion .post-header,
+  .use-motion .post-body,
+  .use-motion .collection-header { opacity: initial; }
+
+  .use-motion .site-title,
+  .use-motion .site-subtitle {
+    opacity: initial;
+    top: initial;
+  }
+
+  .use-motion .logo-line-before i { left: initial; }
+  .use-motion .logo-line-after i { right: initial; }
+  </style>
+</noscript>
+
+</head>
+
+<body itemscope itemtype="http://schema.org/WebPage">
+  <div class="container use-motion">
+    <div class="headband"></div>
+
+    <header class="header" itemscope itemtype="http://schema.org/WPHeader">
+      <div class="header-inner"><div class="site-brand-container">
+  <div class="site-nav-toggle">
+    <div class="toggle" aria-label="切换导航栏">
+      <span class="toggle-line toggle-line-first"></span>
+      <span class="toggle-line toggle-line-middle"></span>
+      <span class="toggle-line toggle-line-last"></span>
+    </div>
+  </div>
+
+  <div class="site-meta">
+
+    <a href="/" class="brand" rel="start">
+      <span class="logo-line-before"><i></i></span>
+      <h1 class="site-title">碎碎念念</h1>
+      <span class="logo-line-after"><i></i></span>
+    </a>
+  </div>
+
+  <div class="site-nav-right">
+    <div class="toggle popup-trigger">
+        <i class="fa fa-search fa-fw fa-lg"></i>
+    </div>
+  </div>
+</div>
+
+
+
+
+<nav class="site-nav">
+  <ul id="menu" class="menu">
+        <li class="menu-item menu-item-home">
+
+    <a href="/" rel="section"><i class="fa fa-fw fa-home"></i>首页</a>
+
+  </li>
+        <li class="menu-item menu-item-about">
+
+    <a href="/about/" rel="section"><i class="fa fa-fw fa-user"></i>关于</a>
+
+  </li>
+        <li class="menu-item menu-item-tags">
+
+    <a href="/tags/" rel="section"><i class="fa fa-fw fa-tags"></i>标签<span class="badge">18</span></a>
+
+  </li>
+        <li class="menu-item menu-item-categories">
+
+    <a href="/categories/" rel="section"><i class="fa fa-fw fa-th"></i>分类<span class="badge">0</span></a>
+
+  </li>
+        <li class="menu-item menu-item-archives">
+
+    <a href="/archives/" rel="section"><i class="fa fa-fw fa-archive"></i>归档<span class="badge">58</span></a>
+
+  </li>
+      <li class="menu-item menu-item-search">
+        <a role="button" class="popup-trigger"><i class="fa fa-search fa-fw"></i>搜索
+        </a>
+      </li>
+  </ul>
+</nav>
+
+
+
+  <div class="search-pop-overlay">
+    <div class="popup search-popup">
+        <div class="search-header">
+  <span class="search-icon">
+    <i class="fa fa-search"></i>
+  </span>
+  <div class="search-input-container">
+    <input autocomplete="off" autocapitalize="off"
+           placeholder="搜索..." spellcheck="false"
+           type="search" class="search-input">
+  </div>
+  <span class="popup-btn-close">
+    <i class="fa fa-times-circle"></i>
+  </span>
+</div>
+<div id="search-result">
+  <div id="no-result">
+    <i class="fa fa-spinner fa-pulse fa-5x fa-fw"></i>
+  </div>
+</div>
+
+    </div>
+  </div>
+
+</div>
+    </header>
+
+    
+  <div class="reading-progress-bar"></div>
+
+  <a href="https://github.com/LunarStore" class="github-corner" title="Follow me on GitHub" aria-label="Follow me on GitHub" rel="noopener" target="_blank"><svg width="80" height="80" viewBox="0 0 250 250" aria-hidden="true"><path d="M0,0 L115,115 L130,115 L142,142 L250,250 L250,0 Z"></path><path d="M128.3,109.0 C113.8,99.7 119.0,89.6 119.0,89.6 C122.0,82.7 120.5,78.6 120.5,78.6 C119.2,72.0 123.4,76.3 123.4,76.3 C127.3,80.9 125.5,87.3 125.5,87.3 C122.9,97.6 130.6,101.9 134.4,103.2" fill="currentColor" style="transform-origin: 130px 106px;" class="octo-arm"></path><path d="M115.0,115.0 C114.9,115.1 118.7,116.5 119.8,115.4 L133.7,101.6 C136.9,99.2 139.9,98.4 142.2,98.6 C133.8,88.0 127.5,74.4 143.8,58.0 C148.5,53.4 154.0,51.2 159.7,51.0 C160.3,49.4 163.2,43.6 171.4,40.1 C171.4,40.1 176.1,42.5 178.8,56.2 C183.1,58.6 187.2,61.8 190.9,65.4 C194.5,69.0 197.7,73.2 200.1,77.6 C213.8,80.2 216.3,84.9 216.3,84.9 C212.7,93.1 206.9,96.0 205.4,96.6 C205.1,102.4 203.0,107.8 198.3,112.5 C181.9,128.9 168.3,122.5 157.7,114.1 C157.9,116.9 156.7,120.9 152.7,124.9 L141.0,136.5 C139.8,137.7 141.6,141.9 141.8,141.8 Z" fill="currentColor" class="octo-body"></path></svg></a>
+
+
+    <main class="main">
+      <div class="main-inner">
+        <div class="content-wrap">
+          
+
+          <div class="content post posts-expand">
+            
+
+    
+  
+  
+  <article itemscope itemtype="http://schema.org/Article" class="post-block" lang="zh-CN">
+    <link itemprop="mainEntityOfPage" href="https://www.halfmantou.xyz/2024/05/08/stm32/USART/">
+
+    <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
+      <meta itemprop="image" content="/images/avatar.jpg">
+      <meta itemprop="name" content="半个馒头">
+      <meta itemprop="description" content="">
+    </span>
+
+    <span hidden itemprop="publisher" itemscope itemtype="http://schema.org/Organization">
+      <meta itemprop="name" content="碎碎念念">
+    </span>
+      <header class="post-header">
+        <h1 class="post-title" itemprop="name headline">
+          STM32快速入门（串口传输之USART）
+        </h1>
+
+        <div class="post-meta">
+            <span class="post-meta-item">
+              <span class="post-meta-item-icon">
+                <i class="fa fa-calendar-o"></i>
+              </span>
+              <span class="post-meta-item-text">发表于</span>
+
+              <time title="创建时间：2024-05-08 12:00:00" itemprop="dateCreated datePublished" datetime="2024-05-08T12:00:00+08:00">2024-05-08</time>
+            </span>
+              <span class="post-meta-item">
+                <span class="post-meta-item-icon">
+                  <i class="fa fa-calendar-check-o"></i>
+                </span>
+                <span class="post-meta-item-text">更新于</span>
+                <time title="修改时间：2025-09-29 22:24:25" itemprop="dateModified" datetime="2025-09-29T22:24:25+08:00">2025-09-29</time>
+              </span>
+
+          
+            <span class="post-meta-item" title="阅读次数" id="busuanzi_container_page_pv" style="display: none;">
+              <span class="post-meta-item-icon">
+                <i class="fa fa-eye"></i>
+              </span>
+              <span class="post-meta-item-text">阅读次数：</span>
+              <span id="busuanzi_value_page_pv"></span>
+            </span>
+
+        </div>
+      </header>
+
+    
+    
+    
+    <div class="post-body" itemprop="articleBody">
+
+      
+        <h2 id="前言"><a href="#前言" class="headerlink" title="前言"></a>前言</h2><p>USART串口传输能实现信息在设备之间的点对点传输，支持单工、半双工、全全双工，一般是有三个引脚：TX、RX、SW_RX（共地）。不需要一根线来同步时钟。最大优点是可以和电脑通信，实现程序调试的功能。</p>
+<h2 id="导航"><a href="#导航" class="headerlink" title="导航"></a>导航</h2><p>图248 USART框图：</p>
+<p><img src="/2024/05/08/stm32/USART/photo/USART.png" alt="nevigate"></p>
+<p>图片引自STM32 F1XX系列的中文参考手册。</p>
+<h2 id="USART发送和接收的实现细节"><a href="#USART发送和接收的实现细节" class="headerlink" title="USART发送和接收的实现细节"></a>USART发送和接收的实现细节</h2><span id="more"></span>
+
+<h3 id="第一部分"><a href="#第一部分" class="headerlink" title="第一部分"></a>第一部分</h3><p>首先，对于图248的1号矩形框部分。该部分负责数据的发送和接收。（类似人体的四肢</p>
+<p>截取了中文手册有关USART的一幅时序图，如下：</p>
+<p><img src="/2024/05/08/stm32/USART/photo/USARTShow.png" alt="时序图"></p>
+<p><strong>首先解释一下空闲帧和断开帧：</strong></p>
+<p>从图中可以看到，空闲帧包括了停止位。而断开帧是10位低电平，后跟停止位(当m&#x3D;0时)；或者11位低电平，后跟停止位(m&#x3D;1时)。不可能传输更长的断开帧(长度大于10或者11位)。</p>
+<p><strong>发送流程：</strong></p>
+<ol start="0">
+<li><p>引脚处于空闲状态时，一般是高电平状态。发送使能位被使能：<code>USART_CR1.TE[3]</code> 位被置为1。</p>
+</li>
+<li><p>（由用户）数据写到发送数据寄存器。在写之前，用户会等待 <code>USART_SR.TXE[7]</code> 被硬件置位，只有该位被置为才说明发送数据寄存器为空，此时写入数据就是安全的，不会造成覆盖的问题。</p>
+</li>
+<li><p>（以下步骤都是由硬件完成）将发送数据寄存器的内容移到发送移位寄存器，同时将<code>USART_SR.TXE[7]</code> 置位。以示发送数据寄存器为空。</p>
+</li>
+<li><p>发送一个起始位。（低电平）</p>
+</li>
+<li><p>从最低位开始，左移位将发送移位寄存器的值按位发送到TX引脚（对发送方）。</p>
+</li>
+<li><p>如果用户使能了 <code>USART_CR1.PCE[10]</code> ，会根据 <code>USART_CR1.PS[9]</code> 发送一个校验位。</p>
+</li>
+<li><p>最后，根据 <code>USART_CR2.STOP[13:12]</code> 的配置发送若干个停止位。(高电平)</p>
+</li>
+<li><p>将状态寄存器 <code>USART_SR.TC[6]</code> 置位，表示数据的一帧发送完成。</p>
+</li>
+</ol>
+<p><strong>接收流程：</strong></p>
+<ol start="0">
+<li><p>接收使能位被使能：<code>USART_CR1.RE[2]</code>。</p>
+</li>
+<li><p>（以下未特别说明，都是由硬件完成）从RX引脚（对接收方）检测到起始位，接收移位寄存器准备接收数据。</p>
+</li>
+<li><p>接收移位寄存器从最高位开始，左移位依次按位从RX引脚（对接收方）接收数据。</p>
+</li>
+<li><p>接收到停止位。</p>
+</li>
+<li><p>如果使能了校验位的话，根据配置进行数据校验。</p>
+</li>
+<li><p>校验合格的话，就将接收移位寄存器的值移到接收数据寄存器。</p>
+</li>
+<li><p>将 <code>USART_SR.RXNE[5]</code> 置位，表示接收数据寄存器非空，提醒用户接收到数据了。</p>
+</li>
+<li><p>（由用户）读取接收数据寄存器的数据。</p>
+</li>
+</ol>
+<p><strong>注意：</strong></p>
+<ul>
+<li><p>虽然用户可以操作的寄存器只有一个USART_DR，但是实际上发送和接收数据寄存器在硬件上是各自一个！这样的设计也是双缓冲的实践。</p>
+</li>
+<li><p>在发送和接收数据之前，用户必须<strong>统一设置</strong>两端的波特率、校验方式、停止位的数量、字长。否则这四项数据不一致，一定会造成传输错误，导致传输无法进行。其原因从上面的传输流程很容易推断。</p>
+</li>
+</ul>
+<p>有关状态寄存器的位的解释如下：</p>
+<p><img src="/2024/05/08/stm32/USART/photo/USART_SR.png" alt="USART_SR"></p>
+<p><img src="/2024/05/08/stm32/USART/photo/USART_SR1.png" alt="USART_SR1"></p>
+<p>上面对过载错误位做了一个特写。这是因为我再编码的过程中遇到的一个BUG。排查了半天，原因是当RXNEIE接收中断位使能时，发送方的ORE标志位和RXNE标志位的置位都会触发RXNE事件的中断，当中断处理函数在处理完毕后，只复位RXNE标志，而不管ORE，后续还是会不断的产生中断。<strong>所以根据手册（手册其实是有误的），我们需要先读USART_SR，在读USART_DR将ORE标志位清除。（注意！库函数Clear类函数不能清楚ORE位！）</strong>，这里放一张中断请求对应的事件表：</p>
+<p><img src="/2024/05/08/stm32/USART/photo/USARTITTable.png" alt="USARTITTable"></p>
+<h3 id="第二部分"><a href="#第二部分" class="headerlink" title="第二部分"></a>第二部分</h3><p>对于图248的2号矩形框部分。该部分负责接收和发送的控制，（类似人体大脑。</p>
+<p>图中可以看到有很多的控制器、控制寄存器、标志寄存器等。我们可以设置相应的寄存器从而控制收发来实现一些功能。具体寄存器的功能可以参考中文手册，这里不过多赘述。</p>
+<h3 id="第三部分"><a href="#第三部分" class="headerlink" title="第三部分"></a>第三部分</h3><p>对于图248的3号矩形框部分。该部分负责控制接收和发送的时钟。接收和发送的时钟也称之为波特率，通过波特率，通信双方就能协调其收发的频率（类似人体心脏。</p>
+<p>从图248的3号矩形框部分，可知，发送和接受器时钟是相等的。而时钟最开始是来自F_PCLK，送和接受器的时钟是对F_PCLK进行了一个 (16 * USARTDIV) 分频，USARTDIV是一个可调的定点小数。</p>
+<p><img src="/2024/05/08/stm32/USART/photo/BRRCreate.png" alt="BRRCreate"></p>
+<p><img src="/2024/05/08/stm32/USART/photo/USART_BRR.png" alt="USART_BRR"></p>
+<p>这里解释一下中文手册里面“<strong>如何从USART_BRR寄存器值得到USARTDIV</strong>”的示例一。 最开始看到这个例子我也是很懵的，什么是定点小数？这是怎么用整数来表示小数的？为什么 <strong>&lt;Fraction (USARTDIV) &#x3D; 12&#x2F;16 &#x3D; 0.75&gt;</strong> 这里要除以16？原理是这样的：</p>
+<p>USART_BRR寄存器里面按定点小数的方式存放USARTDIV的值。只使用了16位，高12位存放小数的整数部分，低4位存放的是小数部分。整数部分很好说，直接存放进去就好了。而小数部分呢，因为小数部分一定是小于1的，所以，它根据低4位所能代表的值，将1划分成了2^4份，也就是16份，每一份占1&#x2F;16，所以我们要将小数部分表示成4位整数就将小数乘以16并向上取整即可。溢出的话就向整数部分进一。反之，要从4位整数还原小数，就用4位整数乘以1&#x2F;16。</p>
+<p>中文手册总结了一个公式：</p>
+<p>波特率 &#x3D; F_PCLK &#x2F; (16 * USARTDIV)</p>
+<p><strong>通信必须维持相同的波特率。双方各自通过调节USARTDIV，就可以在不同环境下将双方但的波特率调成一样的。</strong></p>
+<p>此外，还应该说明的是，公式中，有一个乘以 1 &#x2F; 16 的操作，这么做的目的是发送接收控制器里面有一个比波特率大16倍的采样频率。采样频率起到很好的滤波效果，它会对每一位进行16次采样。采样对于<strong>起始位</strong>的探测非常的精妙。并且，对于<strong>数据位</strong>，中间的8、9、10次采样会起到决定性作用。</p>
+<p>起始位探测：</p>
+<p><img src="/2024/05/08/stm32/USART/photo/StartDetect.png" alt="StartDetect"></p>
+<p>首先，我们称对第3、5、7次采样为第一阶段采样，对第8、9、10次采样为第二阶段采样。</p>
+<ol>
+<li><p>如果该序列不完整，那么接收端将退出起始位侦测并回到空闲状态(不设置标志位)等待下降沿。</p>
+</li>
+<li><p>两个阶段检测的全是0，则确认收到起始位，这时设置RXNE标志位，如果RXNEIE&#x3D;1，则产生中断。</p>
+</li>
+<li><p>如果两阶段中3个采样点上仅有2个是0，那么起始位仍然是有效的，但是会设置NE噪声标志位。如果不能满足这个条件，则中止起始位的侦测过程，接收器会回到空闲状态(不设置标志位)。</p>
+</li>
+<li><p>如果两个阶段只有一个阶段中3个采样点上仅有2个是’0’，那么起始位仍然是有效的，但是会设置NE噪声标志位。</p>
+</li>
+</ol>
+<p>数据位噪声探测：</p>
+<p><img src="/2024/05/08/stm32/USART/photo/NoiseError.png" alt="NoiseError"></p>
+<p>对数据位的采样只有一个阶段采样有效，即对8、9、10次采样。</p>
+<p><strong>上方图片的下面的表格已经规定了采样的值和有效性的映射。读者可以好好的品味一下。</strong></p>
+<p>最后，注意因为定点数表示小数是有精度的，所以波特率的计算是存在误差的，具体误差可以查阅中文手册。此外通过中文手册可知F_PCLK有两种情况：</p>
+<ul>
+<li><p>PCLK1用于USART2、3、4、5。</p>
+</li>
+<li><p>PCLK2用于USART1</p>
+</li>
+</ul>
+<h2 id="USART发送和接收的配置步骤"><a href="#USART发送和接收的配置步骤" class="headerlink" title="USART发送和接收的配置步骤"></a>USART发送和接收的配置步骤</h2><p>USART的配置步骤比较简单。</p>
+<ol>
+<li><p>通信双方确定好波特率、停止位数、校验方式、字长。</p>
+</li>
+<li><p>通过 <code>USART_SR.RXNE[5]</code> 产生的中断（接收数据寄存器非空），去异步接收数据。</p>
+</li>
+<li><p>通过直接读写USART_DR寄存器可以实现数据的接收和发送。</p>
+</li>
+<li><p>需要的话，可以等待 <code>USART_SR.TC[6]</code> 被硬件置位，来确保发送完成。</p>
+</li>
+<li><p><strong>处理中断后，一定要注意彻底清除中断相应的标志位！防止中断假触发！</strong></p>
+</li>
+</ol>
+<h2 id="USART发送和接收的代码"><a href="#USART发送和接收的代码" class="headerlink" title="USART发送和接收的代码"></a>USART发送和接收的代码</h2><p>我的开发板硬件连接图如下，所以本实验使用USART1进行串口通信。</p>
+<p><img src="/2024/05/08/stm32/USART/photo/USARTHardware.png" alt="USARTHardware"></p>
+<p>并且，将PA9、PA10分别配置成推挽复用输出、浮空输入或带上拉输入。</p>
+<p><img src="/2024/05/08/stm32/USART/photo/AFIO.png" alt="AFIO"></p>
+<p><img src="/2024/05/08/stm32/USART/photo/GPIOCfg.png" alt="GPIOCfg"></p>
+<p>代码如下：</p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br><span class="line">36</span><br><span class="line">37</span><br><span class="line">38</span><br><span class="line">39</span><br><span class="line">40</span><br><span class="line">41</span><br><span class="line">42</span><br><span class="line">43</span><br><span class="line">44</span><br><span class="line">45</span><br><span class="line">46</span><br><span class="line">47</span><br><span class="line">48</span><br><span class="line">49</span><br><span class="line">50</span><br><span class="line">51</span><br><span class="line">52</span><br><span class="line">53</span><br><span class="line">54</span><br><span class="line">55</span><br><span class="line">56</span><br><span class="line">57</span><br><span class="line">58</span><br><span class="line">59</span><br><span class="line">60</span><br><span class="line">61</span><br><span class="line">62</span><br><span class="line">63</span><br><span class="line">64</span><br><span class="line">65</span><br><span class="line">66</span><br><span class="line">67</span><br><span class="line">68</span><br><span class="line">69</span><br><span class="line">70</span><br><span class="line">71</span><br><span class="line">72</span><br><span class="line">73</span><br><span class="line">74</span><br><span class="line">75</span><br><span class="line">76</span><br><span class="line">77</span><br><span class="line">78</span><br><span class="line">79</span><br><span class="line">80</span><br><span class="line">81</span><br><span class="line">82</span><br><span class="line">83</span><br><span class="line">84</span><br><span class="line">85</span><br><span class="line">86</span><br><span class="line">87</span><br><span class="line">88</span><br><span class="line">89</span><br><span class="line">90</span><br></pre></td><td class="code"><pre><span class="line"><span class="type">int</span> <span class="title function_">fputc</span><span class="params">(<span class="type">int</span> ch,FILE *p)</span> &#123;<span class="comment">//函数默认的，在使用printf函数时自动调用</span></span><br><span class="line">	USART_SendData(USART1,(u8)ch);	</span><br><span class="line">	<span class="keyword">while</span>(USART_GetFlagStatus(USART1,USART_FLAG_TXE)==RESET);</span><br><span class="line">	<span class="keyword">return</span> ch;</span><br><span class="line">&#125;</span><br><span class="line"></span><br><span class="line"><span class="type">void</span> <span class="title function_">LunarNVICInit</span><span class="params">()</span>&#123;</span><br><span class="line">	NVIC_InitTypeDef NVIC_Cfg;</span><br><span class="line">	<span class="comment">// 配置系统中断分组</span></span><br><span class="line">	NVIC_PriorityGroupConfig(NVIC_PriorityGroup_2);</span><br><span class="line">	<span class="comment">// CPU上开启USART的中断</span></span><br><span class="line">	NVIC_Cfg.NVIC_IRQChannel = USART1_IRQn;</span><br><span class="line">	NVIC_Cfg.NVIC_IRQChannelCmd = ENABLE;</span><br><span class="line">	NVIC_Cfg.NVIC_IRQChannelPreemptionPriority = <span class="number">2</span>;</span><br><span class="line">	NVIC_Cfg.NVIC_IRQChannelSubPriority = <span class="number">2</span>;</span><br><span class="line"></span><br><span class="line">	NVIC_Init(&amp;NVIC_Cfg);</span><br><span class="line"></span><br><span class="line">&#125;</span><br><span class="line"></span><br><span class="line"><span class="type">void</span> <span class="title function_">LunarInitUSART1</span><span class="params">()</span> &#123;</span><br><span class="line">	GPIO_InitTypeDef GPIOA9_Cfg, GPIOA10_Cfg;</span><br><span class="line">	USART_InitTypeDef USART1_Cfg;</span><br><span class="line"></span><br><span class="line">	<span class="comment">// PA</span></span><br><span class="line">	RCC_APB2PeriphClockCmd(RCC_APB2Periph_GPIOA,ENABLE);</span><br><span class="line"></span><br><span class="line">	<span class="comment">// 初始化GPIOA9为复用 （发送</span></span><br><span class="line">	GPIOA9_Cfg.GPIO_Mode = GPIO_Mode_AF_PP;</span><br><span class="line">	GPIOA9_Cfg.GPIO_Pin = GPIO_Pin_9;</span><br><span class="line">	GPIOA9_Cfg.GPIO_Speed = GPIO_Speed_50MHz;</span><br><span class="line">	GPIO_Init(GPIOA, &amp;GPIOA9_Cfg);</span><br><span class="line"></span><br><span class="line">	<span class="comment">// 初始化GPIOA10为复用 （接收</span></span><br><span class="line">	GPIOA10_Cfg.GPIO_Mode = GPIO_Mode_IN_FLOATING;</span><br><span class="line">	GPIOA10_Cfg.GPIO_Pin = GPIO_Pin_10;</span><br><span class="line">	GPIO_Init(GPIOA, &amp;GPIOA10_Cfg);</span><br><span class="line"></span><br><span class="line">	<span class="comment">// USART1</span></span><br><span class="line">	RCC_APB2PeriphClockCmd(RCC_APB2Periph_USART1,ENABLE);</span><br><span class="line"></span><br><span class="line">	USART1_Cfg.USART_BaudRate = <span class="number">115200</span>;</span><br><span class="line">	USART1_Cfg.USART_Mode = USART_Mode_Rx | USART_Mode_Tx;</span><br><span class="line">	USART1_Cfg.USART_Parity = USART_Parity_No;</span><br><span class="line">	USART1_Cfg.USART_StopBits = USART_StopBits_1;</span><br><span class="line">	USART1_Cfg.USART_WordLength = USART_WordLength_8b;</span><br><span class="line">	USART1_Cfg.USART_HardwareFlowControl = USART_HardwareFlowControl_None;</span><br><span class="line">	USART_Init(USART1, &amp;USART1_Cfg);</span><br><span class="line"></span><br><span class="line">	<span class="comment">// 接收中断</span></span><br><span class="line">	USART_ITConfig(USART1, USART_IT_RXNE, ENABLE);</span><br><span class="line"></span><br><span class="line">	<span class="comment">// 打开usart</span></span><br><span class="line">	USART_Cmd(USART1, ENABLE);</span><br><span class="line">&#125;</span><br><span class="line"></span><br><span class="line"><span class="comment">// 中断处理程序</span></span><br><span class="line"><span class="type">void</span> <span class="title function_">USART1_IRQHandler</span><span class="params">(<span class="type">void</span>)</span> &#123;</span><br><span class="line">	<span class="keyword">if</span>(USART_GetITStatus(USART1, USART_IT_RXNE) != RESET) &#123;	<span class="comment">// 接收数据中断</span></span><br><span class="line">		<span class="type">uint16_t</span> data = USART_ReceiveData(USART1);</span><br><span class="line"></span><br><span class="line">		USART_SendData(USART1, data);</span><br><span class="line"></span><br><span class="line">		<span class="keyword">while</span>(USART_GetFlagStatus(USART1, USART_FLAG_TXE) == RESET);</span><br><span class="line">		</span><br><span class="line">		USART_ClearFlag(USART1, USART_FLAG_TXE);</span><br><span class="line">		</span><br><span class="line">	&#125; <span class="keyword">else</span> &#123;</span><br><span class="line">		<span class="comment">// 其他中断不做处理</span></span><br><span class="line">	&#125;</span><br><span class="line">	</span><br><span class="line">	<span class="comment">// 顺序去读SR和DR清楚ORE位</span></span><br><span class="line">   <span class="keyword">if</span> (USART_GetFlagStatus(USART1, USART_FLAG_ORE) != RESET)&#123;</span><br><span class="line">		USART_ReceiveData(USART1);</span><br><span class="line">		<span class="comment">// USART_ClearFlag(USART1, USART_FLAG_ORE); // 函数USART_ClearFlag清楚不了USART_FLAG_ORE！！！</span></span><br><span class="line">   &#125;</span><br><span class="line">&#125;</span><br><span class="line"> </span><br><span class="line"> <span class="type">int</span> <span class="title function_">main</span><span class="params">()</span> &#123;</span><br><span class="line">	<span class="comment">// 初始化usart</span></span><br><span class="line">	LunarInitUSART1();</span><br><span class="line"></span><br><span class="line">	LunarNVICInit();</span><br><span class="line">	<span class="built_in">printf</span>(<span class="string">&quot;stm32 启动\n&quot;</span>);</span><br><span class="line">	<span class="keyword">while</span>(<span class="number">1</span>) &#123;</span><br><span class="line"></span><br><span class="line">	&#125;</span><br><span class="line"></span><br><span class="line">	<span class="keyword">return</span> <span class="number">0</span>;</span><br><span class="line"> &#125;</span><br></pre></td></tr></table></figure>
+
+<blockquote>
+<p>实验结果就是上位机通过给串口发送字符串，上位机接收框出现回显的效果。</p>
+</blockquote>
+<hr>
+<p><strong>本章完结</strong></p>
+
+    </div>
+
+    
+    
+    
+        <div class="reward-container">
+  <div></div>
+  <button onclick="var qr = document.getElementById('qr'); qr.style.display = (qr.style.display === 'none') ? 'block' : 'none';">
+    打赏
+  </button>
+  <div id="qr" style="display: none;">
+      
+      <div style="display: inline-block;">
+        <img src="/images/wechatpay.jpg" alt="半个馒头 微信支付">
+        <p>微信支付</p>
+      </div>
+
+  </div>
+</div>
+
+
+      <footer class="post-footer">
+          <div class="post-tags">
+              <a href="/tags/STM32/" rel="tag"># STM32</a>
+          </div>
+
+        
+
+
+        
+    <div class="post-nav">
+      <div class="post-nav-item">
+    <a href="/2024/04/21/leveldb/SSTable/" rel="prev" title="LevelDB源码阅读笔记（2、SSTable源码分析）">
+      <i class="fa fa-chevron-left"></i> LevelDB源码阅读笔记（2、SSTable源码分析）
+    </a></div>
+      <div class="post-nav-item">
+    <a href="/2024/05/08/stm32/TimerCapture/" rel="next" title="STM32快速入门（定时器之输入捕获）">
+      STM32快速入门（定时器之输入捕获） <i class="fa fa-chevron-right"></i>
+    </a></div>
+    </div>
+      </footer>
+    
+  </article>
+  
+  
+  
+
+
+
+          </div>
+          
+
+<script>
+  window.addEventListener('tabs:register', () => {
+    let { activeClass } = CONFIG.comments;
+    if (CONFIG.comments.storage) {
+      activeClass = localStorage.getItem('comments_active') || activeClass;
+    }
+    if (activeClass) {
+      let activeTab = document.querySelector(`a[href="#comment-${activeClass}"]`);
+      if (activeTab) {
+        activeTab.click();
+      }
+    }
+  });
+  if (CONFIG.comments.storage) {
+    window.addEventListener('tabs:click', event => {
+      if (!event.target.matches('.tabs-comment .tab-content .tab-pane')) return;
+      let commentClass = event.target.classList[1];
+      localStorage.setItem('comments_active', commentClass);
+    });
+  }
+</script>
+
+        </div>
+          
+  
+  <div class="toggle sidebar-toggle">
+    <span class="toggle-line toggle-line-first"></span>
+    <span class="toggle-line toggle-line-middle"></span>
+    <span class="toggle-line toggle-line-last"></span>
+  </div>
+
+  <aside class="sidebar">
+    <div class="sidebar-inner">
+
+      <ul class="sidebar-nav motion-element">
+        <li class="sidebar-nav-toc">
+          文章目录
+        </li>
+        <li class="sidebar-nav-overview">
+          站点概览
+        </li>
+      </ul>
+
+      <!--noindex-->
+      <div class="post-toc-wrap sidebar-panel">
+          <div class="post-toc motion-element"><ol class="nav"><li class="nav-item nav-level-2"><a class="nav-link" href="#%E5%89%8D%E8%A8%80"><span class="nav-number">1.</span> <span class="nav-text">前言</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#%E5%AF%BC%E8%88%AA"><span class="nav-number">2.</span> <span class="nav-text">导航</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#USART%E5%8F%91%E9%80%81%E5%92%8C%E6%8E%A5%E6%94%B6%E7%9A%84%E5%AE%9E%E7%8E%B0%E7%BB%86%E8%8A%82"><span class="nav-number">3.</span> <span class="nav-text">USART发送和接收的实现细节</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#%E7%AC%AC%E4%B8%80%E9%83%A8%E5%88%86"><span class="nav-number">3.1.</span> <span class="nav-text">第一部分</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#%E7%AC%AC%E4%BA%8C%E9%83%A8%E5%88%86"><span class="nav-number">3.2.</span> <span class="nav-text">第二部分</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#%E7%AC%AC%E4%B8%89%E9%83%A8%E5%88%86"><span class="nav-number">3.3.</span> <span class="nav-text">第三部分</span></a></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#USART%E5%8F%91%E9%80%81%E5%92%8C%E6%8E%A5%E6%94%B6%E7%9A%84%E9%85%8D%E7%BD%AE%E6%AD%A5%E9%AA%A4"><span class="nav-number">4.</span> <span class="nav-text">USART发送和接收的配置步骤</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#USART%E5%8F%91%E9%80%81%E5%92%8C%E6%8E%A5%E6%94%B6%E7%9A%84%E4%BB%A3%E7%A0%81"><span class="nav-number">5.</span> <span class="nav-text">USART发送和接收的代码</span></a></li></ol></div>
+      </div>
+      <!--/noindex-->
+
+      <div class="site-overview-wrap sidebar-panel">
+        <div class="site-author motion-element" itemprop="author" itemscope itemtype="http://schema.org/Person">
+    <img class="site-author-image" itemprop="image" alt="半个馒头"
+      src="/images/avatar.jpg">
+  <p class="site-author-name" itemprop="name">半个馒头</p>
+  <div class="site-description" itemprop="description"></div>
+</div>
+<div class="site-state-wrap motion-element">
+  <nav class="site-state">
+      <div class="site-state-item site-state-posts">
+          <a href="/archives/">
+        
+          <span class="site-state-item-count">58</span>
+          <span class="site-state-item-name">日志</span>
+        </a>
+      </div>
+      <div class="site-state-item site-state-tags">
+            <a href="/tags/">
+          
+        <span class="site-state-item-count">18</span>
+        <span class="site-state-item-name">标签</span></a>
+      </div>
+  </nav>
+</div>
+  <div class="links-of-author motion-element">
+      <span class="links-of-author-item">
+        <a href="https://github.com/LunarStore" title="GitHub → https:&#x2F;&#x2F;github.com&#x2F;LunarStore" rel="noopener" target="_blank"><i class="fa fa-fw fa-github"></i>GitHub</a>
+      </span>
+      <span class="links-of-author-item">
+        <a href="mailto:18772124875@163.com" title="网易邮箱 → mailto:18772124875@163.com" rel="noopener" target="_blank"><i class="fa fa-fw fa-fas fa-envelope"></i>网易邮箱</a>
+      </span>
+  </div>
+
+
+  <div class="links-of-blogroll motion-element">
+    <div class="links-of-blogroll-title">
+      <i class="fa fa-fw fa-link"></i>
+      友情链接
+    </div>
+    <ul class="links-of-blogroll-list">
+        <li class="links-of-blogroll-item">
+          <a href="https://blog.csdn.net/m0_52566365" title="https:&#x2F;&#x2F;blog.csdn.net&#x2F;m0_52566365" rel="noopener" target="_blank">CSDN博客地址</a>
+        </li>
+    </ul>
+  </div>
+
+      </div>
+        <div class="back-to-top motion-element">
+          <i class="fa fa-arrow-up"></i>
+          <span>0%</span>
+        </div>
+
+    </div>
+  </aside>
+  <div id="sidebar-dimmer"></div>
+
+
+      </div>
+    </main>
+
+    <footer class="footer">
+      <div class="footer-inner">
+        
+
+        
+
+<div class="copyright">
+  
+  &copy; 
+  <span itemprop="copyrightYear">2025</span>
+  <span class="with-love">
+    <i class="fa fa-user"></i>
+  </span>
+  <span class="author" itemprop="copyrightHolder">半个馒头</span>
+</div>
+  <div class="powered-by">由 <a href="https://hexo.io/" class="theme-link" rel="noopener" target="_blank">Hexo</a> & <a href="https://theme-next.org/" class="theme-link" rel="noopener" target="_blank">NexT.Gemini</a> 强力驱动
+  </div>
+
+        
+<div class="busuanzi-count">
+  <script async src="https://busuanzi.ibruce.info/busuanzi/2.3/busuanzi.pure.mini.js"></script>
+    <span class="post-meta-item" id="busuanzi_container_site_uv" style="display: none;">
+      <span class="post-meta-item-icon">
+        <i class="fa fa-user"></i>
+      </span>
+      <span class="site-uv" title="总访客量">
+        <span id="busuanzi_value_site_uv"></span>
+      </span>
+    </span>
+    <span class="post-meta-divider">|</span>
+    <span class="post-meta-item" id="busuanzi_container_site_pv" style="display: none;">
+      <span class="post-meta-item-icon">
+        <i class="fa fa-eye"></i>
+      </span>
+      <span class="site-pv" title="总访问量">
+        <span id="busuanzi_value_site_pv"></span>
+      </span>
+    </span>
+</div>
+
+
+
+
+
+
+
+
+      </div>
+    </footer>
+  </div>
+
+  
+  <script src="/lib/anime.min.js"></script>
+  <script src="/lib/velocity/velocity.min.js"></script>
+  <script src="/lib/velocity/velocity.ui.min.js"></script>
+
+<script src="/js/utils.js"></script>
+
+<script src="/js/motion.js"></script>
+
+
+<script src="/js/schemes/pisces.js"></script>
+
+
+<script src="/js/next-boot.js"></script>
+
+
+
+
+  
+
+
+
+
+  
+<script src="/js/local-search.js"></script>
+
+
+
+
+
+
+
+
+
+
+
+
+
+  
+
+  
+
+</body>
+</html>

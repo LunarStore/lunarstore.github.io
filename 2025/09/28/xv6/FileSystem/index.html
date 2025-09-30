@@ -1,0 +1,931 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=2">
+<meta name="theme-color" content="#222">
+<meta name="generator" content="Hexo 7.3.0">
+  <link rel="apple-touch-icon" sizes="180x180" href="/images/apple-touch-icon-next.png">
+  <link rel="icon" type="image/png" sizes="32x32" href="/images/favicon-32x32-next.png">
+  <link rel="icon" type="image/png" sizes="16x16" href="/images/favicon-16x16-next.png">
+  <link rel="mask-icon" href="/images/logo.svg" color="#222">
+
+<link rel="stylesheet" href="/css/main.css">
+
+
+<link rel="stylesheet" href="/lib/font-awesome/css/font-awesome.min.css">
+  <link rel="stylesheet" href="/lib/pace/pace-theme-flash.min.css">
+  <script src="/lib/pace/pace.min.js"></script>
+
+<script id="hexo-configurations">
+    var NexT = window.NexT || {};
+    var CONFIG = {"hostname":"www.halfmantou.xyz","root":"/","scheme":"Gemini","version":"7.8.0","exturl":false,"sidebar":{"position":"left","display":"post","padding":18,"offset":12,"onmobile":false},"copycode":{"enable":true,"show_result":true,"style":null},"back2top":{"enable":true,"sidebar":true,"scrollpercent":true},"bookmark":{"enable":false,"color":"#222","save":"auto"},"fancybox":false,"mediumzoom":false,"lazyload":false,"pangu":false,"comments":{"style":"tabs","active":null,"storage":true,"lazyload":false,"nav":null},"algolia":{"hits":{"per_page":10},"labels":{"input_placeholder":"Search for Posts","hits_empty":"We didn't find any results for the search: ${query}","hits_stats":"${hits} results found in ${time} ms"}},"localsearch":{"enable":true,"trigger":"auto","top_n_per_article":3,"unescape":false,"preload":false},"motion":{"enable":true,"async":false,"transition":{"post_block":"fadeIn","post_header":"slideDownIn","post_body":"slideDownIn","coll_header":"slideLeftIn","sidebar":"slideUpIn"}},"path":"search.json"};
+  </script>
+
+  <meta name="description" content="前言拖了这么久，终于到了最后一篇关于类unix源码分析的文章————文件系统。 （偷偷告诉你，本篇博客起草于我即将从毕业以来第一家公司离职前一个星期（2025-9-16），忍着牙痛ing ing ing）。 如你所见，文件系统完全值得另开一篇博文单独去记录它。这里为了方便，同样将Onix的文件系统和XV6的文件系统放一块进行记录。并且，Onix的文件系统确实更加规范和完善，而XV6的文件系统相对来">
+<meta property="og:type" content="article">
+<meta property="og:title" content="这才是计科之 Onix &amp; XV6 源码分析（4、文件系统）">
+<meta property="og:url" content="https://www.halfmantou.xyz/2025/09/28/xv6/FileSystem/index.html">
+<meta property="og:site_name" content="碎碎念念">
+<meta property="og:description" content="前言拖了这么久，终于到了最后一篇关于类unix源码分析的文章————文件系统。 （偷偷告诉你，本篇博客起草于我即将从毕业以来第一家公司离职前一个星期（2025-9-16），忍着牙痛ing ing ing）。 如你所见，文件系统完全值得另开一篇博文单独去记录它。这里为了方便，同样将Onix的文件系统和XV6的文件系统放一块进行记录。并且，Onix的文件系统确实更加规范和完善，而XV6的文件系统相对来">
+<meta property="og:locale" content="zh_CN">
+<meta property="og:image" content="https://www.halfmantou.xyz/2025/09/28/xv6/FileSystem/photo/filesystem/xv6_fs_structure.drawio.png">
+<meta property="og:image" content="https://www.halfmantou.xyz/2025/09/28/xv6/FileSystem/photo/filesystem/onix_fs_structure.drawio.png">
+<meta property="og:image" content="https://www.halfmantou.xyz/2025/09/28/xv6/FileSystem/photo/filesystem/xv6_ide.drawio.png">
+<meta property="og:image" content="https://www.halfmantou.xyz/2025/09/28/xv6/FileSystem/photo/filesystem/onix_ide.drawio.png">
+<meta property="og:image" content="https://www.halfmantou.xyz/2025/09/28/xv6/FileSystem/photo/filesystem/onix_cache.drawio.png">
+<meta property="og:image" content="https://www.halfmantou.xyz/2025/09/28/xv6/FileSystem/photo/filesystem/onix_caceh1.drawio.png">
+<meta property="og:image" content="https://www.halfmantou.xyz/2025/09/28/xv6/FileSystem/photo/filesystem/onix_cache2.drawio.png">
+<meta property="og:image" content="https://www.halfmantou.xyz/2025/09/28/xv6/FileSystem/photo/filesystem/onix_cache3.drawio.png">
+<meta property="og:image" content="https://www.halfmantou.xyz/2025/09/28/xv6/FileSystem/photo/filesystem/xv6_fsstructureondisk.png">
+<meta property="og:image" content="https://www.halfmantou.xyz/2025/09/28/xv6/FileSystem/photo/filesystem/xv6_log_structure.drawio.png">
+<meta property="og:image" content="https://www.halfmantou.xyz/2025/09/28/xv6/FileSystem/photo/filesystem/onix_fsstructureondisk.drawio.png">
+<meta property="og:image" content="https://www.halfmantou.xyz/2025/09/28/xv6/FileSystem/photo/filesystem/onix_mount.drawio.png">
+<meta property="og:image" content="https://www.halfmantou.xyz/2025/09/28/xv6/FileSystem/photo/filesystem/onix_vfs_structure.drawio.png">
+<meta property="og:image" content="https://www.halfmantou.xyz/2025/09/28/xv6/FileSystem/photo/filesystem/onix_minix_inode.drawio.png">
+<meta property="og:image" content="https://www.halfmantou.xyz/2025/09/28/xv6/FileSystem/photo/filesystem/onix_dentry.drawio.png">
+<meta property="article:published_time" content="2025-09-28T04:00:00.000Z">
+<meta property="article:modified_time" content="2025-09-29T14:24:25.729Z">
+<meta property="article:author" content="半个馒头">
+<meta property="article:tag" content="类Unix源码剖析">
+<meta name="twitter:card" content="summary">
+<meta name="twitter:image" content="https://www.halfmantou.xyz/2025/09/28/xv6/FileSystem/photo/filesystem/xv6_fs_structure.drawio.png">
+
+<link rel="canonical" href="https://www.halfmantou.xyz/2025/09/28/xv6/FileSystem/">
+
+
+<script id="page-configurations">
+  // https://hexo.io/docs/variables.html
+  CONFIG.page = {
+    sidebar: "",
+    isHome : false,
+    isPost : true,
+    lang   : 'zh-CN'
+  };
+</script>
+
+  <title>这才是计科之 Onix & XV6 源码分析（4、文件系统） | 碎碎念念</title>
+  
+
+
+
+
+
+
+  <noscript>
+  <style>
+  .use-motion .brand,
+  .use-motion .menu-item,
+  .sidebar-inner,
+  .use-motion .post-block,
+  .use-motion .pagination,
+  .use-motion .comments,
+  .use-motion .post-header,
+  .use-motion .post-body,
+  .use-motion .collection-header { opacity: initial; }
+
+  .use-motion .site-title,
+  .use-motion .site-subtitle {
+    opacity: initial;
+    top: initial;
+  }
+
+  .use-motion .logo-line-before i { left: initial; }
+  .use-motion .logo-line-after i { right: initial; }
+  </style>
+</noscript>
+
+</head>
+
+<body itemscope itemtype="http://schema.org/WebPage">
+  <div class="container use-motion">
+    <div class="headband"></div>
+
+    <header class="header" itemscope itemtype="http://schema.org/WPHeader">
+      <div class="header-inner"><div class="site-brand-container">
+  <div class="site-nav-toggle">
+    <div class="toggle" aria-label="切换导航栏">
+      <span class="toggle-line toggle-line-first"></span>
+      <span class="toggle-line toggle-line-middle"></span>
+      <span class="toggle-line toggle-line-last"></span>
+    </div>
+  </div>
+
+  <div class="site-meta">
+
+    <a href="/" class="brand" rel="start">
+      <span class="logo-line-before"><i></i></span>
+      <h1 class="site-title">碎碎念念</h1>
+      <span class="logo-line-after"><i></i></span>
+    </a>
+  </div>
+
+  <div class="site-nav-right">
+    <div class="toggle popup-trigger">
+        <i class="fa fa-search fa-fw fa-lg"></i>
+    </div>
+  </div>
+</div>
+
+
+
+
+<nav class="site-nav">
+  <ul id="menu" class="menu">
+        <li class="menu-item menu-item-home">
+
+    <a href="/" rel="section"><i class="fa fa-fw fa-home"></i>首页</a>
+
+  </li>
+        <li class="menu-item menu-item-about">
+
+    <a href="/about/" rel="section"><i class="fa fa-fw fa-user"></i>关于</a>
+
+  </li>
+        <li class="menu-item menu-item-tags">
+
+    <a href="/tags/" rel="section"><i class="fa fa-fw fa-tags"></i>标签<span class="badge">18</span></a>
+
+  </li>
+        <li class="menu-item menu-item-categories">
+
+    <a href="/categories/" rel="section"><i class="fa fa-fw fa-th"></i>分类<span class="badge">0</span></a>
+
+  </li>
+        <li class="menu-item menu-item-archives">
+
+    <a href="/archives/" rel="section"><i class="fa fa-fw fa-archive"></i>归档<span class="badge">58</span></a>
+
+  </li>
+      <li class="menu-item menu-item-search">
+        <a role="button" class="popup-trigger"><i class="fa fa-search fa-fw"></i>搜索
+        </a>
+      </li>
+  </ul>
+</nav>
+
+
+
+  <div class="search-pop-overlay">
+    <div class="popup search-popup">
+        <div class="search-header">
+  <span class="search-icon">
+    <i class="fa fa-search"></i>
+  </span>
+  <div class="search-input-container">
+    <input autocomplete="off" autocapitalize="off"
+           placeholder="搜索..." spellcheck="false"
+           type="search" class="search-input">
+  </div>
+  <span class="popup-btn-close">
+    <i class="fa fa-times-circle"></i>
+  </span>
+</div>
+<div id="search-result">
+  <div id="no-result">
+    <i class="fa fa-spinner fa-pulse fa-5x fa-fw"></i>
+  </div>
+</div>
+
+    </div>
+  </div>
+
+</div>
+    </header>
+
+    
+  <div class="reading-progress-bar"></div>
+
+  <a href="https://github.com/LunarStore" class="github-corner" title="Follow me on GitHub" aria-label="Follow me on GitHub" rel="noopener" target="_blank"><svg width="80" height="80" viewBox="0 0 250 250" aria-hidden="true"><path d="M0,0 L115,115 L130,115 L142,142 L250,250 L250,0 Z"></path><path d="M128.3,109.0 C113.8,99.7 119.0,89.6 119.0,89.6 C122.0,82.7 120.5,78.6 120.5,78.6 C119.2,72.0 123.4,76.3 123.4,76.3 C127.3,80.9 125.5,87.3 125.5,87.3 C122.9,97.6 130.6,101.9 134.4,103.2" fill="currentColor" style="transform-origin: 130px 106px;" class="octo-arm"></path><path d="M115.0,115.0 C114.9,115.1 118.7,116.5 119.8,115.4 L133.7,101.6 C136.9,99.2 139.9,98.4 142.2,98.6 C133.8,88.0 127.5,74.4 143.8,58.0 C148.5,53.4 154.0,51.2 159.7,51.0 C160.3,49.4 163.2,43.6 171.4,40.1 C171.4,40.1 176.1,42.5 178.8,56.2 C183.1,58.6 187.2,61.8 190.9,65.4 C194.5,69.0 197.7,73.2 200.1,77.6 C213.8,80.2 216.3,84.9 216.3,84.9 C212.7,93.1 206.9,96.0 205.4,96.6 C205.1,102.4 203.0,107.8 198.3,112.5 C181.9,128.9 168.3,122.5 157.7,114.1 C157.9,116.9 156.7,120.9 152.7,124.9 L141.0,136.5 C139.8,137.7 141.6,141.9 141.8,141.8 Z" fill="currentColor" class="octo-body"></path></svg></a>
+
+
+    <main class="main">
+      <div class="main-inner">
+        <div class="content-wrap">
+          
+
+          <div class="content post posts-expand">
+            
+
+    
+  
+  
+  <article itemscope itemtype="http://schema.org/Article" class="post-block" lang="zh-CN">
+    <link itemprop="mainEntityOfPage" href="https://www.halfmantou.xyz/2025/09/28/xv6/FileSystem/">
+
+    <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
+      <meta itemprop="image" content="/images/avatar.jpg">
+      <meta itemprop="name" content="半个馒头">
+      <meta itemprop="description" content="">
+    </span>
+
+    <span hidden itemprop="publisher" itemscope itemtype="http://schema.org/Organization">
+      <meta itemprop="name" content="碎碎念念">
+    </span>
+      <header class="post-header">
+        <h1 class="post-title" itemprop="name headline">
+          这才是计科之 Onix & XV6 源码分析（4、文件系统）
+        </h1>
+
+        <div class="post-meta">
+            <span class="post-meta-item">
+              <span class="post-meta-item-icon">
+                <i class="fa fa-calendar-o"></i>
+              </span>
+              <span class="post-meta-item-text">发表于</span>
+
+              <time title="创建时间：2025-09-28 12:00:00" itemprop="dateCreated datePublished" datetime="2025-09-28T12:00:00+08:00">2025-09-28</time>
+            </span>
+              <span class="post-meta-item">
+                <span class="post-meta-item-icon">
+                  <i class="fa fa-calendar-check-o"></i>
+                </span>
+                <span class="post-meta-item-text">更新于</span>
+                <time title="修改时间：2025-09-29 22:24:25" itemprop="dateModified" datetime="2025-09-29T22:24:25+08:00">2025-09-29</time>
+              </span>
+
+          
+            <span class="post-meta-item" title="阅读次数" id="busuanzi_container_page_pv" style="display: none;">
+              <span class="post-meta-item-icon">
+                <i class="fa fa-eye"></i>
+              </span>
+              <span class="post-meta-item-text">阅读次数：</span>
+              <span id="busuanzi_value_page_pv"></span>
+            </span>
+
+        </div>
+      </header>
+
+    
+    
+    
+    <div class="post-body" itemprop="articleBody">
+
+      
+        <h2 id="前言"><a href="#前言" class="headerlink" title="前言"></a>前言</h2><p>拖了这么久，终于到了最后一篇关于类unix源码分析的文章————文件系统。</p>
+<p>（偷偷告诉你，本篇博客起草于我即将从毕业以来第一家公司离职前一个星期（2025-9-16），忍着牙痛ing ing ing）。</p>
+<p>如你所见，文件系统完全值得另开一篇博文单独去记录它。这里为了方便，同样将Onix的文件系统和XV6的文件系统放一块进行记录。并且，Onix的文件系统确实更加规范和完善，而XV6的文件系统相对来说更加简洁。但值得一提的是，XV6文件系统实现了一个简单而确实又很重要的东西————基于写时日志的事务系统。这是Onix所没有的。</p>
+<p>linux的一切皆文件的伟大思想，将所有的IO行为（包括IO设备读写、pipe读写、进程读写）都抽象成文件。在本篇文章当中，我们将通过两个小型操作系统源码一一揭开linux文件系统的面纱。</p>
+<span id="more"></span>
+
+<p>首先贴上XV6文件系统的模块方图：</p>
+<p><img src="/2025/09/28/xv6/FileSystem/photo/filesystem/xv6_fs_structure.drawio.png"></p>
+<p>其次是Onix文件系统的模块方图：</p>
+<p><img src="/2025/09/28/xv6/FileSystem/photo/filesystem/onix_fs_structure.drawio.png"></p>
+<p>诈一看，你一定会认为XV6实现的文件系统比Onix的更复杂，实际上恰恰相反。尽管XV6实现了更多的模块，但是因为它教学系统的本质，每个模块的实现都以简单且精简为目的，没有为扩展性做任何多余操作。： ）读过的人表示非常干脆利落。</p>
+<p>反观Onix，为了适配 终端、串口、键盘、磁盘、软盘以及以后可能有的各种IO设备，根据他们的特点，抽象出了 <code>struct device_t</code> 结构体，分离出虚拟设备抽象层，将共有的io操作提取出来。为了统一文件系统的管理，抽象出了 <code>fs_op_t</code> 结构体。更贴近真实Linux操作系统的做法。具体细节将逐一解释。</p>
+<p>依据我阅读源码的习惯，下面就来自底向上逐步介绍文件系统的实现。<strong>以Onix文件系统为主。</strong></p>
+<h2 id="磁盘IO驱动层-虚拟设备实现层"><a href="#磁盘IO驱动层-虚拟设备实现层" class="headerlink" title="磁盘IO驱动层 &amp; 虚拟设备实现层"></a>磁盘IO驱动层 &amp; 虚拟设备实现层</h2><ul>
+<li><p>磁盘IO驱动层: 一句话概括该模块的作用：所谓磁盘IO驱动层，实际上就是操作系统当中，最底层的直接和磁盘设备打交道的代码。使用厂商规定的指令对磁盘设备按一定规则进行读写操作。</p>
+</li>
+<li><p>虚拟设备实现层: 对IO设备抽象出统一接口，并且针对磁盘设备访问，Onix还实现了经典的电梯算法。XV6当中虚拟设备实现层过于简单，这里以Onix为主进行深入讲解。</p>
+</li>
+</ul>
+<h3 id="对于XV6"><a href="#对于XV6" class="headerlink" title="对于XV6"></a>对于XV6</h3><p>XV6的磁盘IO驱动层可以分为两块：IO请求队列 和 磁盘IO驱动。实现可以参考文件：ide.c，IO请求队列的实现非常巧妙，其思想为：<strong>多个进程需要并发对一块磁盘进行IO，为了保证正确性，我们必须对并行操作串行化处理。让请求IO的进程入队。仅让位于队头的进行执行磁盘IO，其他进程休眠等待。当队头的进程执行完IO请求后出队列唤醒进程，下一个队头再进行IO操作。</strong> 如果你有看过LevelDB的源码，应该对这种思想非常熟悉，因为LevelDB的Write方法实现运用了同样的手法。参考：<a target="_blank" rel="noopener" href="https://blog.csdn.net/m0_52566365/article/details/137910783">LevelDB源码阅读笔记（1、整体架构）</a></p>
+<p>框图图如下：</p>
+<p><img src="/2025/09/28/xv6/FileSystem/photo/filesystem/xv6_ide.drawio.png"></p>
+<p>流程如下：</p>
+<p>首先对外暴露iderw接口。</p>
+<p><strong>iderw函数的逻辑：</strong></p>
+<blockquote>
+<ol>
+<li>上层调用对外暴露的磁盘操作接口 <code>iderw(struct buf *b)</code>。</li>
+<li>将请求push到IO队列尾部。</li>
+<li>如果本身就是队头，直接执行IO函数 <code>idestart</code>。</li>
+<li>非队头，<strong>阻塞直到 IO任务 被中断处理函数消费。</strong></li>
+</ol>
+</blockquote>
+<p><strong>磁盘中断处理函数ideintr的逻辑：</strong>（一旦磁盘准备好，就会触发中断）</p>
+<blockquote>
+<ol>
+<li>IO队列为空直接返回。</li>
+<li>移除并唤醒队头。</li>
+<li>如果IO队列还非空，<strong>为 IO任务 执行IO函数 <code>idestart</code>。</strong></li>
+</ol>
+</blockquote>
+<p>实现了简单的先来先服务(FCFS)调度</p>
+<h3 id="对于Onix"><a href="#对于Onix" class="headerlink" title="对于Onix"></a>对于Onix</h3><p>而Onix的磁盘IO驱动极其复杂，需要深入了解 IDE（Integrated Drive Electronics）硬盘控制器（IDE是一种常见的硬盘接口标准，也称为ATA（Advanced Technology Attachment））。感兴趣的可以先阅读一下XV6当中idestart函数，该函数使用几行代码实现了对磁盘设备的读写操作，然后深入去阅读Onix的磁盘IO驱动，代码路径：kernel&#x2F;ide.c，我的重心在文件系统的架构，所以Onix最底层的磁盘IO驱动就跳过了。笔者重点要讲的是Onix的虚拟设备实现层。</p>
+<p>Onix对虚拟设备的实现定义了如下虚拟设备控制结构体：</p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">typedef</span> <span class="class"><span class="keyword">struct</span> <span class="title">device_t</span></span></span><br><span class="line"><span class="class">&#123;</span></span><br><span class="line">    <span class="type">char</span> name[NAMELEN];  <span class="comment">// 设备名</span></span><br><span class="line">    <span class="type">int</span> type;            <span class="comment">// 设备类型</span></span><br><span class="line">    <span class="type">int</span> subtype;         <span class="comment">// 设备子类型</span></span><br><span class="line">    <span class="type">dev_t</span> dev;           <span class="comment">// 设备号</span></span><br><span class="line">    <span class="type">dev_t</span> parent;        <span class="comment">// 父设备号</span></span><br><span class="line">    <span class="type">void</span> *ptr;           <span class="comment">// 设备指针</span></span><br><span class="line">    <span class="type">list_t</span> request_list; <span class="comment">// 块设备请求链表</span></span><br><span class="line">    <span class="type">bool</span> direct;         <span class="comment">// 磁盘寻道方向</span></span><br><span class="line"></span><br><span class="line">    <span class="comment">// 设备控制</span></span><br><span class="line">    <span class="type">int</span> (*ioctl)(<span class="type">void</span> *dev, <span class="type">int</span> cmd, <span class="type">void</span> *args, <span class="type">int</span> flags);</span><br><span class="line">    <span class="comment">// 读设备</span></span><br><span class="line">    <span class="type">int</span> (*read)(<span class="type">void</span> *dev, <span class="type">void</span> *buf, <span class="type">size_t</span> count, <span class="type">idx_t</span> idx, <span class="type">int</span> flags);</span><br><span class="line">    <span class="comment">// 写设备</span></span><br><span class="line">    <span class="type">int</span> (*write)(<span class="type">void</span> *dev, <span class="type">void</span> *buf, <span class="type">size_t</span> count, <span class="type">idx_t</span> idx, <span class="type">int</span> flags);</span><br><span class="line">&#125; <span class="type">device_t</span>;</span><br></pre></td></tr></table></figure>
+
+<p>针对IO设备，抽象出了ioctl、read、write接口，这样，每种IO设备只需根据实际情况实现回调函数，任何IO设备都能被实例化成该结构体，并且我们即将讲解的minix（onix文件系统类型）文件系统也能更好的对IO设备做适配。</p>
+<p>Onix当中对IO设备的设备类型按读取的粒度分成了两类：字符设备（单字节）和块设备（1024为一快）。</p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">// 设备类型</span></span><br><span class="line"><span class="class"><span class="keyword">enum</span> <span class="title">device_type_t</span></span></span><br><span class="line"><span class="class">&#123;</span></span><br><span class="line">    DEV_NULL,  <span class="comment">// 空设备</span></span><br><span class="line">    DEV_CHAR,  <span class="comment">// 字符设备</span></span><br><span class="line">    DEV_BLOCK, <span class="comment">// 块设备</span></span><br><span class="line">&#125;;</span><br></pre></td></tr></table></figure>
+
+<p>设备子类型（也即具体的设备）就多了，比如：控制台、键盘、串口、磁盘、磁盘分区、软盘等。设备子类型定义在枚举类型 <code>enum device_subtype_t</code> 当中。</p>
+<p>Onix的设备抽象层，为了保证磁盘IO的正确性，其实也存在类似XV6的IO请求队列的设计，它的核心代码如下：</p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br><span class="line">36</span><br><span class="line">37</span><br><span class="line">38</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">// 块设备请求</span></span><br><span class="line"><span class="type">err_t</span> <span class="title function_">device_request</span><span class="params">(<span class="type">dev_t</span> dev, <span class="type">void</span> *buf, u8 count, <span class="type">idx_t</span> idx, <span class="type">int</span> flags, u32 type)</span> &#123;</span><br><span class="line">    <span class="type">device_t</span> *device = device_get(dev);</span><br><span class="line">    <span class="type">request_t</span> *req = kmalloc(<span class="keyword">sizeof</span>(<span class="type">request_t</span>));</span><br><span class="line"></span><br><span class="line">    <span class="comment">// ...</span></span><br><span class="line"></span><br><span class="line">    <span class="comment">// 判断列表是否为空</span></span><br><span class="line">    <span class="type">bool</span> empty = list_empty(&amp;device-&gt;request_list);</span><br><span class="line"></span><br><span class="line">    <span class="comment">// 将请求插入链表</span></span><br><span class="line">    list_insert_sort(&amp;device-&gt;request_list, &amp;req-&gt;node, element_node_offset(<span class="type">request_t</span>, node, idx));</span><br><span class="line"></span><br><span class="line">    <span class="comment">// 如果列表不为空，则阻塞，因为已经有请求在处理了，等待处理完成；</span></span><br><span class="line">    <span class="keyword">if</span> (!empty)</span><br><span class="line">    &#123;</span><br><span class="line">        req-&gt;task = running_task();</span><br><span class="line">        assert(task_block(req-&gt;task, <span class="literal">NULL</span>, TASK_BLOCKED, TIMELESS) == EOK);</span><br><span class="line">    &#125;</span><br><span class="line"></span><br><span class="line">    <span class="comment">// do io</span></span><br><span class="line">    <span class="type">err_t</span> ret = do_request(req);</span><br><span class="line"></span><br><span class="line">    <span class="comment">// 跑一轮电梯算法，获取紧挨着req的下一个任务执行IO</span></span><br><span class="line">    <span class="type">request_t</span> *nextreq = request_nextreq(device, req);</span><br><span class="line"></span><br><span class="line">    list_remove(&amp;req-&gt;node);</span><br><span class="line">    kfree(req);</span><br><span class="line"></span><br><span class="line">    <span class="comment">// 唤醒新队头</span></span><br><span class="line">    <span class="keyword">if</span> (nextreq)</span><br><span class="line">    &#123;</span><br><span class="line">        assert(nextreq-&gt;task-&gt;magic == ONIX_MAGIC);</span><br><span class="line">        task_unblock(nextreq-&gt;task, EOK);</span><br><span class="line">    &#125;</span><br><span class="line"></span><br><span class="line">    <span class="keyword">return</span> ret;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p>Onix IO请求队列的逻辑更加清晰易懂：</p>
+<p><img src="/2025/09/28/xv6/FileSystem/photo/filesystem/onix_ide.drawio.png"></p>
+<p>流程如下：</p>
+<blockquote>
+<ol>
+<li>进程调用磁盘IO接口 <code>device_request</code>。</li>
+<li>为IO请求分配一个句柄req。</li>
+<li>将req利用插入排序，升序插入请求队列。</li>
+<li>如果在该任务插入到队列前，队列非空，就当前阻塞进程。说明已经有进程在执行IO任务。</li>
+<li>如果在该任务插入到队列前，队列为空，由当前进程执行IO操作。</li>
+<li>依据电梯算法，获取到紧挨着req的下一个IO请求任务reqnext。</li>
+<li>从请求队列当中移除req。</li>
+<li>唤醒reqnext进程。注意可以确定的是，在请求队列当中只有一个进程是活跃状态其他进程都处于阻塞状态，所以在reqnext此前必定为阻塞状态，在这里我们需要唤醒它。</li>
+</ol>
+</blockquote>
+<p>Onix实现了比XV6更高效的磁盘调度算法——电梯算法。电梯算法能有效避免饥饿现象，比简单的先来先服务（FCFS）更高效，减少了磁头移动距离，能够有效平衡响应时间和吞吐量。</p>
+<p>电梯算法的工作原理：<strong>磁头（电梯）沿一个方向移动（比如向上），处理该方向上所有的请求。到达该方向的最后一个请求后，改变方向（向下），处理反方向上的请求。如此往复循环，就像电梯在楼层间上下运行一样。</strong></p>
+<p>Onix电梯算法实现函数request_nextreq如下：</p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">// 获得下一个请求</span></span><br><span class="line"><span class="type">static</span> <span class="type">request_t</span> *<span class="title function_">request_nextreq</span><span class="params">(<span class="type">device_t</span> *device, <span class="type">request_t</span> *req)</span> &#123;</span><br><span class="line">    <span class="type">list_t</span> *<span class="built_in">list</span> = &amp;device-&gt;request_list;</span><br><span class="line"></span><br><span class="line">    <span class="keyword">if</span> (device-&gt;direct == DIRECT_UP &amp;&amp; req-&gt;node.next == &amp;<span class="built_in">list</span>-&gt;tail) &#123;</span><br><span class="line">        device-&gt;direct = DIRECT_DOWN;</span><br><span class="line">    &#125; <span class="keyword">else</span> <span class="keyword">if</span> (device-&gt;direct == DIRECT_DOWN &amp;&amp; req-&gt;node.prev == &amp;<span class="built_in">list</span>-&gt;head) &#123;</span><br><span class="line">        device-&gt;direct = DIRECT_UP;</span><br><span class="line">    &#125;</span><br><span class="line"></span><br><span class="line">    <span class="type">void</span> *next = <span class="literal">NULL</span>;</span><br><span class="line">    <span class="keyword">if</span> (device-&gt;direct == DIRECT_UP) &#123;</span><br><span class="line">        next = req-&gt;node.next;</span><br><span class="line">    &#125; <span class="keyword">else</span> &#123;</span><br><span class="line">        next = req-&gt;node.prev;</span><br><span class="line">    &#125;</span><br><span class="line"></span><br><span class="line">    <span class="keyword">if</span> (next == &amp;<span class="built_in">list</span>-&gt;head || next == &amp;<span class="built_in">list</span>-&gt;tail) &#123;</span><br><span class="line">        <span class="keyword">return</span> <span class="literal">NULL</span>;</span><br><span class="line">    &#125;</span><br><span class="line"></span><br><span class="line">    <span class="keyword">return</span> element_entry(<span class="type">request_t</span>, node, next);</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<h2 id="磁盘块缓存层"><a href="#磁盘块缓存层" class="headerlink" title="磁盘块缓存层"></a>磁盘块缓存层</h2><p>OS对磁盘的任何访问都是基于块的，XV6当中，一个磁盘块的大小为512字节，Onix当中，默认为1024字节。如果我们每次访问文件都直接从磁盘上去读取，显然大部分时间都被浪费在磁盘IO上。所以，为了提高效率，内存（高速设备）和磁盘（低速设备）之间必然需要缓存层。本小节以Onix的代码为主。代码参考：onix-dev&#x2F;src&#x2F;kernel&#x2F;buffer.c</p>
+<p>缓存层主要作用是：在在有限的内存当中，<strong>缓存访问频率最高的部分磁盘块</strong>。那么我们如何定性一个磁盘块的访问频率是高还是低呢？这就得靠大名鼎鼎的LRU算法。在CMU15445实验1当中可以学习到更高级的LRU算法——LRU-K算法、在LevelDB当中.sst文件结构的缓存也是用到了LRU算法。Onix实现的磁盘块缓存层使用的是最朴素的LRU算法。</p>
+<p>本节简单介绍一下Onix当中LRU算法运行逻辑。</p>
+<p>首先假设LRU相关数据结构的初始状态如下图：</p>
+<p><img src="/2025/09/28/xv6/FileSystem/photo/filesystem/onix_cache.drawio.png"></p>
+<p>如图所示，LRU算法涉及的基本数据结构包括：哈希表和链表。</p>
+<ul>
+<li>空闲链表 <code>idle_list</code>:  一旦OS对缓存块的引用为0，缓存块就会被放入到空闲链表。当OS需要读取一块没有缓存到内存的磁盘块时，就会触发LRU替换策略，LRU替换策略会将空闲链表当中最久未被访问过的缓存块写回磁盘，并且将缓存块的内容覆盖成新的磁盘块。空闲链表的插入和删除的逻辑非常重要，LRU替换策略实现的关键。</li>
+<li>哈希表: 记录已经缓存的磁盘块。用于快速查找缓存的磁盘块。</li>
+</ul>
+<p>磁盘块的读取：</p>
+<ul>
+<li><p>有被缓存到内存（这里假设要读 <code>block1</code>）：</p>
+<ol>
+<li>根据哈希算法 <code> (设备号 ^ 块号) % 哈希表长度</code> 获取block1的所在哈希数组的位置，这里block1计算所得哈希数组索引为0。</li>
+<li>遍历链表，得到buffer1。</li>
+<li>将buffer1的引用计数加一。</li>
+<li>从idle_list当中移除buffer1，防止缓存块被替换出磁盘。</li>
+</ol>
+<p>  最终，结构如下：<br>  <img src="/2025/09/28/xv6/FileSystem/photo/filesystem/onix_caceh1.drawio.png"></p>
+</li>
+<li><p>没有被缓存到内存（这里假设要读 <code>block4</code>）：</p>
+<ol>
+<li>基于idle_list执行LRU替换策略。从idle_list可以了解到，idle_list的最后一个元素即为我们需要的 最久未被访问过的缓存块。也就是本节最开始所放图片当中的buffer3。</li>
+<li>将buffer3写回磁盘（如果标记为脏）。并从哈希表当中去除buffer3。</li>
+<li>将block4读到buffer3。</li>
+<li>根据哈希算法，计算block4所在哈希表的位置。这里假设计算block4的哈希值为1，并将block4插入到哈希表。</li>
+</ol>
+<p>  最终，结构如下：<br>  <img src="/2025/09/28/xv6/FileSystem/photo/filesystem/onix_cache2.drawio.png"></p>
+</li>
+</ul>
+<p>磁盘块的释放：</p>
+<ol>
+<li><p>假设，现在要释放buffer4，将缓存块的引用计数减一。</p>
+</li>
+<li><p>当缓存块引用计数变为0时，将缓存块挂到idle_list开头。这样可以确保idle_list当中缓冲块从左到右，最后一次访问时间越来越长。</p>
+<p> 最终，结构如下：<br> <img src="/2025/09/28/xv6/FileSystem/photo/filesystem/onix_cache3.drawio.png"></p>
+</li>
+</ol>
+<h2 id="事务层（日志层）"><a href="#事务层（日志层）" class="headerlink" title="事务层（日志层）"></a>事务层（日志层）</h2><h3 id="日志层简介"><a href="#日志层简介" class="headerlink" title="日志层简介"></a>日志层简介</h3><p>事务层是XV6所拥有的模块，在Onix当中并不存在，所以，本节会以XV6为主进行叙述。在XV6的文档当中，将事务层称为日志层。不管是日志层还是事务层，作用都是一样的。<strong>旨在实现错误恢复</strong> 的机制，保证磁盘上文件系统的一致性。</p>
+<p>依我的理解，其实linux文件系统本身就是一个通用数据库。像mysql、oracle、leveldb等数据库存在一些共有问题（包括：一致性、错误恢复等问题），解决问题的思想或多或少都借鉴linux的文件系统的实现。</p>
+<p>文件系统设计中最有趣的问题之一就是错误恢复，产生这样的问题是因为大多数的文件系统都涉及到对磁盘多次的写操作，如果在写操作的过程当中系统崩溃了，就会使得磁盘上的文件系统处于不一致的状态中。举例来说，根据写的顺序的不同，上述错误可能会导致一个目录项指向一个空闲的 i 节点，或者产生一个已被分配但是未被引用的块。后一种情况相对来说好一些，但在前一种情况中，目录项指向了一个空闲的 i 节点，重启之后就会导致非常严重的问题。</p>
+<p>xv6 通过简单的日志系统来解决文件操作过程当中崩溃所导致的问题。一个系统调用并不直接导致对磁盘上文件系统的写操作，相反，他会把一个对磁盘写操作的描述包装成一个日志写在磁盘中。当系统调用把所有的写操作都写入了日志，它就会写一个特殊的提交记录到磁盘上，代表一次完整的操作。从那时起，系统调用就会把日志中的数据写入磁盘文件系统的数据结构中。在那些写操作都成功完成后，系统调用就会删除磁盘上的日志文件。</p>
+<p>为什么日志可以解决文件系统操作中出现的崩溃呢？如果崩溃发生在操作提交之前，那么磁盘上的日志文件就不会被标记为已完成，恢复系统的代码就会忽视它，磁盘的状态正如这个操作从未执行过一样。如果是在操作提交之后崩溃的，恢复程序会重演所有的写操作，可能会重复之前已经进行了的对磁盘文件系统的写操作。在任何一种情况下，日志文件都使得磁盘操作对于系统崩溃来说是原子操作：在恢复之后，要么所有的写操作都完成了，要么一个写操作都没有完成。</p>
+<h3 id="日志层设计——日志的磁盘结构"><a href="#日志层设计——日志的磁盘结构" class="headerlink" title="日志层设计——日志的磁盘结构"></a>日志层设计——日志的磁盘结构</h3><p>首先，这里可以放上一张XV6当中文件系统在磁盘上的结构图：</p>
+<p><img src="/2025/09/28/xv6/FileSystem/photo/filesystem/xv6_fsstructureondisk.png"></p>
+<p>可以直观看到，我们的日志信息被放在磁盘分区最末尾的位置。</p>
+<p>然后，你需要感到疑惑的是：那么末尾的日志信息具体的内部结构是啥？要弄清这个问题，就需要我们深入查看xv6的代码了，日志层实现代码位于log.c文件，我们直接来到initlog函数的实现：</p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br></pre></td><td class="code"><pre><span class="line"><span class="class"><span class="keyword">struct</span> <span class="title">logheader</span> &#123;</span></span><br><span class="line">  <span class="type">int</span> n;</span><br><span class="line">  <span class="type">int</span> block[LOGSIZE];</span><br><span class="line">&#125;;</span><br><span class="line"></span><br><span class="line"><span class="class"><span class="keyword">struct</span> <span class="title">log</span> &#123;</span></span><br><span class="line">  <span class="class"><span class="keyword">struct</span> <span class="title">spinlock</span> <span class="title">lock</span>;</span></span><br><span class="line">  <span class="type">int</span> start;</span><br><span class="line">  <span class="type">int</span> size;</span><br><span class="line">  <span class="type">int</span> outstanding; <span class="comment">// how many FS sys calls are executing.</span></span><br><span class="line">  <span class="type">int</span> committing;  <span class="comment">// in commit(), please wait.</span></span><br><span class="line">  <span class="type">int</span> dev;</span><br><span class="line">  <span class="class"><span class="keyword">struct</span> <span class="title">logheader</span> <span class="title">lh</span>;</span></span><br><span class="line">&#125;;</span><br><span class="line"><span class="class"><span class="keyword">struct</span> <span class="title">log</span> <span class="title">log</span>;</span></span><br><span class="line"></span><br><span class="line"><span class="type">void</span></span><br><span class="line"><span class="title function_">initlog</span><span class="params">(<span class="type">int</span> dev)</span></span><br><span class="line">&#123;</span><br><span class="line">  <span class="class"><span class="keyword">struct</span> <span class="title">superblock</span> <span class="title">sb</span>;</span></span><br><span class="line">  initlock(&amp;<span class="built_in">log</span>.lock, <span class="string">&quot;log&quot;</span>);</span><br><span class="line">  readsb(dev, &amp;sb);</span><br><span class="line">  <span class="built_in">log</span>.start = sb.logstart;</span><br><span class="line">  <span class="built_in">log</span>.size = sb.nlog;</span><br><span class="line">  <span class="built_in">log</span>.dev = dev;</span><br><span class="line">  recover_from_log();</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<ol>
+<li><p>首先可以看到初始化函数从超级快当中获取了日志的起始块 <code>sb.logstart</code> 和 日志磁盘块数限制 <code>sb.nlog</code>。</p>
+</li>
+<li><p>然后调用了recover_from_log函数，在系统初始化阶段，尝试进行磁盘错误恢复，recover_from_log函数实现如下：</p>
+<ol>
+<li>调用read_head函数，读取前面拿到的日志起始块，日志起始块结构如下： <figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><span class="line"><span class="class"><span class="keyword">struct</span> <span class="title">logheader</span> &#123;</span></span><br><span class="line">    <span class="type">int</span> n;</span><br><span class="line">    <span class="type">int</span> block[LOGSIZE];</span><br><span class="line">&#125;;</span><br></pre></td></tr></table></figure>
+ 简单来说，成员n代表block数组的有效长度，而block数组，其实表示日志起始块之后的日志块 和 文件（磁盘）的数据块的映射关系。这点在介绍install_trans函数时会更有体会。</li>
+<li>调用install_trans函数，进行差错恢复，将上一次关机记录在日志块的没有提交完的数据重新提交。确保文件系统的一致性： <figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">// Copy committed blocks from log to their home location</span></span><br><span class="line"><span class="type">static</span> <span class="type">void</span></span><br><span class="line"><span class="title function_">install_trans</span><span class="params">(<span class="type">void</span>)</span></span><br><span class="line">&#123;</span><br><span class="line"><span class="type">int</span> tail;</span><br><span class="line"></span><br><span class="line"><span class="keyword">for</span> (tail = <span class="number">0</span>; tail &lt; <span class="built_in">log</span>.lh.n; tail++) &#123;</span><br><span class="line">    <span class="class"><span class="keyword">struct</span> <span class="title">buf</span> *<span class="title">lbuf</span> =</span> bread(<span class="built_in">log</span>.dev, <span class="built_in">log</span>.start+tail+<span class="number">1</span>); <span class="comment">// read log block</span></span><br><span class="line">    <span class="class"><span class="keyword">struct</span> <span class="title">buf</span> *<span class="title">dbuf</span> =</span> bread(<span class="built_in">log</span>.dev, <span class="built_in">log</span>.lh.block[tail]); <span class="comment">// read dst</span></span><br><span class="line">    memmove(dbuf-&gt;data, lbuf-&gt;data, BSIZE);  <span class="comment">// copy block to dst</span></span><br><span class="line">    bwrite(dbuf);  <span class="comment">// write dst to disk</span></span><br><span class="line">    brelse(lbuf);</span><br><span class="line">    brelse(dbuf);</span><br><span class="line">&#125;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+ 仔细阅读代码可以了解到，就是顺序将日志起始块后面的日志块读出，然后根据起始块提供的文件（磁盘）数据块映射数组，将日志块拷贝到文件（磁盘）的数据块当中。<strong>并且同步到磁盘</strong></li>
+<li>将日志起始块的logheader::n改为0，意味着日志的清空，标志着事务的完成。这一步也就是本节最开头所谓的“特殊的提交记录”。</li>
+</ol>
+</li>
+</ol>
+<p>综上所述，磁盘当中日志的结构如下图：</p>
+<p><img src="/2025/09/28/xv6/FileSystem/photo/filesystem/xv6_log_structure.drawio.png"></p>
+<h3 id="日志层设计——日志的封装"><a href="#日志层设计——日志的封装" class="headerlink" title="日志层设计——日志的封装"></a>日志层设计——日志的封装</h3><p>首先是日志写操作——log_write函数，xv6规定，所有文件的写操作，都使用log_write函数进行，并且log_write函数必须在begin_op函数和end_op函数之间调用。在进程每次写一些缓存块后都会调用log_write函数。该函数只做两件事：</p>
+<ol>
+<li>将被修改的缓存块的块号记录到logheader.block数组当中。</li>
+<li>将缓存块标记为脏。</li>
+</ol>
+<p>需要明确的是：进程对文件任何写操作都是基于被缓存到内存的缓存块。写操作开始并未同步到磁盘块。真正的同步操作是在commit函数当中进行。</p>
+<p>事务包装函数如下：</p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br><span class="line">36</span><br><span class="line">37</span><br><span class="line">38</span><br><span class="line">39</span><br><span class="line">40</span><br><span class="line">41</span><br><span class="line">42</span><br><span class="line">43</span><br><span class="line">44</span><br><span class="line">45</span><br><span class="line">46</span><br><span class="line">47</span><br><span class="line">48</span><br><span class="line">49</span><br><span class="line">50</span><br><span class="line">51</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">// called at the start of each FS system call.</span></span><br><span class="line"><span class="type">void</span></span><br><span class="line"><span class="title function_">begin_op</span><span class="params">(<span class="type">void</span>)</span></span><br><span class="line">&#123;</span><br><span class="line">  acquire(&amp;<span class="built_in">log</span>.lock);</span><br><span class="line">  <span class="keyword">while</span>(<span class="number">1</span>)&#123;</span><br><span class="line">    <span class="keyword">if</span>(<span class="built_in">log</span>.committing)&#123;</span><br><span class="line">      sleep(&amp;<span class="built_in">log</span>, &amp;<span class="built_in">log</span>.lock);</span><br><span class="line">    &#125; <span class="keyword">else</span> <span class="keyword">if</span>(<span class="built_in">log</span>.lh.n + (<span class="built_in">log</span>.outstanding+<span class="number">1</span>)*MAXOPBLOCKS &gt; LOGSIZE)&#123;</span><br><span class="line">      <span class="comment">// this op might exhaust log space; wait for commit.</span></span><br><span class="line">      sleep(&amp;<span class="built_in">log</span>, &amp;<span class="built_in">log</span>.lock);</span><br><span class="line">    &#125; <span class="keyword">else</span> &#123;</span><br><span class="line">      <span class="built_in">log</span>.outstanding += <span class="number">1</span>;</span><br><span class="line">      release(&amp;<span class="built_in">log</span>.lock);</span><br><span class="line">      <span class="keyword">break</span>;</span><br><span class="line">    &#125;</span><br><span class="line">  &#125;</span><br><span class="line">&#125;</span><br><span class="line"></span><br><span class="line"><span class="comment">// called at the end of each FS system call.</span></span><br><span class="line"><span class="comment">// commits if this was the last outstanding operation.</span></span><br><span class="line"><span class="type">void</span></span><br><span class="line"><span class="title function_">end_op</span><span class="params">(<span class="type">void</span>)</span></span><br><span class="line">&#123;</span><br><span class="line">  <span class="type">int</span> do_commit = <span class="number">0</span>;</span><br><span class="line"></span><br><span class="line">  acquire(&amp;<span class="built_in">log</span>.lock);</span><br><span class="line">  <span class="built_in">log</span>.outstanding -= <span class="number">1</span>;</span><br><span class="line">  <span class="keyword">if</span>(<span class="built_in">log</span>.committing)</span><br><span class="line">    panic(<span class="string">&quot;log.committing&quot;</span>);</span><br><span class="line">  <span class="keyword">if</span>(<span class="built_in">log</span>.outstanding == <span class="number">0</span>)&#123;</span><br><span class="line">    do_commit = <span class="number">1</span>;</span><br><span class="line">    <span class="built_in">log</span>.committing = <span class="number">1</span>;</span><br><span class="line">  &#125; <span class="keyword">else</span> &#123;</span><br><span class="line">    <span class="comment">// begin_op() may be waiting for log space,</span></span><br><span class="line">    <span class="comment">// and decrementing log.outstanding has decreased</span></span><br><span class="line">    <span class="comment">// the amount of reserved space.</span></span><br><span class="line">    wakeup(&amp;<span class="built_in">log</span>);</span><br><span class="line">  &#125;</span><br><span class="line">  release(&amp;<span class="built_in">log</span>.lock);</span><br><span class="line"></span><br><span class="line">  <span class="keyword">if</span>(do_commit)&#123;</span><br><span class="line">    <span class="comment">// call commit w/o holding locks, since not allowed</span></span><br><span class="line">    <span class="comment">// to sleep with locks.</span></span><br><span class="line">    commit();</span><br><span class="line">    acquire(&amp;<span class="built_in">log</span>.lock);</span><br><span class="line">    <span class="built_in">log</span>.committing = <span class="number">0</span>;</span><br><span class="line">    wakeup(&amp;<span class="built_in">log</span>);</span><br><span class="line">    release(&amp;<span class="built_in">log</span>.lock);</span><br><span class="line">  &#125;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p>仔细阅读begin_op和end_op函数的源码，可以了解到，<strong>xv6允许多个进程在begin_op和end_op之间执行事务。但是，提交操作只能由最后一个执行完的进程执行，并且提交期间，其他要执行事务的进程都将被阻塞在begin_op函数。</strong>假设存在A、B、C三个进程要执行一组写操作。ABC都调用begin_op函数，然后对缓存块进行修改。此时 <code>log.outstanding</code> 为3。而A、B的写操作很快执行完调用end_op因为<code>log.outstanding</code>非0而直接退出，只有C执行完后，<code>log.outstanding</code> 为0，才能执行提交操作。并且在执行提交操作期间，其他任何准备执行事务的进程都将阻塞在begin_op函数。这里体现了xv6文档当中提到的：任何时候只能有一个进程在一个会话之中，其他进程必须等待当前会话中的进程结束。因此同一时刻日志最多只记录一次会话。</p>
+<p>xv6 不允许并发会话，目的是为了避免下面几种问题。假设会话 X 把一个对 i 节点的修改写入了会话中。并发的会话 Y 从同一块中读出了另一个 i 节点，更新了它，把 i 节点块写入了日志并且提交。这就会导致可怕的后果：Y 的提交导致被 X 修改过的 i 节点块被写入磁盘，而 X 此时并没有提交它的修改。如果这时候发生崩溃会使得 X 的修改只应用了一部分而不是全部，从而打破会话是原子的这一性质。有一些复杂的办法可以解决这个问题，但 xv6 直接通过不允许并行的会话来回避这个问题。</p>
+<p>commit函数实现如下：</p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br></pre></td><td class="code"><pre><span class="line"><span class="type">static</span> <span class="type">void</span></span><br><span class="line"><span class="title function_">commit</span><span class="params">()</span></span><br><span class="line">&#123;</span><br><span class="line">  <span class="keyword">if</span> (<span class="built_in">log</span>.lh.n &gt; <span class="number">0</span>) &#123;</span><br><span class="line">    write_log();     <span class="comment">// Write modified blocks from cache to log</span></span><br><span class="line">    write_head();    <span class="comment">// Write header to disk -- the real commit</span></span><br><span class="line">    install_trans(); <span class="comment">// Now install writes to home locations</span></span><br><span class="line">    <span class="built_in">log</span>.lh.n = <span class="number">0</span>;</span><br><span class="line">    write_head();    <span class="comment">// Erase the transaction from the log</span></span><br><span class="line">  &#125;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p>从注释当中可以直观了解到，干了如下4件事：</p>
+<blockquote>
+<ol>
+<li>将被改动的文件缓存块<strong>同步追加到日志（磁盘）块</strong>当中。</li>
+<li>更新日志（磁盘）起始块logheader磁盘结构。</li>
+<li>将日志块同步到适合的文件（磁盘）数据块当中。</li>
+<li>清空日志块。</li>
+</ol>
+</blockquote>
+<p>xv6 使用固定量的磁盘空间来保存日志。系统调用写入日志的块的总大小不能大于日志的总大小。所以源码当中，会有很多预防日志过大导致空间不足的处理措施。比如限制每个进程每次事务操作最大写数量，或者在空间不足时，阻塞进程，直到有足够可用空间被唤醒。</p>
+<h2 id="虚拟文件系统实现层"><a href="#虚拟文件系统实现层" class="headerlink" title="虚拟文件系统实现层"></a>虚拟文件系统实现层</h2><p>本小节将借Onix Minix文件系统的实现，解答虚拟文件神秘的面纱。在此之前，你一定对linux的文件系统有许多疑惑：</p>
+<ul>
+<li>为什么一个int类型的fd能代表文件？</li>
+<li>都说fd代表进程内核文件描述数组的下标，那么文件描述数组类型本身是什么？</li>
+<li>一块256G的磁盘，linux怎么做到让每个文件打开，能从0开始顺序读写，就好像每个文件都占用了独立的磁盘一样？</li>
+<li>IO设备、网络套接字、管道等怎么被抽象成fd，可以使用统一的系统调用的？</li>
+</ul>
+<h3 id="i节点初步介绍"><a href="#i节点初步介绍" class="headerlink" title="i节点初步介绍"></a>i节点初步介绍</h3><p>这里从i节点作为切入。</p>
+<p>i 节点这个术语可以有两个的意思。（对于常规文件系统）它可以指的是磁盘上的记录文件类型、文件大小、数据块扇区号的数据结构。也可以指内存中的一个 i 节点代理，它包含了i节点（实体）描述符、文件系统类型、文件操作回调等。</p>
+<p>简单来说，一个i节点对应一个虚拟文件。并且，对于常规的文件系统，i节点分：内存结构、磁盘结构，这两种结构并不等同，内存i节点代理会引用磁盘上的i节点。</p>
+<p>超级快代理和i节点代理的内存结构，如下：</p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br><span class="line">36</span><br><span class="line">37</span><br><span class="line">38</span><br><span class="line">39</span><br><span class="line">40</span><br><span class="line">41</span><br><span class="line">42</span><br><span class="line">43</span><br><span class="line">44</span><br><span class="line">45</span><br><span class="line">46</span><br><span class="line">47</span><br><span class="line">48</span><br><span class="line">49</span><br><span class="line">50</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">typedef</span> <span class="class"><span class="keyword">struct</span> <span class="title">super_t</span></span></span><br><span class="line"><span class="class">&#123;</span></span><br><span class="line">    <span class="type">void</span> *desc;           <span class="comment">// 超级块描述符</span></span><br><span class="line">    <span class="class"><span class="keyword">struct</span> <span class="title">buffer_t</span> *<span class="title">buf</span>;</span> <span class="comment">// 超级块描述符 buffer</span></span><br><span class="line">    <span class="type">dev_t</span> dev;            <span class="comment">// 设备号</span></span><br><span class="line">    u32 count;            <span class="comment">// 引用计数</span></span><br><span class="line">    <span class="type">int</span> type;             <span class="comment">// 文件系统类型</span></span><br><span class="line">    <span class="type">size_t</span> sector_size;   <span class="comment">// 扇区大小</span></span><br><span class="line">    <span class="type">size_t</span> block_size;    <span class="comment">// 块大小</span></span><br><span class="line">    <span class="type">list_t</span> inode_list;    <span class="comment">// 使用中 inode 链表</span></span><br><span class="line">    <span class="type">inode_t</span> *iroot;       <span class="comment">// 根目录 inode</span></span><br><span class="line">    <span class="type">inode_t</span> *imount;      <span class="comment">// 安装到的 inode</span></span><br><span class="line">&#125; <span class="type">super_t</span>;</span><br><span class="line"></span><br><span class="line"><span class="keyword">typedef</span> <span class="class"><span class="keyword">struct</span> <span class="title">inode_t</span></span></span><br><span class="line"><span class="class">&#123;</span></span><br><span class="line">    <span class="type">list_node_t</span> node; <span class="comment">// 链表结点</span></span><br><span class="line"></span><br><span class="line">    <span class="type">void</span> *desc; <span class="comment">// inode 描述符（可能是 磁盘i节点、套接字结构体、管道结构体等。</span></span><br><span class="line"></span><br><span class="line">    <span class="class"><span class="keyword">union</span></span></span><br><span class="line"><span class="class">    &#123;</span></span><br><span class="line">        <span class="class"><span class="keyword">struct</span> <span class="title">buffer_t</span> *<span class="title">buf</span>;</span> <span class="comment">// inode 描述符对应 buffer</span></span><br><span class="line">        <span class="type">void</span> *addr;           <span class="comment">// pipe 缓冲地址</span></span><br><span class="line">    &#125;;</span><br><span class="line"></span><br><span class="line">    <span class="type">dev_t</span> dev;  <span class="comment">// 设备号</span></span><br><span class="line">    <span class="type">dev_t</span> rdev; <span class="comment">// 虚拟设备号</span></span><br><span class="line"></span><br><span class="line">    <span class="type">idx_t</span> nr;     <span class="comment">// i 节点号</span></span><br><span class="line">    <span class="type">size_t</span> count; <span class="comment">// 引用计数</span></span><br><span class="line"></span><br><span class="line">    <span class="type">time_t</span> atime; <span class="comment">// 访问时间</span></span><br><span class="line">    <span class="type">time_t</span> mtime; <span class="comment">// 修改时间</span></span><br><span class="line">    <span class="type">time_t</span> ctime; <span class="comment">// 创建时间</span></span><br><span class="line"></span><br><span class="line">    <span class="type">dev_t</span> mount; <span class="comment">// 安装设备</span></span><br><span class="line"></span><br><span class="line">    <span class="type">mode_t</span> mode; <span class="comment">// 文件模式</span></span><br><span class="line">    <span class="type">size_t</span> size; <span class="comment">// 文件大小</span></span><br><span class="line">    <span class="type">int</span> type;    <span class="comment">// 文件系统类型</span></span><br><span class="line"></span><br><span class="line">    <span class="type">int</span> uid; <span class="comment">// 用户 id</span></span><br><span class="line">    <span class="type">int</span> gid; <span class="comment">// 组 id</span></span><br><span class="line"></span><br><span class="line">    <span class="class"><span class="keyword">struct</span> <span class="title">super_t</span> *<span class="title">super</span>;</span>   <span class="comment">// 超级块</span></span><br><span class="line">    <span class="class"><span class="keyword">struct</span> <span class="title">fs_op_t</span> *<span class="title">op</span>;</span>      <span class="comment">// 文件系统操作</span></span><br><span class="line">    <span class="class"><span class="keyword">struct</span> <span class="title">task_t</span> *<span class="title">rxwaiter</span>;</span> <span class="comment">// 读等待进程</span></span><br><span class="line">    <span class="class"><span class="keyword">struct</span> <span class="title">task_t</span> *<span class="title">txwaiter</span>;</span> <span class="comment">// 写等待进程</span></span><br><span class="line">&#125; <span class="type">inode_t</span>;</span><br></pre></td></tr></table></figure>
+
+<p>对于inode_t::type字段，onix当中有如下可选值：</p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br></pre></td><td class="code"><pre><span class="line"><span class="class"><span class="keyword">enum</span></span></span><br><span class="line"><span class="class">&#123;</span></span><br><span class="line">    FS_TYPE_NONE = <span class="number">0</span>,</span><br><span class="line">    FS_TYPE_PIPE,</span><br><span class="line">    FS_TYPE_SOCKET,</span><br><span class="line">    FS_TYPE_MINIX,</span><br><span class="line">    FS_TYPE_NUM,</span><br><span class="line">&#125;;</span><br></pre></td></tr></table></figure>
+
+<p>虚拟文件系统将所有的IO操作都抽象成了这样一个i节点——inode_t。这里主要提一下 <code>inode_t::desc</code> 这个成员，如果i节点对应文件的话（FS_TYPE_MINIX），inode_t::desc会被赋值成 <code>minix_inode_t</code> 也就是i节点在磁盘上的数据结构；如果i节点对应网络套接字（FS_TYPE_SOCKET），那么inode_t::desc会被赋值成 <code>socket_t</code>。如果i节点对应管道（FS_TYPE_PIPE），那么inode_t::desc会被赋值成 <code>fifo_t</code>。</p>
+<p>本文主要介绍FS_TYPE_MINIX类型的i节点。minix文件系统初始化函数会向数组 <code>fs_ops</code> 当中注册一组minix文件系统专用回调函数。</p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br></pre></td><td class="code"><pre><span class="line"><span class="type">static</span> <span class="type">fs_op_t</span> minix_op = &#123;</span><br><span class="line">    minix_mkfs,</span><br><span class="line">    minix_super,</span><br><span class="line"></span><br><span class="line">    minix_open,</span><br><span class="line">    minix_close,</span><br><span class="line"></span><br><span class="line">    minix_read,</span><br><span class="line">    minix_write,</span><br><span class="line">    minix_truncate,</span><br><span class="line"></span><br><span class="line">    minix_stat,</span><br><span class="line">    minix_permission,</span><br><span class="line"></span><br><span class="line">    minix_namei,</span><br><span class="line">    minix_mkdir,</span><br><span class="line">    minix_rmdir,</span><br><span class="line">    minix_link,</span><br><span class="line">    minix_unlink,</span><br><span class="line">    minix_mknod,</span><br><span class="line">    minix_readdir,</span><br><span class="line">&#125;;</span><br><span class="line"></span><br><span class="line"><span class="type">void</span> <span class="title function_">minix_init</span><span class="params">()</span></span><br><span class="line">&#123;</span><br><span class="line">    fs_register_op(FS_TYPE_MINIX, &amp;minix_op);</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p>如果需要实现新的文件系统，仿照minix，只需实现上面所列的必要回调函数即可。使用minix文件系统创建的i节点inode_t::op都会被赋值成minix_op。</p>
+<p>下面可以先了解一下minix文件系统在磁盘上的结构：</p>
+<p><img src="/2025/09/28/xv6/FileSystem/photo/filesystem/onix_fsstructureondisk.drawio.png"></p>
+<p>各字段起始位置和作用如下表：</p>
+<blockquote>
+<table>
+<thead>
+<tr>
+<th align="center"></th>
+<th align="center">起始位置</th>
+<th align="center">作用</th>
+</tr>
+</thead>
+<tbody><tr>
+<td align="center">超级块</td>
+<td align="center">块1</td>
+<td align="center">记录i节点位图所占块数、（磁盘数据块）逻辑块位图所占块数、第一个逻辑块号等解析文件系统的关键信息</td>
+</tr>
+<tr>
+<td align="center">i节点位图</td>
+<td align="center">块2</td>
+<td align="center">管理磁盘i节点分配情况</td>
+</tr>
+<tr>
+<td align="center">（磁盘数据块）逻辑块位图</td>
+<td align="center">块2 + super-&gt;imap_blocks</td>
+<td align="center">管理磁盘数据块分配情况</td>
+</tr>
+<tr>
+<td align="center">i节点</td>
+<td align="center">块2 + super-&gt;imap_blocks + super-&gt;zmap_blocks</td>
+<td align="center">磁盘i节点数组</td>
+</tr>
+<tr>
+<td align="center">（磁盘数据块）逻辑块</td>
+<td align="center">minix_super_t::firstdatazone</td>
+<td align="center">磁盘数据块数组</td>
+</tr>
+</tbody></table>
+</blockquote>
+<h3 id="i节点的分配与释放"><a href="#i节点的分配与释放" class="headerlink" title="i节点的分配与释放"></a>i节点的分配与释放</h3><p>上面提到，由于i节点在虚拟文件系统当中有两种存在形式，所以本小节i节点的分配与释放也是分为两种。当需要创建文件时我们需要分配一个i节点，当文件需要被删除（文件磁盘i节点引用计数减为零）时我们需要释放这一个i节点。</p>
+<p>首先对于磁盘i节点的分配与释放，磁盘i节点分配&#x2F;释放的管理由磁盘上 i节点位图 和 磁盘i节点数组 共同管理，它们的起始位置在上小结已给出。所有的磁盘上的 i 节点都被统一存放在一个称为 i 节点数组的连续区域中。每一个 i 节点的大小都是一样的，所以对于一个给定的数字n，很容易找到磁盘上对应的 i 节点。事实上这个给定的数字就是操作系统中 i 节点的编号。</p>
+<p>磁盘上的 i 节点由结构体 <code>minix_inode_t</code> 定义。<code>mode</code> 域用来区分文件、目录和特殊文件。nlink 域用来记录指向了这一个 i 节点的目录项，这是用于判断一个 i 节点是否应该被释放的。size 域记录了文件的字节数。<code>zone</code> 数组用于这个文件的数据块的块号。在后面 <strong>虚拟文件的打开&#x2F;读写&#x2F;关闭</strong> 小结就会看到，每个文件采用 <code>zone</code> 数组管理文件数据的方式非常巧妙，该数组就是每个文件都能从0偏移开始读取和写入，看起来像多块磁盘的原因。</p>
+<p>i节点和超级快磁盘结构如下：</p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">typedef</span> <span class="class"><span class="keyword">struct</span> <span class="title">minix_inode_t</span></span></span><br><span class="line"><span class="class">&#123;</span></span><br><span class="line">    u16 mode;    <span class="comment">// 文件类型和属性(rwx 位)</span></span><br><span class="line">    u16 uid;     <span class="comment">// 用户id（文件拥有者标识符）</span></span><br><span class="line">    u32 size;    <span class="comment">// 文件大小（字节数）</span></span><br><span class="line">    u32 mtime;   <span class="comment">// 修改时间戳 这个时间戳应该用 UTC 时间，不然有瑕疵</span></span><br><span class="line">    u8 gid;      <span class="comment">// 组id(文件拥有者所在的组)</span></span><br><span class="line">    u8 nlinks;   <span class="comment">// 链接数（多少个文件目录项指向该i 节点）</span></span><br><span class="line">    u16 zone[<span class="number">9</span>]; <span class="comment">// 直接 (0-6)、间接(7)或双重间接 (8) 逻辑块号</span></span><br><span class="line">&#125; <span class="type">minix_inode_t</span>;</span><br><span class="line"></span><br><span class="line"><span class="keyword">typedef</span> <span class="class"><span class="keyword">struct</span> <span class="title">minix_super_t</span></span></span><br><span class="line"><span class="class">&#123;</span></span><br><span class="line">    u16 inodes;        <span class="comment">// 节点数</span></span><br><span class="line">    u16 zones;         <span class="comment">// 逻辑块数</span></span><br><span class="line">    u16 imap_blocks;   <span class="comment">// i 节点位图所占用的数据块数</span></span><br><span class="line">    u16 zmap_blocks;   <span class="comment">// 逻辑块位图所占用的数据块数</span></span><br><span class="line">    u16 firstdatazone; <span class="comment">// 第一个数据逻辑块号</span></span><br><span class="line">    u16 log_zone_size; <span class="comment">// log2(每逻辑块数据块数)</span></span><br><span class="line">    u32 max_size;      <span class="comment">// 文件最大长度</span></span><br><span class="line">    u16 magic;         <span class="comment">// 文件系统魔数</span></span><br><span class="line">&#125; <span class="type">minix_super_t</span>;</span><br></pre></td></tr></table></figure>
+
+<p>磁盘i节点分配&#x2F;释放的核心函数是 <code>minix_ialloc</code> 和 <code>minix_ifree</code>。分配函数首先会从超级块当中定位i节点位图的起始位置和长度。然后遍历i节点位图，找到一个可用i节点编号，将位图置为true（占用）并返回。minix_ialloc只负责从磁盘上找到一个可用的i节点编号返回给调用者，其他的什么也不做。<code>minix_ifree</code> 就是 <code>minix_ialloc</code> 逆过程，将分配的i节点编号对应的位图置为false（可分配）。两函数代码如下：</p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br><span class="line">36</span><br><span class="line">37</span><br><span class="line">38</span><br><span class="line">39</span><br><span class="line">40</span><br><span class="line">41</span><br><span class="line">42</span><br><span class="line">43</span><br><span class="line">44</span><br><span class="line">45</span><br><span class="line">46</span><br><span class="line">47</span><br><span class="line">48</span><br><span class="line">49</span><br><span class="line">50</span><br><span class="line">51</span><br><span class="line">52</span><br><span class="line">53</span><br><span class="line">54</span><br><span class="line">55</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">// 分配一个文件系统 inode</span></span><br><span class="line"><span class="type">idx_t</span> <span class="title function_">minix_ialloc</span><span class="params">(<span class="type">super_t</span> *super)</span></span><br><span class="line">&#123;</span><br><span class="line">    <span class="type">buffer_t</span> *buf = <span class="literal">NULL</span>;</span><br><span class="line">    <span class="type">idx_t</span> bit = EOF;</span><br><span class="line">    <span class="type">bitmap_t</span> <span class="built_in">map</span>;</span><br><span class="line"></span><br><span class="line">    <span class="type">minix_super_t</span> *desc = (<span class="type">minix_super_t</span> *)super-&gt;desc;</span><br><span class="line">    <span class="type">idx_t</span> bidx = <span class="number">2</span>;</span><br><span class="line">    <span class="keyword">for</span> (<span class="type">size_t</span> i = <span class="number">0</span>; i &lt; desc-&gt;imap_blocks; i++)</span><br><span class="line">    &#123;</span><br><span class="line">        buf = bread(super-&gt;dev, bidx + i);</span><br><span class="line">        assert(buf);</span><br><span class="line"></span><br><span class="line">        bitmap_make(&amp;<span class="built_in">map</span>, buf-&gt;data, BLOCK_BITS, i * BLOCK_BITS);</span><br><span class="line">        bit = bitmap_scan(&amp;<span class="built_in">map</span>, <span class="number">1</span>);</span><br><span class="line">        <span class="keyword">if</span> (bit != EOF)</span><br><span class="line">        &#123;</span><br><span class="line">            assert(bit &lt; desc-&gt;inodes);</span><br><span class="line">            buf-&gt;dirty = <span class="literal">true</span>;</span><br><span class="line">            <span class="keyword">break</span>;</span><br><span class="line">        &#125;</span><br><span class="line">    &#125;</span><br><span class="line">    brelse(buf); <span class="comment">// todo 调试期间强同步</span></span><br><span class="line">    <span class="keyword">return</span> bit;</span><br><span class="line">&#125;</span><br><span class="line"></span><br><span class="line"><span class="comment">// 释放一个文件系统 inode</span></span><br><span class="line"><span class="type">void</span> <span class="title function_">minix_ifree</span><span class="params">(<span class="type">super_t</span> *super, <span class="type">idx_t</span> idx)</span></span><br><span class="line">&#123;</span><br><span class="line">    <span class="type">minix_super_t</span> *desc = (<span class="type">minix_super_t</span> *)super-&gt;desc;</span><br><span class="line">    assert(idx &lt; desc-&gt;inodes);</span><br><span class="line"></span><br><span class="line">    <span class="type">buffer_t</span> *buf;</span><br><span class="line">    <span class="type">bitmap_t</span> <span class="built_in">map</span>;</span><br><span class="line"></span><br><span class="line">    <span class="type">idx_t</span> bidx = <span class="number">2</span>;</span><br><span class="line">    <span class="keyword">for</span> (<span class="type">size_t</span> i = <span class="number">0</span>; i &lt; desc-&gt;imap_blocks; i++)</span><br><span class="line">    &#123;</span><br><span class="line">        <span class="keyword">if</span> (idx &gt; BLOCK_BITS * (i + <span class="number">1</span>))</span><br><span class="line">        &#123;</span><br><span class="line">            <span class="keyword">continue</span>;</span><br><span class="line">        &#125;</span><br><span class="line"></span><br><span class="line">        buf = bread(super-&gt;dev, bidx + i);</span><br><span class="line">        assert(buf);</span><br><span class="line"></span><br><span class="line">        bitmap_make(&amp;<span class="built_in">map</span>, buf-&gt;data, BLOCK_BITS, i * BLOCK_BITS);</span><br><span class="line">        assert(bitmap_test(&amp;<span class="built_in">map</span>, idx));</span><br><span class="line">        bitmap_set(&amp;<span class="built_in">map</span>, idx, <span class="number">0</span>);</span><br><span class="line">        buf-&gt;dirty = <span class="literal">true</span>;</span><br><span class="line">        <span class="keyword">break</span>;</span><br><span class="line">    &#125;</span><br><span class="line">    brelse(buf); <span class="comment">// todo 调试期间强同步</span></span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p>调用者得到i节点编号后，可以通过 <code>iget</code> 函数<strong>将i节点编号转为i节点代理</strong>。它的逻辑是这样的，先尝试在现有内存i节点代理当中根据i节点编号查找i节点，如果查到了，就直接返回，否则调用 <code>get_free_inode</code> 函数先从空闲的i节点代理缓存当中获取一个空闲i节点代理，再将i节点编号转为磁盘i节点所在块号，然后将磁盘i节点所在磁盘块缓存到内存获取磁盘上的i节点，然后对空闲的i节点代理进行初始化。</p>
+<p>i节点代理的核心初始化步骤包括：</p>
+<blockquote>
+<ul>
+<li>将inode_t::desc填充成 磁盘i节点缓存地址。</li>
+<li>inode::buf填充成 磁盘i节点所在块缓存地址，inode::buf指向 磁盘i节点所在块缓存地址 这样能保证 磁盘i节点所在块缓存 的引用计数非零，防止inode_t::desc所指向的磁盘i节点缓存地址 因磁盘块的lru算法被置换出内存而失效。</li>
+<li>如果i节点对应的是IO设备，而非文件，将inode_t::rdev填充为minix_inode_t::zone[0]，对于设备文件，minix_inode_t::zone[0]表示IO设备的虚拟设备号。</li>
+<li>inode_t::super填充成所在设备的超级快。同一设备上的文件系统，超级快是相同的！</li>
+<li>inode_t::type设置成FS_TYPE_MINIX。</li>
+<li>并且inode_t::op安装成FS_TYPE_MINIX对应的回调。</li>
+</ul>
+</blockquote>
+<p>核心代码如下：</p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br><span class="line">36</span><br><span class="line">37</span><br><span class="line">38</span><br><span class="line">39</span><br><span class="line">40</span><br><span class="line">41</span><br><span class="line">42</span><br><span class="line">43</span><br><span class="line">44</span><br><span class="line">45</span><br><span class="line">46</span><br><span class="line">47</span><br><span class="line">48</span><br><span class="line">49</span><br><span class="line">50</span><br><span class="line">51</span><br><span class="line">52</span><br><span class="line">53</span><br></pre></td><td class="code"><pre><span class="line"><span class="meta">#<span class="keyword">define</span> BLOCK_INODES (BLOCK_SIZE / sizeof(minix_inode_t))    <span class="comment">// 1个磁盘块能容纳 inode的数量</span></span></span><br><span class="line"></span><br><span class="line"><span class="comment">// 计算 inode nr 对应的块号</span></span><br><span class="line"><span class="type">static</span> <span class="keyword">inline</span> <span class="type">idx_t</span> <span class="title function_">inode_block</span><span class="params">(<span class="type">minix_super_t</span> *desc, <span class="type">idx_t</span> nr)</span> &#123;</span><br><span class="line">    <span class="comment">// inode 编号 从 1 开始</span></span><br><span class="line">    <span class="keyword">return</span> <span class="number">2</span> + desc-&gt;imap_blocks + desc-&gt;zmap_blocks + (nr - <span class="number">1</span>) / BLOCK_INODES;</span><br><span class="line">&#125;</span><br><span class="line"></span><br><span class="line"><span class="comment">// 将i节点编号转为i节点代理</span></span><br><span class="line"><span class="type">static</span> <span class="type">inode_t</span> *<span class="title function_">iget</span><span class="params">(<span class="type">dev_t</span> dev, <span class="type">idx_t</span> nr)</span> &#123;</span><br><span class="line">    <span class="type">inode_t</span> *inode = find_inode(dev, nr);</span><br><span class="line">    <span class="keyword">if</span> (inode)</span><br><span class="line">    &#123;</span><br><span class="line">        inode-&gt;count++;</span><br><span class="line">        inode-&gt;atime = time();</span><br><span class="line">        <span class="keyword">return</span> fit_inode(inode);</span><br><span class="line">    &#125;</span><br><span class="line"></span><br><span class="line">    <span class="type">super_t</span> *super = get_super(dev);</span><br><span class="line">    assert(super);</span><br><span class="line"></span><br><span class="line">    <span class="type">minix_super_t</span> *desc = (<span class="type">minix_super_t</span> *)super-&gt;desc;</span><br><span class="line"></span><br><span class="line">    assert(nr &lt;= desc-&gt;inodes);</span><br><span class="line"></span><br><span class="line">    inode = get_free_inode();</span><br><span class="line">    inode-&gt;dev = dev;</span><br><span class="line">    inode-&gt;nr = nr;</span><br><span class="line">    inode-&gt;count++;</span><br><span class="line"></span><br><span class="line">    <span class="comment">// 加入超级块 inode 链表</span></span><br><span class="line">    list_push(&amp;super-&gt;inode_list, &amp;inode-&gt;node);</span><br><span class="line"></span><br><span class="line">    <span class="type">idx_t</span> block = inode_block(desc, inode-&gt;nr);</span><br><span class="line">    <span class="type">buffer_t</span> *buf = bread(inode-&gt;dev, block);</span><br><span class="line"></span><br><span class="line">    inode-&gt;buf = buf;</span><br><span class="line"></span><br><span class="line">    <span class="comment">// 将缓冲视为一个 inode 描述符数组，获取对应的指针；</span></span><br><span class="line">    inode-&gt;desc = &amp;((<span class="type">minix_inode_t</span> *)buf-&gt;data)[(inode-&gt;nr - <span class="number">1</span>) % BLOCK_INODES];</span><br><span class="line">    <span class="type">minix_inode_t</span> *minode = (<span class="type">minix_inode_t</span> *)inode-&gt;desc;</span><br><span class="line"></span><br><span class="line">    inode-&gt;rdev = minode-&gt;zone[<span class="number">0</span>];</span><br><span class="line"></span><br><span class="line">    inode-&gt;mode = minode-&gt;mode;</span><br><span class="line">    inode-&gt;size = minode-&gt;size;</span><br><span class="line">    inode-&gt;super = super;</span><br><span class="line"></span><br><span class="line">    inode-&gt;type = FS_TYPE_MINIX;</span><br><span class="line">    inode-&gt;op = fs_get_op(FS_TYPE_MINIX);</span><br><span class="line"></span><br><span class="line">    <span class="keyword">return</span> fit_inode(inode);</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p>与iget对立的是iput函数，该函数定义在onix-dev&#x2F;src&#x2F;fs&#x2F;inode.c，函数iput用于将i节点代理进行释放，iput会借助 minix_close 函数，一旦inode_t::count成员减为零，就将inode::buf（磁盘i节点所在块缓存）释放，然后将i节点代理放回空闲缓存区。</p>
+<h3 id="磁盘数据块的分配与释放"><a href="#磁盘数据块的分配与释放" class="headerlink" title="磁盘数据块的分配与释放"></a>磁盘数据块的分配与释放</h3><p>onix当中，文件系统文件的数据存在于分散的磁盘数据块当中。文件使用磁盘上的i节点minix_inode_t::zone数组管理磁盘数据块。文件创建后，向里面不断顺序写入数据，一旦当前磁盘数据块写满了，文件系统就会调用 <code>minix_balloc</code> 函数给文件分配一块磁盘数据块。相反的，如果一个文件需要被删除，调用 <code>minix_bfree</code> 函数释放所有分配的磁盘数据块。磁盘块同样采用位图的方式去管理。</p>
+<p>磁盘数据块分配释放&#x2F;器的原理和 磁盘i节点分配&#x2F;释放器（<code>minix_ialloc</code> 和 <code>minix_ifree</code>）极其类似。磁盘数据块分配器首先会从超级块当中定位磁盘数据块位图的起始位置和长度。然后遍历磁盘数据块位图，找到一个可用磁盘数据块号，将位图置为true（占用）并返回。minix_ialloc只负责从磁盘上找到一个可用的磁盘数据块号返回给调用者，其他的什么也不做。<code>minix_bfree</code> 就是 <code>minix_balloc</code> 逆过程，将分配的磁盘数据块号对应的位图置为false（可分配）。</p>
+<p>代码如下：</p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br><span class="line">36</span><br><span class="line">37</span><br><span class="line">38</span><br><span class="line">39</span><br><span class="line">40</span><br><span class="line">41</span><br><span class="line">42</span><br><span class="line">43</span><br><span class="line">44</span><br><span class="line">45</span><br><span class="line">46</span><br><span class="line">47</span><br><span class="line">48</span><br><span class="line">49</span><br><span class="line">50</span><br><span class="line">51</span><br><span class="line">52</span><br><span class="line">53</span><br><span class="line">54</span><br><span class="line">55</span><br><span class="line">56</span><br><span class="line">57</span><br><span class="line">58</span><br><span class="line">59</span><br><span class="line">60</span><br><span class="line">61</span><br><span class="line">62</span><br><span class="line">63</span><br><span class="line">64</span><br><span class="line">65</span><br><span class="line">66</span><br><span class="line">67</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">// 分配一个文件块</span></span><br><span class="line"><span class="type">idx_t</span> <span class="title function_">minix_balloc</span><span class="params">(<span class="type">super_t</span> *super)</span></span><br><span class="line">&#123;</span><br><span class="line">    <span class="type">buffer_t</span> *buf = <span class="literal">NULL</span>;</span><br><span class="line">    <span class="type">idx_t</span> bit = EOF;</span><br><span class="line">    <span class="type">bitmap_t</span> <span class="built_in">map</span>;</span><br><span class="line"></span><br><span class="line">    <span class="type">minix_super_t</span> *desc = (<span class="type">minix_super_t</span> *)super-&gt;desc;</span><br><span class="line">    <span class="type">idx_t</span> bidx = <span class="number">2</span> + desc-&gt;imap_blocks;</span><br><span class="line"></span><br><span class="line">    <span class="keyword">for</span> (<span class="type">size_t</span> i = <span class="number">0</span>; i &lt; desc-&gt;zmap_blocks; i++)</span><br><span class="line">    &#123;</span><br><span class="line">        buf = bread(super-&gt;dev, bidx + i);</span><br><span class="line">        assert(buf);</span><br><span class="line"></span><br><span class="line">        <span class="comment">// 将整个缓冲区作为位图</span></span><br><span class="line">        bitmap_make(&amp;<span class="built_in">map</span>, buf-&gt;data, BLOCK_SIZE, i * BLOCK_BITS + desc-&gt;firstdatazone - <span class="number">1</span>);</span><br><span class="line"></span><br><span class="line">        <span class="comment">// 从位图中扫描一位</span></span><br><span class="line">        bit = bitmap_scan(&amp;<span class="built_in">map</span>, <span class="number">1</span>);</span><br><span class="line">        <span class="keyword">if</span> (bit != EOF)</span><br><span class="line">        &#123;</span><br><span class="line">            <span class="comment">// 如果扫描成功，则 标记缓冲区脏，中止查找</span></span><br><span class="line">            assert(bit &lt; desc-&gt;zones);</span><br><span class="line">            buf-&gt;dirty = <span class="literal">true</span>;</span><br><span class="line">            <span class="keyword">break</span>;</span><br><span class="line">        &#125;</span><br><span class="line">    &#125;</span><br><span class="line">    brelse(buf); <span class="comment">// todo 调试期间强同步</span></span><br><span class="line">    <span class="keyword">return</span> bit;</span><br><span class="line">&#125;</span><br><span class="line"></span><br><span class="line"><span class="comment">// 释放一个文件块</span></span><br><span class="line"><span class="type">void</span> <span class="title function_">minix_bfree</span><span class="params">(<span class="type">super_t</span> *super, <span class="type">idx_t</span> idx)</span></span><br><span class="line">&#123;</span><br><span class="line">    <span class="type">minix_super_t</span> *desc = (<span class="type">minix_super_t</span> *)super-&gt;desc;</span><br><span class="line">    assert(idx &lt; desc-&gt;zones);</span><br><span class="line"></span><br><span class="line">    <span class="type">buffer_t</span> *buf;</span><br><span class="line">    <span class="type">bitmap_t</span> <span class="built_in">map</span>;</span><br><span class="line"></span><br><span class="line">    <span class="type">idx_t</span> bidx = <span class="number">2</span> + desc-&gt;imap_blocks;</span><br><span class="line"></span><br><span class="line">    <span class="keyword">for</span> (<span class="type">size_t</span> i = <span class="number">0</span>; i &lt; desc-&gt;zmap_blocks; i++)</span><br><span class="line">    &#123;</span><br><span class="line">        <span class="comment">// 跳过开始的块</span></span><br><span class="line">        <span class="keyword">if</span> (idx &gt; BLOCK_BITS * (i + <span class="number">1</span>))</span><br><span class="line">        &#123;</span><br><span class="line">            <span class="keyword">continue</span>;</span><br><span class="line">        &#125;</span><br><span class="line"></span><br><span class="line">        buf = bread(super-&gt;dev, bidx + i);</span><br><span class="line">        assert(buf);</span><br><span class="line"></span><br><span class="line">        <span class="comment">// 将整个缓冲区作为位图</span></span><br><span class="line">        bitmap_make(&amp;<span class="built_in">map</span>, buf-&gt;data, BLOCK_SIZE, BLOCK_BITS * i + desc-&gt;firstdatazone - <span class="number">1</span>);</span><br><span class="line"></span><br><span class="line">        <span class="comment">// 将 idx 对应的位图置位 0</span></span><br><span class="line">        assert(bitmap_test(&amp;<span class="built_in">map</span>, idx));</span><br><span class="line">        bitmap_set(&amp;<span class="built_in">map</span>, idx, <span class="number">0</span>);</span><br><span class="line"></span><br><span class="line">        <span class="comment">// 标记缓冲区脏</span></span><br><span class="line">        buf-&gt;dirty = <span class="literal">true</span>;</span><br><span class="line">        <span class="keyword">break</span>;</span><br><span class="line">    &#125;</span><br><span class="line">    brelse(buf); <span class="comment">// todo 调试期间强同步</span></span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<h3 id="根文件系统的挂载"><a href="#根文件系统的挂载" class="headerlink" title="根文件系统的挂载"></a>根文件系统的挂载</h3><p>在onix初始化阶段在使用文件系统之前，必须先对根目录进行挂载。我们使用系统调用 <code>open</code> 函数打开的文件时，需要传入路径作为参数，而想要通过路径找到最终文件的i节点，必经过根目录的i节点。任何路径的解析，都以根目录为基础的。所以，分析onix根目录的挂载流程是很重要的。</p>
+<p>根文件系统挂载触发点位于super_init函数：</p>
+<ul>
+<li>super_init函数首先会初始化全局超级块表，为后续文件系统挂载做准备，每个超级块维护一个inode链表，用于管理该文件系统打开的文件节点，超级块表初始化完毕后，会调用mount_root函数。</li>
+<li>mount_root函数首先获取磁盘第一个分区的虚拟设备控制句柄，然后从设备控制句柄当中获取设备号dev（方便读写），然后调用read_super函数获取dev设备的超级快。最后将<strong>超级块和根目录i节点代理做绑定</strong>，方便将路径解析为i节点。  <figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">// 挂载根文件系统</span></span><br><span class="line"><span class="type">static</span> <span class="type">void</span> <span class="title function_">mount_root</span><span class="params">()</span> &#123;</span><br><span class="line">    LOGK(<span class="string">&quot;Mount root file system...\n&quot;</span>);</span><br><span class="line">    <span class="comment">// 假设主硬盘第一个分区是根文件系统</span></span><br><span class="line">    <span class="type">device_t</span> *device = device_find(DEV_IDE_PART, <span class="number">0</span>);</span><br><span class="line">    assert(device);</span><br><span class="line"></span><br><span class="line">    <span class="comment">// 读根文件系统超级块</span></span><br><span class="line">    root = read_super(device-&gt;dev);</span><br><span class="line"></span><br><span class="line">    <span class="comment">// 超级快和根目录i节点代理做绑定。</span></span><br><span class="line">    root-&gt;imount = root-&gt;iroot;</span><br><span class="line">    root-&gt;imount-&gt;count++;</span><br><span class="line"></span><br><span class="line">    root-&gt;iroot-&gt;mount = device-&gt;dev;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure></li>
+<li>read_super函数首先会尝试使用设备号dev从超级快列表当中直接获取超级快，但由于系统刚启动，正处在初始化阶段，所以，必然失败。然后read_super函数会尝试从超级块列表当中获取一个空闲的超级快，然后调用minix_super函数对空闲超级快进行初始化。  <figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">// 读设备 dev 的超级块</span></span><br><span class="line"><span class="type">super_t</span> *<span class="title function_">read_super</span><span class="params">(<span class="type">dev_t</span> dev)</span> &#123;</span><br><span class="line">    <span class="type">super_t</span> *super = get_super(dev);</span><br><span class="line">    <span class="keyword">if</span> (super) &#123;</span><br><span class="line">        super-&gt;count++;</span><br><span class="line">        <span class="keyword">return</span> super;</span><br><span class="line">    &#125;</span><br><span class="line"></span><br><span class="line">    LOGK(<span class="string">&quot;Reading super block of device %d\n&quot;</span>, dev);</span><br><span class="line"></span><br><span class="line">    <span class="comment">// 获得空闲超级块</span></span><br><span class="line">    super = get_free_super();</span><br><span class="line">    super-&gt;count++;</span><br><span class="line"></span><br><span class="line">    <span class="keyword">for</span> (<span class="type">size_t</span> i = <span class="number">1</span>; i &lt; FS_TYPE_NUM; i++) &#123;</span><br><span class="line">        <span class="type">fs_op_t</span> *op = fs_get_op(i);</span><br><span class="line">        <span class="keyword">if</span> (!op)</span><br><span class="line">            <span class="keyword">continue</span>;</span><br><span class="line">        <span class="comment">// minix_super</span></span><br><span class="line">        <span class="keyword">if</span> (op-&gt;super(dev, super) == EOK) &#123;</span><br><span class="line">            <span class="keyword">return</span> super;</span><br><span class="line">        &#125;</span><br><span class="line">    &#125;</span><br><span class="line"></span><br><span class="line">    put_super(super);</span><br><span class="line">    <span class="keyword">return</span> <span class="literal">NULL</span>;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure></li>
+<li>minix_super函数实现较为简单，通过读取磁盘的 磁盘块1 （在前面的列出的磁盘分区结构图当中有列出，超级块位于1号磁盘块），将 磁盘超级快 读到内存当中，然后将磁盘超级块缓存填充到super_t::desc，当然为了避免磁盘超级块缓存被替换出磁盘，将磁盘超级快所在的磁盘块缓存填充给super_t::buf，最后调用 iget 函数获取根目录的i节点代理（按规定，根目录磁盘i节点的编号为1）。  <figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br></pre></td><td class="code"><pre><span class="line"><span class="type">static</span> <span class="type">int</span> <span class="title function_">minix_super</span><span class="params">(<span class="type">dev_t</span> dev, <span class="type">super_t</span> *super)</span> &#123;</span><br><span class="line">    <span class="comment">// 读取超级块</span></span><br><span class="line">    <span class="type">buffer_t</span> *buf = bread(dev, <span class="number">1</span>);</span><br><span class="line">    <span class="keyword">if</span> (!buf)</span><br><span class="line">        <span class="keyword">return</span> -EFSUNK;</span><br><span class="line"></span><br><span class="line">    assert(buf);</span><br><span class="line">    <span class="type">minix_super_t</span> *desc = (<span class="type">minix_super_t</span> *)buf-&gt;data;</span><br><span class="line"></span><br><span class="line">    <span class="keyword">if</span> (desc-&gt;magic != MINIX1_MAGIC) &#123;</span><br><span class="line">        brelse(buf);</span><br><span class="line">        <span class="keyword">return</span> -EFSUNK;</span><br><span class="line">    &#125;</span><br><span class="line"></span><br><span class="line">    super-&gt;buf = buf;</span><br><span class="line">    super-&gt;desc = desc;</span><br><span class="line">    super-&gt;dev = dev;</span><br><span class="line">    super-&gt;type = FS_TYPE_MINIX;</span><br><span class="line">    super-&gt;block_size = BLOCK_SIZE;</span><br><span class="line">    super-&gt;sector_size = SECTOR_SIZE;</span><br><span class="line">    super-&gt;iroot = iget(dev, <span class="number">1</span>);</span><br><span class="line"></span><br><span class="line">    <span class="keyword">return</span> EOK;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure></li>
+</ul>
+<p>注意 <code>super-&gt;iroot</code> 成员的初始化被放在了最后，这里是一定要放在最后。如果你深入阅读 iget 函数的代码就会发现 iget函数 里面需要用到超级块如下：</p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br></pre></td><td class="code"><pre><span class="line"><span class="type">static</span> <span class="type">inode_t</span> *<span class="title function_">iget</span><span class="params">(<span class="type">dev_t</span> dev, <span class="type">idx_t</span> nr)</span> &#123;</span><br><span class="line">    <span class="type">inode_t</span> *inode = find_inode(dev, nr);</span><br><span class="line">    <span class="keyword">if</span> (inode) &#123;</span><br><span class="line">        inode-&gt;count++;</span><br><span class="line">        inode-&gt;atime = time();</span><br><span class="line">        <span class="keyword">return</span> fit_inode(inode);</span><br><span class="line">    &#125;</span><br><span class="line"></span><br><span class="line">    <span class="type">super_t</span> *super = get_super(dev);</span><br><span class="line">    assert(super);</span><br><span class="line"></span><br><span class="line">    <span class="comment">// ...</span></span><br><span class="line">    <span class="keyword">return</span> fit_inode(inode);</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p>等等，我们正在初始化超级快，但是 iget 函数又用到了超级快，这样对吗？我的回答是没有任何毛病，因为 在minix_super超级快初始化函数当中最后一刻才调用了iget函数，此时超级快其实已经初始化的差不多了，并且iget函数内部也并没有用到 <code>super-&gt;iroot</code> 成员，所以逻辑并没有什么问题。</p>
+<h3 id="虚拟文件的打开-关闭"><a href="#虚拟文件的打开-关闭" class="headerlink" title="虚拟文件的打开&#x2F;关闭"></a>虚拟文件的打开&#x2F;关闭</h3><p>onix当中，使用open函数打开一个文件，如果要创建以一个文件，实际上使用的是带 <code>O_CREAT | O_TRUNC</code> 标志的open函数，我们只需要重点研究open系统调用 <code>sys_open</code> 的实现，伪代码如下：</p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br></pre></td><td class="code"><pre><span class="line"><span class="type">fd_t</span> <span class="title function_">sys_open</span><span class="params">(<span class="type">char</span> *filename, <span class="type">int</span> flags, <span class="type">int</span> mode)</span> &#123;</span><br><span class="line">    <span class="type">char</span> *next;</span><br><span class="line">    <span class="type">inode_t</span> *dir = <span class="literal">NULL</span>;</span><br><span class="line"></span><br><span class="line">    <span class="comment">// 获取filename父目录i节点代理，并且，将最后的文件名填到next当中。</span></span><br><span class="line">    dir = named(filename, &amp;next);</span><br><span class="line"></span><br><span class="line">    <span class="comment">// 如果路径本身是目录（/a/b/）。跳过minix文件系统open回调</span></span><br><span class="line">    <span class="keyword">if</span> (!*next) &#123;</span><br><span class="line">        inode = dir;</span><br><span class="line">        dir-&gt;count++;</span><br><span class="line">        <span class="keyword">goto</span> makeup;</span><br><span class="line">    &#125;</span><br><span class="line">    <span class="comment">// 调用minix文件系统open回调。打开/创建文件。</span></span><br><span class="line">    <span class="type">int</span> ret = dir-&gt;op-&gt;open(dir, next, flags, mode, &amp;inode);</span><br><span class="line"></span><br><span class="line">    <span class="comment">// 从进程文件表（数组）当中获取一个空闲的文件描述符，并且初始化其元素file_t。</span></span><br><span class="line">    <span class="type">file_t</span> *file;</span><br><span class="line">    <span class="type">fd_t</span> fd = fd_get(&amp;file);</span><br><span class="line"></span><br><span class="line">    file-&gt;inode = inode;</span><br><span class="line">    file-&gt;flags = flags;</span><br><span class="line">    file-&gt;count = <span class="number">1</span>;</span><br><span class="line">    file-&gt;offset = <span class="number">0</span>;</span><br><span class="line">    <span class="comment">// 有追加参数就将file的偏移移到文件末尾。</span></span><br><span class="line">    <span class="keyword">if</span> (flags &amp; O_APPEND) &#123;</span><br><span class="line">        file-&gt;offset = file-&gt;inode-&gt;size;</span><br><span class="line">    &#125;</span><br><span class="line"></span><br><span class="line">    <span class="keyword">return</span> fd;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<blockquote>
+<ol>
+<li>调用named函数，获取filename父目录i节点代理，并且，将最后的文件名填到next当中。</li>
+<li>如果路径本身是目录（&#x2F;a&#x2F;b&#x2F;）。跳过minix文件系统open回调。进入4。</li>
+<li>调用minix的open回调，打开&#x2F;创建文件。获取文件的i节点代理。</li>
+<li>从进程文件表（数组）当中获取一个空闲的文件描述符，并且初始化其元素file_t。</li>
+<li>如果flags标志包含 <code>O_APPEND</code> ，将file的偏移移到文件末尾。</li>
+</ol>
+</blockquote>
+<p>named函数的作用就是根据路径找到文件父目录的i节点，并且将最后的文件名填到next当中。named函数代码稍微有些复杂，特别是这一段：</p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">// 获取 pathname 对应的父目录 inode</span></span><br><span class="line"><span class="type">inode_t</span> *<span class="title function_">named</span><span class="params">(<span class="type">char</span> *pathname, <span class="type">char</span> **next)</span> &#123;</span><br><span class="line"></span><br><span class="line">    <span class="comment">// ...</span></span><br><span class="line">    <span class="keyword">while</span> (<span class="literal">true</span>) &#123;</span><br><span class="line">        <span class="comment">// 返回上一级目录且上一级目录是个挂载点</span></span><br><span class="line">        <span class="keyword">if</span> (match_name(name, <span class="string">&quot;..&quot;</span>, next) &amp;&amp; dir == dir-&gt;super-&gt;iroot) &#123;</span><br><span class="line">            <span class="type">super_t</span> *super = dir-&gt;super;</span><br><span class="line">            inode = super-&gt;imount;</span><br><span class="line">            inode-&gt;count++;</span><br><span class="line">            iput(dir);</span><br><span class="line">            dir = inode;</span><br><span class="line">        &#125;</span><br><span class="line">    &#125;</span><br><span class="line">    <span class="comment">// ...</span></span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p>如果路径 <code>name</code>（基于pathname经过预处理的路径） 解析到了 <code>..</code> 文件名并且（同一文件系统下）其父目录正好是设备的根节点，就会进入该if分支。因为linux当中一切皆文件的思想，（跨文件系统）父目录可能是作为子目录的挂载点而存在，导致父目录和子目录不在一个设备（文件系统）上。故我们在跨文件系统的情况下执行 <code>..</code> 目录回退操作时，必须执行这样一段 “换根” 代码。</p>
+<p>这段if换根代码强烈建议读者结合 <code>sys_mknod</code> 和 <code>sys_mount</code> 函数实现去理解。在onix当中（参考：onix-dev&#x2F;src&#x2F;fs&#x2F;dev.c），挂载一个设备首先要使用 sys_mknod 系统调用为设备创建一个设备文件，然后，在根文件系统下寻找一个目录作为挂载点，最后使用 sys_mount 系统调用挂载设备。</p>
+<p>下面深入介绍一下onix当中如何实现设备挂载的：</p>
+<p>挂载点内部数据结构链接细节如下图：</p>
+<p><img src="/2025/09/28/xv6/FileSystem/photo/filesystem/onix_mount.drawio.png"></p>
+<p>sys_mknod会接收设备号作为参数。它的实现最终会调用minix_mknod函数，这会创建一个特殊的文件，我们称它为设备文件，然后文件的磁盘i节点当中zone数组只使用第一个元素，存放传入的设备号，在将磁盘i节点转成i节点代理过程当中，i节点代理的rdev成员就会被赋值成minode-&gt;zone[0]，minix_mknod伪代码如下：</p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br></pre></td><td class="code"><pre><span class="line"><span class="type">int</span> <span class="title function_">minix_mknod</span><span class="params">(<span class="type">inode_t</span> *dir, <span class="type">char</span> *name, <span class="type">int</span> mode, <span class="type">int</span> dev)</span> &#123;</span><br><span class="line">    <span class="comment">// ...</span></span><br><span class="line">    <span class="comment">// 创建一个特殊的文件。</span></span><br><span class="line">    <span class="comment">// ...</span></span><br><span class="line">    <span class="keyword">if</span> (ISBLK(mode) || ISCHR(mode))</span><br><span class="line">        minode-&gt;zone[<span class="number">0</span>] = dev;</span><br><span class="line"></span><br><span class="line">    <span class="comment">// ...</span></span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p>sys_mount函数负责将一个设备文件挂载到指定目录下。比如sd卡，一般来说，它的设备文件名为&#x2F;dev&#x2F;sdb1，当我们要访问sd卡时，需要执行命令 <code>mount /dev/sdb1 /mnt</code> 。<strong>这里需要注意的是，sd卡所有的文件系统 和 我们的根目录所挂载的文件系统一定是两个独立的互不相干的两个文件系统，他们各自拥有自己独立、自包含的i节点编号空间。在同一个Linux系统下，SD卡上文件的i节点号与根文件系统下文件的i节点号即使数字相同，也绝对不会发生冲突。系统能够清晰地区分它们。</strong> onix sys_mount函数实现伪代码如下：</p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br></pre></td><td class="code"><pre><span class="line"><span class="type">int</span> <span class="title function_">sys_mount</span><span class="params">(<span class="type">char</span> *devname, <span class="type">char</span> *dirname, <span class="type">int</span> flags)</span> &#123;</span><br><span class="line">    <span class="comment">// 获取设备文件i节点代理</span></span><br><span class="line">    devinode = namei(devname);</span><br><span class="line"></span><br><span class="line">    <span class="comment">// 获取挂载点i节点代理</span></span><br><span class="line">    dirinode = namei(dirname);</span><br><span class="line"></span><br><span class="line">    <span class="comment">// 获取设备超级块</span></span><br><span class="line">    super = read_super(devinode-&gt;rdev);</span><br><span class="line"></span><br><span class="line">    <span class="comment">// 设备超级快指向挂载点</span></span><br><span class="line">    super-&gt;imount = dirinode;</span><br><span class="line"></span><br><span class="line">    <span class="comment">// 挂载点指向挂载的设备</span></span><br><span class="line">    dirinode-&gt;mount = devinode-&gt;rdev;</span><br><span class="line">    iput(devinode);</span><br><span class="line">    <span class="keyword">return</span> EOK;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p>核心逻辑如下：</p>
+<blockquote>
+<ol>
+<li>获取设备文件i节点代理。</li>
+<li>获取挂载点i节点代理。</li>
+<li>获取设备超级块。</li>
+<li>将设备超级块指向挂载点。</li>
+<li>挂载点指向挂载的设备。</li>
+</ol>
+</blockquote>
+<p>sys_open当中核心函数还是中间调用的minix_open回调，它的伪代码如下：</p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br></pre></td><td class="code"><pre><span class="line"><span class="type">static</span> <span class="type">int</span> <span class="title function_">minix_open</span><span class="params">(<span class="type">inode_t</span> *dir, <span class="type">char</span> *name, <span class="type">int</span> flags, <span class="type">int</span> mode, <span class="type">inode_t</span> **result)</span> &#123;</span><br><span class="line">    <span class="type">minix_dentry_t</span> *entry = <span class="literal">NULL</span>;</span><br><span class="line"></span><br><span class="line">    <span class="comment">// 在dir下尝试查找name文件，并将目录项存到entry。</span></span><br><span class="line">    buf = find_entry(dir, name, &amp;next, &amp;entry);</span><br><span class="line">    <span class="keyword">if</span> (buf) &#123;</span><br><span class="line">        <span class="comment">// 如果找到了根据目录项将 i节点号转为i节点代理。iget函数是老朋友了，前面小结经常用到。</span></span><br><span class="line">        inode = iget(dir-&gt;dev, entry-&gt;nr);</span><br><span class="line">        assert(inode);</span><br><span class="line">        <span class="keyword">goto</span> makeup;</span><br><span class="line">    &#125; <span class="comment">// 不存在</span></span><br><span class="line"></span><br><span class="line">    <span class="comment">// 不带创建标志，返回文件不存在的错误。</span></span><br><span class="line">    <span class="keyword">if</span> (!(flags &amp; O_CREAT)) &#123;</span><br><span class="line">        ret = -EEXIST;</span><br><span class="line">        <span class="keyword">return</span> res;</span><br><span class="line">    &#125;</span><br><span class="line"></span><br><span class="line">    <span class="comment">// 向父目录当中添加名为name的文件项。并且返回其文件项缓存块地址，确保entry有效。</span></span><br><span class="line">    buf = add_entry(dir, name, &amp;entry);</span><br><span class="line"></span><br><span class="line">    <span class="comment">// 申请一个i节点号。</span></span><br><span class="line">    entry-&gt;nr = minix_ialloc(dir-&gt;super);</span><br><span class="line"></span><br><span class="line">    <span class="comment">// 初始化磁盘i节点和i节点代理。</span></span><br><span class="line">    inode = new_inode(dir-&gt;dev, entry-&gt;nr);</span><br><span class="line"></span><br><span class="line">makeup:</span><br><span class="line">    <span class="comment">// 传给输出参数。</span></span><br><span class="line">    *result = inode;</span><br><span class="line">    <span class="keyword">return</span> EOK;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p>首先明确：sys_open调用minix_open，传入的name是单个文件名，dir是name文件的父目录i节点。</p>
+<blockquote>
+<ol>
+<li>调用find_entry函数，首先在dir下尝试查找name文件，并将目录项存到entry。如果找到了，根据目录项将 i节点号转为i节点代理，并快进到 <code>makeup</code> 阶段。iget函数是老朋友了，前面小结经常用到。如果没找到，尝试去创建一个新文件。</li>
+<li>检测是否带 <code>O_CREAT</code> 标志，不带标志就返回文件不存在的错误。</li>
+<li>调用add_entry函数向父目录当中添加名为name的文件项。并且返回其文件项缓存块地址，确保entry有效。</li>
+<li>申请一个i节点号。</li>
+<li>初始化磁盘i节点和i节点代理。</li>
+</ol>
+</blockquote>
+<p>有关 <code>find_entry</code> 和 <code>add_entry</code> 函数，这两函数属于目录操作函数，在 <strong>目录的操作</strong> 小结将深入展开讲解。</p>
+<p>踪上，一个进程打开一个文件后，系统状态图如下：</p>
+<p><img src="/2025/09/28/xv6/FileSystem/photo/filesystem/onix_vfs_structure.drawio.png"></p>
+<h3 id="虚拟文件的读-写"><a href="#虚拟文件的读-写" class="headerlink" title="虚拟文件的读&#x2F;写"></a>虚拟文件的读&#x2F;写</h3><p>如果说超级块是更高维度的能解析文件系统的磁盘结构，那么i节点其实可以理解成低维度的能解析文件的磁盘结构。</p>
+<p>在 <strong>i节点的分配与释放</strong> 小结已经列出过i节点的磁盘结构，但因为文章结构原因我们没有多费口舌去讲解它具体成员的作用。在本节，因为文件的操作是极度依赖i节点磁盘结构的。所以，下面用一张图片直观了解i节点的磁盘结构：</p>
+<p><img src="/2025/09/28/xv6/FileSystem/photo/filesystem/onix_minix_inode.drawio.png"></p>
+<p>一般的，i节点磁盘数据结构各个字段作用如下：</p>
+<table>
+<thead>
+<tr>
+<th align="center">i节点字段名</th>
+<th align="center">作用</th>
+</tr>
+</thead>
+<tbody><tr>
+<td align="center">minix_inode_t::mode</td>
+<td align="center">文件类型和属性位，onix支持的文件类型包含：常规文件、目录文件、字符设备文件、块设备文件。文件屬性包含：读、写、可执行。</td>
+</tr>
+<tr>
+<td align="center">minix_inode_t::uid</td>
+<td align="center">用户id，也即文件拥有者标识符</td>
+</tr>
+<tr>
+<td align="center">minix_inode_t::size</td>
+<td align="center">文件大小（Byte）</td>
+</tr>
+<tr>
+<td align="center">minix_inode_t::mtime</td>
+<td align="center">最后修改的时间戳</td>
+</tr>
+<tr>
+<td align="center">minix_inode_t::gid</td>
+<td align="center">用户所属组id</td>
+</tr>
+<tr>
+<td align="center">minix_inode_t::nlinks</td>
+<td align="center">链接数，表示有多少目录项指向该i节点</td>
+</tr>
+<tr>
+<td align="center">minix_inode_t::zone</td>
+<td align="center">长度为9的uint16_t类型数组，前7个元素代表直接块，直接指向磁盘数据块，第8个元素为一级间接块，第9个元素为二级间接块</td>
+</tr>
+</tbody></table>
+<p>磁盘i节点的设计非常精妙，前面部分存放文件属性，<strong>后面的数组 <code>minix_inode_t::zone</code> 是你打开每一个文件，都能从0偏移开始读取的根本原因</strong>。如果你有仔细研究过onix&#x2F;xv6内存管理当中内存虚拟内存机制，你会发现，i节点对文件数据块的管理 和 虚拟内存的页表-页框-页目录机制思想一模一样。</p>
+<p>尽管物理上磁盘只有一块，i节点磁盘数据结构这种 直接块-间接块-双重间接块 机制让虚拟文件系统当中的每个文件都像独占一块磁盘一样，使（实际上）非连续空间连续化，可以从偏移0位置开始顺序读写数据。同时，在这种机制的加持下，更便于磁盘块的管理，增加零散磁盘块的利用率。</p>
+<p>有了上面i节点管理数据块的理论知识，下面让我们一步步了解 <code>sys_read</code> 和 <code>sys_write</code> 系统调用的实现。</p>
+<p>首先是 <code>sys_read</code> 函数，伪代码如下：</p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br></pre></td><td class="code"><pre><span class="line"><span class="type">int</span> <span class="title function_">sys_read</span><span class="params">(<span class="type">fd_t</span> fd, <span class="type">char</span> *buf, <span class="type">int</span> count)</span> &#123;</span><br><span class="line">    <span class="comment">// ...</span></span><br><span class="line">    <span class="keyword">if</span> ((ret = fd_check(fd, &amp;file)) &lt; EOK)</span><br><span class="line">        <span class="keyword">return</span> ret;</span><br><span class="line"></span><br><span class="line">    <span class="type">inode_t</span> *inode = file-&gt;inode;</span><br><span class="line"></span><br><span class="line">    <span class="type">int</span> len = inode-&gt;op-&gt;read(inode, buf, count, file-&gt;offset);</span><br><span class="line"></span><br><span class="line">    <span class="keyword">if</span> (len &gt; <span class="number">0</span>)</span><br><span class="line">        file-&gt;offset += len;</span><br><span class="line"></span><br><span class="line">    <span class="keyword">return</span> len;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<blockquote>
+<ol>
+<li>首先将fd转换为文件表项 <code>file_t</code> 。</li>
+<li>由文件表项获得文件的i节点代理。</li>
+<li>调用 minix read 回调读取数据。</li>
+</ol>
+</blockquote>
+<p>直接来到了minix read 回调——minix_read。该函数根据传入的要读的数据长度len和文件偏移offset来来逐块读取数据。如下：</p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br><span class="line">36</span><br><span class="line">37</span><br><span class="line">38</span><br><span class="line">39</span><br><span class="line">40</span><br><span class="line">41</span><br><span class="line">42</span><br><span class="line">43</span><br><span class="line">44</span><br><span class="line">45</span><br><span class="line">46</span><br><span class="line">47</span><br><span class="line">48</span><br><span class="line">49</span><br><span class="line">50</span><br><span class="line">51</span><br><span class="line">52</span><br><span class="line">53</span><br><span class="line">54</span><br><span class="line">55</span><br><span class="line">56</span><br><span class="line">57</span><br><span class="line">58</span><br><span class="line">59</span><br><span class="line">60</span><br><span class="line">61</span><br><span class="line">62</span><br><span class="line">63</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">// 从 inode 的 offset 处，读 len 个字节到 buf</span></span><br><span class="line"><span class="type">static</span> <span class="type">int</span> <span class="title function_">minix_read</span><span class="params">(<span class="type">inode_t</span> *inode, <span class="type">char</span> *data, <span class="type">int</span> len, <span class="type">off_t</span> offset)</span> &#123;</span><br><span class="line">    <span class="type">minix_inode_t</span> *minode = (<span class="type">minix_inode_t</span> *)inode-&gt;desc;</span><br><span class="line">    <span class="keyword">if</span> (ISCHR(minode-&gt;mode)) &#123;</span><br><span class="line">        assert(minode-&gt;zone[<span class="number">0</span>]);</span><br><span class="line">        <span class="keyword">return</span> device_read(minode-&gt;zone[<span class="number">0</span>], data, len, <span class="number">0</span>, <span class="number">0</span>);</span><br><span class="line">    &#125; <span class="keyword">else</span> <span class="keyword">if</span> (ISBLK(minode-&gt;mode)) &#123;</span><br><span class="line">        assert(minode-&gt;zone[<span class="number">0</span>]);</span><br><span class="line">        <span class="type">device_t</span> *device = device_get(minode-&gt;zone[<span class="number">0</span>]);</span><br><span class="line">        assert(len % BLOCK_SIZE == <span class="number">0</span>);</span><br><span class="line">        assert(device_read(minode-&gt;zone[<span class="number">0</span>], data, len / BLOCK_SIZE, offset / BLOCK_SIZE, <span class="number">0</span>) == EOK);</span><br><span class="line">        <span class="keyword">return</span> len;</span><br><span class="line">    &#125;</span><br><span class="line"></span><br><span class="line">    assert(ISFILE(minode-&gt;mode) || ISDIR(minode-&gt;mode));</span><br><span class="line"></span><br><span class="line">    <span class="comment">// 如果偏移量超过文件大小，返回 EOF</span></span><br><span class="line">    <span class="keyword">if</span> (offset &gt;= minode-&gt;size) &#123;</span><br><span class="line">        <span class="keyword">return</span> EOF;</span><br><span class="line">    &#125;</span><br><span class="line"></span><br><span class="line">    <span class="comment">// 开始读取的位置</span></span><br><span class="line">    u32 begin = offset;</span><br><span class="line"></span><br><span class="line">    <span class="comment">// 剩余字节数</span></span><br><span class="line">    u32 left = MIN(len, minode-&gt;size - offset);</span><br><span class="line">    <span class="keyword">while</span> (left) &#123;</span><br><span class="line">        <span class="comment">// 找到对应的文件便宜，所在文件块</span></span><br><span class="line">        <span class="type">idx_t</span> nr = minix_bmap(inode, offset / BLOCK_SIZE, <span class="literal">false</span>);</span><br><span class="line">        assert(nr);</span><br><span class="line"></span><br><span class="line">        <span class="comment">// 读取文件块缓冲</span></span><br><span class="line">        <span class="type">buffer_t</span> *buf = bread(inode-&gt;dev, nr);</span><br><span class="line"></span><br><span class="line">        <span class="comment">// 文件块中的偏移量</span></span><br><span class="line">        u32 start = offset % BLOCK_SIZE;</span><br><span class="line"></span><br><span class="line">        <span class="comment">// 本次需要读取的字节数</span></span><br><span class="line">        u32 chars = MIN(BLOCK_SIZE - start, left);</span><br><span class="line"></span><br><span class="line">        <span class="comment">// 更新 偏移量 和 剩余字节数</span></span><br><span class="line">        offset += chars;</span><br><span class="line">        left -= chars;</span><br><span class="line"></span><br><span class="line">        <span class="comment">// 文件块中的指针</span></span><br><span class="line">        <span class="type">char</span> *ptr = buf-&gt;data + start;</span><br><span class="line"></span><br><span class="line">        <span class="comment">// 拷贝内容</span></span><br><span class="line">        <span class="built_in">memcpy</span>(data, ptr, chars);</span><br><span class="line"></span><br><span class="line">        <span class="comment">// 更新缓存位置</span></span><br><span class="line">        data += chars;</span><br><span class="line"></span><br><span class="line">        <span class="comment">// 释放文件块缓冲</span></span><br><span class="line">        brelse(buf);</span><br><span class="line">    &#125;</span><br><span class="line"></span><br><span class="line">    <span class="comment">// 更新访问时间</span></span><br><span class="line">    inode-&gt;atime = time();</span><br><span class="line"></span><br><span class="line">    <span class="comment">// 返回读取数量</span></span><br><span class="line">    <span class="keyword">return</span> offset - begin;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p>函数逻辑如下：</p>
+<blockquote>
+<ol>
+<li>判断文件类型，如果是字符设备或者块设备，就根据minode-&gt;zone[0]获取到设备的设备号，然后调用虚拟设备回调函数，去读取数据并返回。如果是普通文件&#x2F;目录，继续下面步骤。</li>
+<li>普通文件的话，进入while循环，调用minix_bmap函数基于i节点的zone数组将offset转换为数据所在磁盘块。</li>
+<li>获取磁盘块缓存。</li>
+<li>读取 <code>MIN(BLOCK_SIZE - start, left)</code> 长的数据。</li>
+<li>如果读取的数据不够len字节，重复2~4步骤。</li>
+</ol>
+</blockquote>
+<p>那么，minix_bmap函数是怎么实现的呢？onix对minix_bmap稍微有些复杂。这里附上我的想法，我觉得可以重用 <a target="_blank" rel="noopener" href="https://blog.csdn.net/m0_52566365/article/details/139525258">这才是计科之 Onix &amp; XV6 源码分析（2、类Unix的内存管理）</a> 的做法。思想就是基于 i节点的磁盘结构图 对offset进行划分，如下：</p>
+<blockquote>
+<ul>
+<li>如果 offset 在直接块覆盖范围内，直接通过zone数组读取数据块即可。</li>
+<li>如果 offset 在一级间接块覆盖范围内。<ul>
+<li>首先将offset减去直接块所能表示的最大地址。</li>
+<li>将offset看成虚拟磁盘地址，然后由 <code>(offset &amp; 0x7FC00) &gt;&gt; 10</code> 公式获取虚拟磁盘地址高9位作为一级间接块的数组（元素为uint16_t）索引，然后取得磁盘数据块号后，将offset末尾的10位作为磁盘数据块内偏移。 获取块内偏移的公式：<code>offset &amp; 0x3FF</code> ，最终获得到物理磁盘地址。</li>
+</ul>
+</li>
+<li>如果 offset 在二级间接块覆盖范围内。<ul>
+<li>首先将offset减去直接块 + 一级间接块所能表示的最大地址。</li>
+<li>将offset看成虚拟磁盘地址，然后由 <code>(offset &amp; 0xFF80000) &gt;&gt; 10</code> 公式获取虚拟磁盘地址高9位作为一级间接块的数组（元素为uint16_t）索引，取得二级间接块号后，根据公式 <code>(offset &amp; 0x7FC00) &gt;&gt; 10</code> 得到二级间接块数组（元素同样为uint16_t）索引，取得磁盘数据块号后，将offset末尾的10位作为磁盘数据块内偏移。 获取块内偏移的公式：<code>offset &amp; 0x3FF</code> ，最终获得到物理磁盘地址。</li>
+</ul>
+</li>
+</ul>
+</blockquote>
+<p>但是， <strong>由于onix规定zone数组元素类型为uint16_t，所以这决定了onix最大能表示的磁盘块号为2^16 - 1， 故onix的磁盘有效大小的上限为 64MB。</strong> 当然，作为学习操作系统，我们就不必太过于精益求精。</p>
+<p>文件系统的写，是读的逆过程，代码逻辑极其相似，行文至此，篇幅过多，这里就不带着大家读代码了，建议读者亲自去扒一扒onix的源码。</p>
+<h3 id="目录的操作"><a href="#目录的操作" class="headerlink" title="目录的操作"></a>目录的操作</h3><p>最后就是文件系统目录的操作，这里主要讲解两个函数：<code>find_entry</code> 和 <code>add_entry</code>。面对目录，只需要记住一点，目录其实就是一个 文件内容被规定死的 普通文件。目录文件会存放一个个目录条目，onix当中目录条目数据结构如下：</p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">// 文件目录项结构</span></span><br><span class="line"><span class="keyword">typedef</span> <span class="class"><span class="keyword">struct</span> <span class="title">minix_dentry_t</span></span></span><br><span class="line"><span class="class">&#123;</span></span><br><span class="line">    u16 nr;              <span class="comment">// i 节点</span></span><br><span class="line">    <span class="type">char</span> name[NAME_LEN]; <span class="comment">// 文件名</span></span><br><span class="line">&#125; <span class="type">minix_dentry_t</span>;</span><br></pre></td></tr></table></figure>
+
+<p>目录项图解如下：</p>
+<p><img src="/2025/09/28/xv6/FileSystem/photo/filesystem/onix_dentry.drawio.png"></p>
+<p>在onix当中，find_entry函数为了找到目标目录项会使用for循环遍历传进来的目录的所有目录项。</p>
+<p>add_entry同样会遍历目录的目录项，直到找到一个 <code>nr</code> 成员为0的目录项，在onix当中，nr为0意味这该目录项未被占用。所以相应的，如果你想删除一个目录项，只需将对应的nr置为0即可。onix的minix_rmdir函数也正是这样做的。</p>
+<hr>
+<p><strong>本章完结</strong></p>
+
+    </div>
+
+    
+    
+    
+        <div class="reward-container">
+  <div></div>
+  <button onclick="var qr = document.getElementById('qr'); qr.style.display = (qr.style.display === 'none') ? 'block' : 'none';">
+    打赏
+  </button>
+  <div id="qr" style="display: none;">
+      
+      <div style="display: inline-block;">
+        <img src="/images/wechatpay.jpg" alt="半个馒头 微信支付">
+        <p>微信支付</p>
+      </div>
+
+  </div>
+</div>
+
+
+      <footer class="post-footer">
+          <div class="post-tags">
+              <a href="/tags/%E7%B1%BBUnix%E6%BA%90%E7%A0%81%E5%89%96%E6%9E%90/" rel="tag"># 类Unix源码剖析</a>
+          </div>
+
+        
+
+
+        
+    <div class="post-nav">
+      <div class="post-nav-item">
+    <a href="/2025/07/11/rkmedia/add_flow/" rel="prev" title="增加一个Flow节点的流程">
+      <i class="fa fa-chevron-left"></i> 增加一个Flow节点的流程
+    </a></div>
+      <div class="post-nav-item">
+    <a href="/2025/09/28/buildroot/stage_install/" rel="next" title="Buildroot实现stage/target安装阶段，在执行原项目当中cmake的instll代码外再执行自定义的安装代码">
+      Buildroot实现stage/target安装阶段，在执行原项目当中cmake的instll代码外再执行自定义的安装代码 <i class="fa fa-chevron-right"></i>
+    </a></div>
+    </div>
+      </footer>
+    
+  </article>
+  
+  
+  
+
+
+
+          </div>
+          
+
+<script>
+  window.addEventListener('tabs:register', () => {
+    let { activeClass } = CONFIG.comments;
+    if (CONFIG.comments.storage) {
+      activeClass = localStorage.getItem('comments_active') || activeClass;
+    }
+    if (activeClass) {
+      let activeTab = document.querySelector(`a[href="#comment-${activeClass}"]`);
+      if (activeTab) {
+        activeTab.click();
+      }
+    }
+  });
+  if (CONFIG.comments.storage) {
+    window.addEventListener('tabs:click', event => {
+      if (!event.target.matches('.tabs-comment .tab-content .tab-pane')) return;
+      let commentClass = event.target.classList[1];
+      localStorage.setItem('comments_active', commentClass);
+    });
+  }
+</script>
+
+        </div>
+          
+  
+  <div class="toggle sidebar-toggle">
+    <span class="toggle-line toggle-line-first"></span>
+    <span class="toggle-line toggle-line-middle"></span>
+    <span class="toggle-line toggle-line-last"></span>
+  </div>
+
+  <aside class="sidebar">
+    <div class="sidebar-inner">
+
+      <ul class="sidebar-nav motion-element">
+        <li class="sidebar-nav-toc">
+          文章目录
+        </li>
+        <li class="sidebar-nav-overview">
+          站点概览
+        </li>
+      </ul>
+
+      <!--noindex-->
+      <div class="post-toc-wrap sidebar-panel">
+          <div class="post-toc motion-element"><ol class="nav"><li class="nav-item nav-level-2"><a class="nav-link" href="#%E5%89%8D%E8%A8%80"><span class="nav-number">1.</span> <span class="nav-text">前言</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#%E7%A3%81%E7%9B%98IO%E9%A9%B1%E5%8A%A8%E5%B1%82-%E8%99%9A%E6%8B%9F%E8%AE%BE%E5%A4%87%E5%AE%9E%E7%8E%B0%E5%B1%82"><span class="nav-number">2.</span> <span class="nav-text">磁盘IO驱动层 &amp; 虚拟设备实现层</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#%E5%AF%B9%E4%BA%8EXV6"><span class="nav-number">2.1.</span> <span class="nav-text">对于XV6</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#%E5%AF%B9%E4%BA%8EOnix"><span class="nav-number">2.2.</span> <span class="nav-text">对于Onix</span></a></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#%E7%A3%81%E7%9B%98%E5%9D%97%E7%BC%93%E5%AD%98%E5%B1%82"><span class="nav-number">3.</span> <span class="nav-text">磁盘块缓存层</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#%E4%BA%8B%E5%8A%A1%E5%B1%82%EF%BC%88%E6%97%A5%E5%BF%97%E5%B1%82%EF%BC%89"><span class="nav-number">4.</span> <span class="nav-text">事务层（日志层）</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#%E6%97%A5%E5%BF%97%E5%B1%82%E7%AE%80%E4%BB%8B"><span class="nav-number">4.1.</span> <span class="nav-text">日志层简介</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#%E6%97%A5%E5%BF%97%E5%B1%82%E8%AE%BE%E8%AE%A1%E2%80%94%E2%80%94%E6%97%A5%E5%BF%97%E7%9A%84%E7%A3%81%E7%9B%98%E7%BB%93%E6%9E%84"><span class="nav-number">4.2.</span> <span class="nav-text">日志层设计——日志的磁盘结构</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#%E6%97%A5%E5%BF%97%E5%B1%82%E8%AE%BE%E8%AE%A1%E2%80%94%E2%80%94%E6%97%A5%E5%BF%97%E7%9A%84%E5%B0%81%E8%A3%85"><span class="nav-number">4.3.</span> <span class="nav-text">日志层设计——日志的封装</span></a></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#%E8%99%9A%E6%8B%9F%E6%96%87%E4%BB%B6%E7%B3%BB%E7%BB%9F%E5%AE%9E%E7%8E%B0%E5%B1%82"><span class="nav-number">5.</span> <span class="nav-text">虚拟文件系统实现层</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#i%E8%8A%82%E7%82%B9%E5%88%9D%E6%AD%A5%E4%BB%8B%E7%BB%8D"><span class="nav-number">5.1.</span> <span class="nav-text">i节点初步介绍</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#i%E8%8A%82%E7%82%B9%E7%9A%84%E5%88%86%E9%85%8D%E4%B8%8E%E9%87%8A%E6%94%BE"><span class="nav-number">5.2.</span> <span class="nav-text">i节点的分配与释放</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#%E7%A3%81%E7%9B%98%E6%95%B0%E6%8D%AE%E5%9D%97%E7%9A%84%E5%88%86%E9%85%8D%E4%B8%8E%E9%87%8A%E6%94%BE"><span class="nav-number">5.3.</span> <span class="nav-text">磁盘数据块的分配与释放</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#%E6%A0%B9%E6%96%87%E4%BB%B6%E7%B3%BB%E7%BB%9F%E7%9A%84%E6%8C%82%E8%BD%BD"><span class="nav-number">5.4.</span> <span class="nav-text">根文件系统的挂载</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#%E8%99%9A%E6%8B%9F%E6%96%87%E4%BB%B6%E7%9A%84%E6%89%93%E5%BC%80-%E5%85%B3%E9%97%AD"><span class="nav-number">5.5.</span> <span class="nav-text">虚拟文件的打开&#x2F;关闭</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#%E8%99%9A%E6%8B%9F%E6%96%87%E4%BB%B6%E7%9A%84%E8%AF%BB-%E5%86%99"><span class="nav-number">5.6.</span> <span class="nav-text">虚拟文件的读&#x2F;写</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#%E7%9B%AE%E5%BD%95%E7%9A%84%E6%93%8D%E4%BD%9C"><span class="nav-number">5.7.</span> <span class="nav-text">目录的操作</span></a></li></ol></li></ol></div>
+      </div>
+      <!--/noindex-->
+
+      <div class="site-overview-wrap sidebar-panel">
+        <div class="site-author motion-element" itemprop="author" itemscope itemtype="http://schema.org/Person">
+    <img class="site-author-image" itemprop="image" alt="半个馒头"
+      src="/images/avatar.jpg">
+  <p class="site-author-name" itemprop="name">半个馒头</p>
+  <div class="site-description" itemprop="description"></div>
+</div>
+<div class="site-state-wrap motion-element">
+  <nav class="site-state">
+      <div class="site-state-item site-state-posts">
+          <a href="/archives/">
+        
+          <span class="site-state-item-count">58</span>
+          <span class="site-state-item-name">日志</span>
+        </a>
+      </div>
+      <div class="site-state-item site-state-tags">
+            <a href="/tags/">
+          
+        <span class="site-state-item-count">18</span>
+        <span class="site-state-item-name">标签</span></a>
+      </div>
+  </nav>
+</div>
+  <div class="links-of-author motion-element">
+      <span class="links-of-author-item">
+        <a href="https://github.com/LunarStore" title="GitHub → https:&#x2F;&#x2F;github.com&#x2F;LunarStore" rel="noopener" target="_blank"><i class="fa fa-fw fa-github"></i>GitHub</a>
+      </span>
+      <span class="links-of-author-item">
+        <a href="mailto:18772124875@163.com" title="网易邮箱 → mailto:18772124875@163.com" rel="noopener" target="_blank"><i class="fa fa-fw fa-fas fa-envelope"></i>网易邮箱</a>
+      </span>
+  </div>
+
+
+  <div class="links-of-blogroll motion-element">
+    <div class="links-of-blogroll-title">
+      <i class="fa fa-fw fa-link"></i>
+      友情链接
+    </div>
+    <ul class="links-of-blogroll-list">
+        <li class="links-of-blogroll-item">
+          <a href="https://blog.csdn.net/m0_52566365" title="https:&#x2F;&#x2F;blog.csdn.net&#x2F;m0_52566365" rel="noopener" target="_blank">CSDN博客地址</a>
+        </li>
+    </ul>
+  </div>
+
+      </div>
+        <div class="back-to-top motion-element">
+          <i class="fa fa-arrow-up"></i>
+          <span>0%</span>
+        </div>
+
+    </div>
+  </aside>
+  <div id="sidebar-dimmer"></div>
+
+
+      </div>
+    </main>
+
+    <footer class="footer">
+      <div class="footer-inner">
+        
+
+        
+
+<div class="copyright">
+  
+  &copy; 
+  <span itemprop="copyrightYear">2025</span>
+  <span class="with-love">
+    <i class="fa fa-user"></i>
+  </span>
+  <span class="author" itemprop="copyrightHolder">半个馒头</span>
+</div>
+  <div class="powered-by">由 <a href="https://hexo.io/" class="theme-link" rel="noopener" target="_blank">Hexo</a> & <a href="https://theme-next.org/" class="theme-link" rel="noopener" target="_blank">NexT.Gemini</a> 强力驱动
+  </div>
+
+        
+<div class="busuanzi-count">
+  <script async src="https://busuanzi.ibruce.info/busuanzi/2.3/busuanzi.pure.mini.js"></script>
+    <span class="post-meta-item" id="busuanzi_container_site_uv" style="display: none;">
+      <span class="post-meta-item-icon">
+        <i class="fa fa-user"></i>
+      </span>
+      <span class="site-uv" title="总访客量">
+        <span id="busuanzi_value_site_uv"></span>
+      </span>
+    </span>
+    <span class="post-meta-divider">|</span>
+    <span class="post-meta-item" id="busuanzi_container_site_pv" style="display: none;">
+      <span class="post-meta-item-icon">
+        <i class="fa fa-eye"></i>
+      </span>
+      <span class="site-pv" title="总访问量">
+        <span id="busuanzi_value_site_pv"></span>
+      </span>
+    </span>
+</div>
+
+
+
+
+
+
+
+
+      </div>
+    </footer>
+  </div>
+
+  
+  <script src="/lib/anime.min.js"></script>
+  <script src="/lib/velocity/velocity.min.js"></script>
+  <script src="/lib/velocity/velocity.ui.min.js"></script>
+
+<script src="/js/utils.js"></script>
+
+<script src="/js/motion.js"></script>
+
+
+<script src="/js/schemes/pisces.js"></script>
+
+
+<script src="/js/next-boot.js"></script>
+
+
+
+
+  
+
+
+
+
+  
+<script src="/js/local-search.js"></script>
+
+
+
+
+
+
+
+
+
+
+
+
+
+  
+
+  
+
+</body>
+</html>

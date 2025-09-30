@@ -1,0 +1,671 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=2">
+<meta name="theme-color" content="#222">
+<meta name="generator" content="Hexo 7.3.0">
+  <link rel="apple-touch-icon" sizes="180x180" href="/images/apple-touch-icon-next.png">
+  <link rel="icon" type="image/png" sizes="32x32" href="/images/favicon-32x32-next.png">
+  <link rel="icon" type="image/png" sizes="16x16" href="/images/favicon-16x16-next.png">
+  <link rel="mask-icon" href="/images/logo.svg" color="#222">
+
+<link rel="stylesheet" href="/css/main.css">
+
+
+<link rel="stylesheet" href="/lib/font-awesome/css/font-awesome.min.css">
+  <link rel="stylesheet" href="/lib/pace/pace-theme-flash.min.css">
+  <script src="/lib/pace/pace.min.js"></script>
+
+<script id="hexo-configurations">
+    var NexT = window.NexT || {};
+    var CONFIG = {"hostname":"www.halfmantou.xyz","root":"/","scheme":"Gemini","version":"7.8.0","exturl":false,"sidebar":{"position":"left","display":"post","padding":18,"offset":12,"onmobile":false},"copycode":{"enable":true,"show_result":true,"style":null},"back2top":{"enable":true,"sidebar":true,"scrollpercent":true},"bookmark":{"enable":false,"color":"#222","save":"auto"},"fancybox":false,"mediumzoom":false,"lazyload":false,"pangu":false,"comments":{"style":"tabs","active":null,"storage":true,"lazyload":false,"nav":null},"algolia":{"hits":{"per_page":10},"labels":{"input_placeholder":"Search for Posts","hits_empty":"We didn't find any results for the search: ${query}","hits_stats":"${hits} results found in ${time} ms"}},"localsearch":{"enable":true,"trigger":"auto","top_n_per_article":3,"unescape":false,"preload":false},"motion":{"enable":true,"async":false,"transition":{"post_block":"fadeIn","post_header":"slideDownIn","post_body":"slideDownIn","coll_header":"slideLeftIn","sidebar":"slideUpIn"}},"path":"search.json"};
+  </script>
+
+  <meta name="description" content="WorkFlow源码剖析——GO-Task 源码分析 WorkFlow源码剖析——Communicator之TCPServer（上） WorkFlow源码剖析——Communicator之TCPServer（中） WorkFlow源码剖析——Communicator之TCPServer（下） 前言上一篇博客已经介绍了一下WorkFlow GO-Task的实现原理。本文会介绍一下WorkFlow T">
+<meta property="og:type" content="article">
+<meta property="og:title" content="WorkFlow源码剖析——Communicator之TCPServer（上）">
+<meta property="og:url" content="https://www.halfmantou.xyz/2024/11/02/workflow/TCPServer_1/index.html">
+<meta property="og:site_name" content="碎碎念念">
+<meta property="og:description" content="WorkFlow源码剖析——GO-Task 源码分析 WorkFlow源码剖析——Communicator之TCPServer（上） WorkFlow源码剖析——Communicator之TCPServer（中） WorkFlow源码剖析——Communicator之TCPServer（下） 前言上一篇博客已经介绍了一下WorkFlow GO-Task的实现原理。本文会介绍一下WorkFlow T">
+<meta property="og:locale" content="zh_CN">
+<meta property="og:image" content="https://www.halfmantou.xyz/2024/11/02/workflow/TCPServer_1/photo/EventLoopFlowChart.drawio.png">
+<meta property="og:image" content="https://www.halfmantou.xyz/2024/11/02/workflow/TCPServer_1/photo/EventLoopThreadPool.drawio.png">
+<meta property="article:published_time" content="2024-11-02T04:00:00.000Z">
+<meta property="article:modified_time" content="2025-09-29T14:24:25.580Z">
+<meta property="article:author" content="半个馒头">
+<meta property="article:tag" content="高性能服务器框架">
+<meta name="twitter:card" content="summary">
+<meta name="twitter:image" content="https://www.halfmantou.xyz/2024/11/02/workflow/TCPServer_1/photo/EventLoopFlowChart.drawio.png">
+
+<link rel="canonical" href="https://www.halfmantou.xyz/2024/11/02/workflow/TCPServer_1/">
+
+
+<script id="page-configurations">
+  // https://hexo.io/docs/variables.html
+  CONFIG.page = {
+    sidebar: "",
+    isHome : false,
+    isPost : true,
+    lang   : 'zh-CN'
+  };
+</script>
+
+  <title>WorkFlow源码剖析——Communicator之TCPServer（上） | 碎碎念念</title>
+  
+
+
+
+
+
+
+  <noscript>
+  <style>
+  .use-motion .brand,
+  .use-motion .menu-item,
+  .sidebar-inner,
+  .use-motion .post-block,
+  .use-motion .pagination,
+  .use-motion .comments,
+  .use-motion .post-header,
+  .use-motion .post-body,
+  .use-motion .collection-header { opacity: initial; }
+
+  .use-motion .site-title,
+  .use-motion .site-subtitle {
+    opacity: initial;
+    top: initial;
+  }
+
+  .use-motion .logo-line-before i { left: initial; }
+  .use-motion .logo-line-after i { right: initial; }
+  </style>
+</noscript>
+
+</head>
+
+<body itemscope itemtype="http://schema.org/WebPage">
+  <div class="container use-motion">
+    <div class="headband"></div>
+
+    <header class="header" itemscope itemtype="http://schema.org/WPHeader">
+      <div class="header-inner"><div class="site-brand-container">
+  <div class="site-nav-toggle">
+    <div class="toggle" aria-label="切换导航栏">
+      <span class="toggle-line toggle-line-first"></span>
+      <span class="toggle-line toggle-line-middle"></span>
+      <span class="toggle-line toggle-line-last"></span>
+    </div>
+  </div>
+
+  <div class="site-meta">
+
+    <a href="/" class="brand" rel="start">
+      <span class="logo-line-before"><i></i></span>
+      <h1 class="site-title">碎碎念念</h1>
+      <span class="logo-line-after"><i></i></span>
+    </a>
+  </div>
+
+  <div class="site-nav-right">
+    <div class="toggle popup-trigger">
+        <i class="fa fa-search fa-fw fa-lg"></i>
+    </div>
+  </div>
+</div>
+
+
+
+
+<nav class="site-nav">
+  <ul id="menu" class="menu">
+        <li class="menu-item menu-item-home">
+
+    <a href="/" rel="section"><i class="fa fa-fw fa-home"></i>首页</a>
+
+  </li>
+        <li class="menu-item menu-item-about">
+
+    <a href="/about/" rel="section"><i class="fa fa-fw fa-user"></i>关于</a>
+
+  </li>
+        <li class="menu-item menu-item-tags">
+
+    <a href="/tags/" rel="section"><i class="fa fa-fw fa-tags"></i>标签<span class="badge">18</span></a>
+
+  </li>
+        <li class="menu-item menu-item-categories">
+
+    <a href="/categories/" rel="section"><i class="fa fa-fw fa-th"></i>分类<span class="badge">0</span></a>
+
+  </li>
+        <li class="menu-item menu-item-archives">
+
+    <a href="/archives/" rel="section"><i class="fa fa-fw fa-archive"></i>归档<span class="badge">58</span></a>
+
+  </li>
+      <li class="menu-item menu-item-search">
+        <a role="button" class="popup-trigger"><i class="fa fa-search fa-fw"></i>搜索
+        </a>
+      </li>
+  </ul>
+</nav>
+
+
+
+  <div class="search-pop-overlay">
+    <div class="popup search-popup">
+        <div class="search-header">
+  <span class="search-icon">
+    <i class="fa fa-search"></i>
+  </span>
+  <div class="search-input-container">
+    <input autocomplete="off" autocapitalize="off"
+           placeholder="搜索..." spellcheck="false"
+           type="search" class="search-input">
+  </div>
+  <span class="popup-btn-close">
+    <i class="fa fa-times-circle"></i>
+  </span>
+</div>
+<div id="search-result">
+  <div id="no-result">
+    <i class="fa fa-spinner fa-pulse fa-5x fa-fw"></i>
+  </div>
+</div>
+
+    </div>
+  </div>
+
+</div>
+    </header>
+
+    
+  <div class="reading-progress-bar"></div>
+
+  <a href="https://github.com/LunarStore" class="github-corner" title="Follow me on GitHub" aria-label="Follow me on GitHub" rel="noopener" target="_blank"><svg width="80" height="80" viewBox="0 0 250 250" aria-hidden="true"><path d="M0,0 L115,115 L130,115 L142,142 L250,250 L250,0 Z"></path><path d="M128.3,109.0 C113.8,99.7 119.0,89.6 119.0,89.6 C122.0,82.7 120.5,78.6 120.5,78.6 C119.2,72.0 123.4,76.3 123.4,76.3 C127.3,80.9 125.5,87.3 125.5,87.3 C122.9,97.6 130.6,101.9 134.4,103.2" fill="currentColor" style="transform-origin: 130px 106px;" class="octo-arm"></path><path d="M115.0,115.0 C114.9,115.1 118.7,116.5 119.8,115.4 L133.7,101.6 C136.9,99.2 139.9,98.4 142.2,98.6 C133.8,88.0 127.5,74.4 143.8,58.0 C148.5,53.4 154.0,51.2 159.7,51.0 C160.3,49.4 163.2,43.6 171.4,40.1 C171.4,40.1 176.1,42.5 178.8,56.2 C183.1,58.6 187.2,61.8 190.9,65.4 C194.5,69.0 197.7,73.2 200.1,77.6 C213.8,80.2 216.3,84.9 216.3,84.9 C212.7,93.1 206.9,96.0 205.4,96.6 C205.1,102.4 203.0,107.8 198.3,112.5 C181.9,128.9 168.3,122.5 157.7,114.1 C157.9,116.9 156.7,120.9 152.7,124.9 L141.0,136.5 C139.8,137.7 141.6,141.9 141.8,141.8 Z" fill="currentColor" class="octo-body"></path></svg></a>
+
+
+    <main class="main">
+      <div class="main-inner">
+        <div class="content-wrap">
+          
+
+          <div class="content post posts-expand">
+            
+
+    
+  
+  
+  <article itemscope itemtype="http://schema.org/Article" class="post-block" lang="zh-CN">
+    <link itemprop="mainEntityOfPage" href="https://www.halfmantou.xyz/2024/11/02/workflow/TCPServer_1/">
+
+    <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
+      <meta itemprop="image" content="/images/avatar.jpg">
+      <meta itemprop="name" content="半个馒头">
+      <meta itemprop="description" content="">
+    </span>
+
+    <span hidden itemprop="publisher" itemscope itemtype="http://schema.org/Organization">
+      <meta itemprop="name" content="碎碎念念">
+    </span>
+      <header class="post-header">
+        <h1 class="post-title" itemprop="name headline">
+          WorkFlow源码剖析——Communicator之TCPServer（上）
+        </h1>
+
+        <div class="post-meta">
+            <span class="post-meta-item">
+              <span class="post-meta-item-icon">
+                <i class="fa fa-calendar-o"></i>
+              </span>
+              <span class="post-meta-item-text">发表于</span>
+
+              <time title="创建时间：2024-11-02 12:00:00" itemprop="dateCreated datePublished" datetime="2024-11-02T12:00:00+08:00">2024-11-02</time>
+            </span>
+              <span class="post-meta-item">
+                <span class="post-meta-item-icon">
+                  <i class="fa fa-calendar-check-o"></i>
+                </span>
+                <span class="post-meta-item-text">更新于</span>
+                <time title="修改时间：2025-09-29 22:24:25" itemprop="dateModified" datetime="2025-09-29T22:24:25+08:00">2025-09-29</time>
+              </span>
+
+          
+            <span class="post-meta-item" title="阅读次数" id="busuanzi_container_page_pv" style="display: none;">
+              <span class="post-meta-item-icon">
+                <i class="fa fa-eye"></i>
+              </span>
+              <span class="post-meta-item-text">阅读次数：</span>
+              <span id="busuanzi_value_page_pv"></span>
+            </span>
+
+        </div>
+      </header>
+
+    
+    
+    
+    <div class="post-body" itemprop="articleBody">
+
+      
+        <p><a target="_blank" rel="noopener" href="https://blog.csdn.net/m0_52566365/article/details/142903964">WorkFlow源码剖析——GO-Task 源码分析</a></p>
+<p><a target="_blank" rel="noopener" href="https://blog.csdn.net/m0_52566365/article/details/143452443">WorkFlow源码剖析——Communicator之TCPServer（上）</a></p>
+<p><a target="_blank" rel="noopener" href="https://blog.csdn.net/m0_52566365/article/details/143493066">WorkFlow源码剖析——Communicator之TCPServer（中）</a></p>
+<p><a target="_blank" rel="noopener" href="https://blog.csdn.net/m0_52566365/article/details/143605123">WorkFlow源码剖析——Communicator之TCPServer（下）</a></p>
+<h2 id="前言"><a href="#前言" class="headerlink" title="前言"></a>前言</h2><p>上一篇博客已经介绍了一下WorkFlow GO-Task的实现原理。本文会介绍一下WorkFlow Tcp Server端的一些实现细节以及有趣的思想。因为这部分涉及的内容有点多，一些有趣的细节也希望能完整的叙述出来，所以我可能会将TCPServer拆分成上中下三个部分。三个部分分别对应：poller的实现（即对IO对路复用事件池的封装，属于最底层），Communicator的实现（对连接对象生命周期的管理，属于中间层），最后就是TCPServer的实现（利用中间层实现一个TCPServer）。文件异步IO相关的内容，后面抽空会补上。</p>
+<span id="more"></span>
+
+<p>这里声明一下：</p>
+<p>关于workflow的线程池，其实最终的目的就是实现一个线程池嘛，知道它是个什么东西，看一下它的接口，其实就差不多了。原理都是一样的，就是实现细节上各有各的特点。workflow的线程池简单描述它的特点就是一种链式的线程池。它所涉及的源码也不多就200多行，如果专门起一篇博客去讲解它，以我的表达能力和理解的深度，估计到时候代码的比例又会占大头。成了纯纯的贴代码的博客是我不愿意看到的。所以如果你对workflow线程池的实现感兴趣，建议你亲自去看看它的源码。我始终认为，如果你想了解一个项目的源码，博客写的再好，也只能作为辅助，它只能在你看源码有疑惑时给你一些指点，或者说作为你在读完源码后，回头巩固的一种手段。最终亲眼看看代码才是正道。</p>
+<p>关于消息队列，和线程池紧密相关的就是任务（&#x2F;消息）队列。我最大的收货就是：我们以往再写线程池任务队列时，读写都是一把锁，而workflow线程的任务队列却有两把锁，<strong>读和写分别持有一把</strong>，巧妙的降低了锁的竞争。具体细节，感兴趣的读者可以自行阅读源码，这里就不过多赘述。</p>
+<p>Workflow其实没有TcpServer的概念，相关的其实就是一个CommService，而CommService其实可以理解为TCPServer，尽管CommService其实也是支持udp等其他非tcp的协议。但是我们重点只关注tcp相关的东西。所以，下文提到的TcpServer都代指CommService。</p>
+<p>本文会按照如下顺序讲解TcpServer的实现：</p>
+<p>poller相关的数据结构的介绍 -&gt; 事件循环的设计 -&gt; 对poller_node的增删改 -&gt; 对定时器的增删 -&gt; 对IO事件回调函数的流程分析。</p>
+<h2 id="对IO以及IO多路复用的封装"><a href="#对IO以及IO多路复用的封装" class="headerlink" title="对IO以及IO多路复用的封装"></a>对IO以及IO多路复用的封装</h2><p>本节内容主要集中在poller.c文件，主要关注workflow对epoll事件池的设计以及linux原生IO相关api的最底层的封装。这里涉及大量的回调。不得不说workflow对回调理解的是真的透彻。</p>
+<h3 id="数据结构的分析"><a href="#数据结构的分析" class="headerlink" title="数据结构的分析"></a>数据结构的分析</h3><p>首先是数据结构__poller：</p>
+<figure class="highlight cpp"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">typedef</span> <span class="keyword">struct</span> <span class="title class_">__poller</span> <span class="type">poller_t</span>;   <span class="comment">// 对外暴露的名称</span></span><br><span class="line"></span><br><span class="line"><span class="keyword">struct</span> <span class="title class_">__poller</span></span><br><span class="line">&#123;</span><br><span class="line">	<span class="type">size_t</span> max_open_files;                              <span class="comment">// 该epollfd支持的最大fd</span></span><br><span class="line">	<span class="built_in">void</span> (*callback)(<span class="keyword">struct</span> poller_result *, <span class="type">void</span> *);   <span class="comment">// 由Communicator设置，Communicator会根据poller_result.poller_data.operation的类型回调不同的函数。</span></span><br><span class="line">	<span class="type">void</span> *context;                                      <span class="comment">// 传给callback的参数</span></span><br><span class="line"></span><br><span class="line">	<span class="type">pthread_t</span> tid;                                      <span class="comment">// epollfd监听线程的线程id</span></span><br><span class="line">	<span class="type">int</span> pfd;                                            <span class="comment">// epollfd</span></span><br><span class="line">	<span class="type">int</span> timerfd;</span><br><span class="line">	<span class="type">int</span> pipe_rd;                                        <span class="comment">// 管道读端，通知回收某个/些__poller_node</span></span><br><span class="line">	<span class="type">int</span> pipe_wr;                                        <span class="comment">// 管道写端</span></span><br><span class="line">	<span class="type">int</span> stopped;</span><br><span class="line">	<span class="keyword">struct</span> <span class="title class_">rb_root</span> timeo_tree;                          <span class="comment">// 带超时的__poller_node红黑树，以下三个成员都和[定时器]红黑树相关</span></span><br><span class="line">	<span class="keyword">struct</span> <span class="title class_">rb_node</span> *tree_first;</span><br><span class="line">	<span class="keyword">struct</span> <span class="title class_">rb_node</span> *tree_last;</span><br><span class="line">	<span class="keyword">struct</span> <span class="title class_">list_head</span> timeo_list;                        <span class="comment">// 带超时的__poller_node链表</span></span><br><span class="line">	<span class="keyword">struct</span> <span class="title class_">list_head</span> no_timeo_list;                     <span class="comment">// 不带超时的__poller_node链表</span></span><br><span class="line">	<span class="keyword">struct</span> <span class="title class_">__poller_node</span> **nodes;                       <span class="comment">// 可根据fd索引每一个__poller_node</span></span><br><span class="line">	<span class="type">pthread_mutex_t</span> mutex;</span><br><span class="line">	<span class="type">char</span> buf[POLLER_BUFSIZE];                           <span class="comment">// 共享buffer</span></span><br><span class="line">&#125;;</span><br></pre></td></tr></table></figure>
+
+<p>poller的数据结构每项成员的定义非常恰到好处，我相信比较难理解的就是为啥为定时器搞了两种结构：链表和红黑树？后面在看到定时器的增删查改时再谈谈我的理解。</p>
+<p>这里可以先用定时器类型，简单的对__poller_node进行分类：</p>
+<ol>
+<li><p>带超时的__poller_node：带超时的__poller_node又有两种挂法：</p>
+<ol>
+<li><p>被挂到红黑树timeo_tree上。</p>
+</li>
+<li><p>按递增顺序，被挂到超时链表timeo_list上。</p>
+</li>
+</ol>
+</li>
+<li><p>不带超时的__poller_node：被挂到no_timeo_list链表上。</p>
+</li>
+</ol>
+<p>然后就是数据结构__poller_node：</p>
+<p>它的定义如下：</p>
+<figure class="highlight cpp"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">struct</span> <span class="title class_">__poller_node</span></span><br><span class="line">&#123;</span><br><span class="line">	<span class="type">int</span> state;                  <span class="comment">// __poller_node的状态</span></span><br><span class="line">	<span class="type">int</span> error;</span><br><span class="line">	<span class="keyword">struct</span> <span class="title class_">poller_data</span> data;    <span class="comment">// 稍后解释</span></span><br><span class="line"><span class="meta">#<span class="keyword">pragma</span> pack(1)</span></span><br><span class="line">	<span class="keyword">union</span></span><br><span class="line">	&#123;</span><br><span class="line">		<span class="keyword">struct</span> <span class="title class_">list_head</span> list;  <span class="comment">// 如果是在链表上使用该成员作为节点</span></span><br><span class="line">		<span class="keyword">struct</span> <span class="title class_">rb_node</span> rb;      <span class="comment">// 如果是在红黑树上使用该成员作为节点</span></span><br><span class="line">	&#125;;</span><br><span class="line"><span class="meta">#<span class="keyword">pragma</span> pack()</span></span><br><span class="line">	<span class="type">char</span> in_rbtree;             <span class="comment">// 是在红黑树上吗？</span></span><br><span class="line">	<span class="type">char</span> removed;               <span class="comment">// 被从epoll上移除取消监听（链表/红黑树上也会移除该node）</span></span><br><span class="line">	<span class="type">int</span> event;                  <span class="comment">// epoll监听的事件</span></span><br><span class="line">	<span class="keyword">struct</span> <span class="title class_">timespec</span> timeout;    <span class="comment">// fd超时时间</span></span><br><span class="line">	<span class="keyword">struct</span> <span class="title class_">__poller_node</span> *res;  <span class="comment">// 稍后解释，（PS，我也有点忘了）</span></span><br><span class="line">&#125;;</span><br></pre></td></tr></table></figure>
+
+<p>如果你看过Muduo的源码，那么__poller + __poller_node可以看作Muduo当中的EPollPoller，而Muduo当中，定时器同样使用的是timerfd_，区别是Muduo当中直接使用了标准库当中的std::set对定时器进行排序，而workflow使用的是自己造的红黑树的轮子。并且workflow额外使用了一个链表来维护带超时的__poller_node。</p>
+<p>当然在__poller_node结构体当中，我还没有解释data成员是干啥的，这里既然扯到了Muduo，顺便提一嘴：data成员其实可以等价与Muduo当中的Channel。poller_data当中也是有各种来自（Communicator）上层注册的回调函数。</p>
+<p>poller_dataj结构体在workflow当中定义如下：</p>
+<figure class="highlight cpp"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">struct</span> <span class="title class_">poller_data</span></span><br><span class="line">&#123;</span><br><span class="line"><span class="comment">// poll关心的事件的定义。</span></span><br><span class="line"><span class="meta">#<span class="keyword">define</span> PD_OP_TIMER			0</span></span><br><span class="line"><span class="meta">#<span class="keyword">define</span> PD_OP_READ			1</span></span><br><span class="line"><span class="meta">#<span class="keyword">define</span> PD_OP_WRITE			2</span></span><br><span class="line"><span class="meta">#<span class="keyword">define</span> PD_OP_LISTEN		3</span></span><br><span class="line"><span class="meta">#<span class="keyword">define</span> PD_OP_CONNECT		4</span></span><br><span class="line"><span class="meta">#<span class="keyword">define</span> PD_OP_RECVFROM		5</span></span><br><span class="line"><span class="comment">/* ... */</span></span><br><span class="line"><span class="meta">#<span class="keyword">define</span> PD_OP_EVENT			9</span></span><br><span class="line"><span class="meta">#<span class="keyword">define</span> PD_OP_NOTIFY		10</span></span><br><span class="line">	<span class="type">short</span> operation;</span><br><span class="line">	<span class="type">unsigned</span> <span class="type">short</span> iovcnt;</span><br><span class="line">	<span class="type">int</span> fd;</span><br><span class="line">	SSL *ssl;</span><br><span class="line">	<span class="keyword">union</span></span><br><span class="line">	&#123;</span><br><span class="line">		<span class="type">poller_message_t</span> *(*create_message)(<span class="type">void</span> *);    <span class="comment">// 钩爪异步读上下文的回调</span></span><br><span class="line">		<span class="built_in">int</span> (*partial_written)(<span class="type">size_t</span>, <span class="type">void</span> *);</span><br><span class="line">		<span class="type">void</span> *(*accept)(<span class="type">const</span> <span class="keyword">struct</span> sockaddr *, <span class="type">socklen_t</span>, <span class="type">int</span>, <span class="type">void</span> *);</span><br><span class="line">		<span class="type">void</span> *(*recvfrom)(<span class="type">const</span> <span class="keyword">struct</span> sockaddr *, <span class="type">socklen_t</span>,</span><br><span class="line">						  <span class="type">const</span> <span class="type">void</span> *, <span class="type">size_t</span>, <span class="type">void</span> *);</span><br><span class="line">		<span class="type">void</span> *(*event)(<span class="type">void</span> *);</span><br><span class="line">		<span class="type">void</span> *(*notify)(<span class="type">void</span> *, <span class="type">void</span> *);</span><br><span class="line">	&#125;;</span><br><span class="line">	<span class="type">void</span> *context;</span><br><span class="line">	<span class="keyword">union</span></span><br><span class="line">	&#123;</span><br><span class="line">		<span class="type">poller_message_t</span> *message;      <span class="comment">// 异步读上下文，由create_message创建</span></span><br><span class="line">		<span class="keyword">struct</span> <span class="title class_">iovec</span> *write_iov;        <span class="comment">// 异步写缓存</span></span><br><span class="line">		<span class="type">void</span> *result;</span><br><span class="line">	&#125;;</span><br><span class="line">&#125;;</span><br></pre></td></tr></table></figure>
+
+<p>|	回调函数		|	作用	|<br>|	:-:				|	:-:		|<br>|	create_message	|	（fd的read事件）利用该回调可以构造一个msg对象，并且每次在fd可读时，将读到的数据交给该msg去处理（解析），解释完成后返回一个大于0的值，然后通poller的callback通知上层（Communicator）|<br>|	partial_written	|	（fd的write事件）在每次fd可写并且<strong>尽力</strong>写入一些数据后会调用该回调，以更新写超时时间	|<br>| accept			|	（fd的read事件）在listen fd接受一条连接并为连接创建一个读写sockfd后，会调用该回调，回调会为该sockfd创建一个CommServiceTarget对象	|<br>|	recvfrom		|	（fd的read事件）使用udp协议的读（可以先不管，主要研究tcp，先将workflow的tcp打通）	|<br>|	event			|	（fd的read事件）为实现文件fd的异步读写而生，作者暂时还未能去详细了解，在后续有空了再补上，我们重点还是关注网络socket fd的读写事件和回调	|<br>|	notify	|	同event	|</p>
+<p>其次就是poller_result结构体，该结构体其实就是__poller_node最前面三个成员。在poller.c当中，poller_result一般是以指针的形式去使用，并且是将__poller_node类型的变量的地址作为其值，如果你C语言基础足够扎实，结合poller_result和__poller_node定义的成员去看，其实很容易的理解到：<strong>将__poller_node类型的变量的地址作为poller_result*变量的值的用法就是只使用__poller_node的前三个成员。</strong></p>
+<figure class="highlight cpp"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br></pre></td><td class="code"><pre><span class="line"></span><br><span class="line"><span class="keyword">struct</span> <span class="title class_">poller_result</span></span><br><span class="line">&#123;</span><br><span class="line"><span class="meta">#<span class="keyword">define</span> PR_ST_SUCCESS		0</span></span><br><span class="line"><span class="meta">#<span class="keyword">define</span> PR_ST_FINISHED		1</span></span><br><span class="line"><span class="meta">#<span class="keyword">define</span> PR_ST_ERROR			2</span></span><br><span class="line"><span class="meta">#<span class="keyword">define</span> PR_ST_DELETED		3</span></span><br><span class="line"><span class="meta">#<span class="keyword">define</span> PR_ST_MODIFIED		4</span></span><br><span class="line"><span class="meta">#<span class="keyword">define</span> PR_ST_STOPPED		5</span></span><br><span class="line">	<span class="type">int</span> state;</span><br><span class="line">	<span class="type">int</span> error;</span><br><span class="line">	<span class="keyword">struct</span> <span class="title class_">poller_data</span> data;</span><br><span class="line">	<span class="comment">/* In callback, spaces of six pointers are available from here. */</span></span><br><span class="line">&#125;;</span><br></pre></td></tr></table></figure>
+
+<p>在了解了poller当中的数据结构之后，如果你之前有过阅读其他网络库&#x2F;框架相关源码，其实我们就可以猜测，workflow当中的poller一定会有针对epollfd&#x2F;超时链表&#x2F;红黑树进行增删查改的一些函数。</p>
+<p>这里吐槽一下workflow，我觉得muduo、sylar这些网络框架层次其实更加分明，epoll池是epoll池、io读写操作是io读写操作、定时器是定时器。而在workflow当中。这三部分完全混合在了一个文件当中去实现。导致我最开始看poller源码时，感觉很混乱。</p>
+<h3 id="事件循环（Event-Loop）-—-主干"><a href="#事件循环（Event-Loop）-—-主干" class="headerlink" title="事件循环（Event Loop） — 主干"></a>事件循环（Event Loop） — 主干</h3><p>凡是网络框架都会使用epoll&#x2F;poll等IO多路复用机制，不得不说IO多路复用机制也确实挺好用的。而使用了IO多路复用机制的程序肯定避不开事件循环。本小节会逐步讲解从__poller的创建 到 事件循环的启动。</p>
+<p>首先是__poller的创建，其实__poller和__mpoller的创建可以放一起去讲解，__mpoller就是一群__poller的集合，可以将__mpoller理解为__poller的manager，一个__poller在创建时会申请一个epollfd，而__mpoller向外部提供的接口是具有负载均衡的功能的，它会将读写socketfd分散的发给__poller，同样的__poller内部就是一群__poller_node的集合（socket fd），你也可以将__poller看作__poller_node的manager。下面来看看__mpoller是如何构造每一个__poller的。</p>
+<figure class="highlight cpp"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br></pre></td><td class="code"><pre><span class="line"><span class="type">static</span> <span class="type">int</span> __mpoller_create(<span class="type">const</span> <span class="keyword">struct</span> poller_params *params,</span><br><span class="line">							<span class="type">mpoller_t</span> *mpoller) &#123;</span><br><span class="line">	<span class="type">void</span> **nodes_buf = (<span class="type">void</span> **)<span class="built_in">calloc</span>(params-&gt;max_open_files, <span class="built_in">sizeof</span> (<span class="type">void</span> *));</span><br><span class="line">	<span class="type">unsigned</span> <span class="type">int</span> i;</span><br><span class="line"></span><br><span class="line">	<span class="keyword">if</span> (nodes_buf) &#123;</span><br><span class="line">		<span class="keyword">for</span> (i = <span class="number">0</span>; i &lt; mpoller-&gt;nthreads; i++) &#123;</span><br><span class="line">			mpoller-&gt;poller[i] = __poller_create(nodes_buf, params);</span><br><span class="line">			<span class="keyword">if</span> (!mpoller-&gt;poller[i])</span><br><span class="line">				<span class="keyword">break</span>;</span><br><span class="line">		&#125;</span><br><span class="line"></span><br><span class="line">		<span class="keyword">if</span> (i == mpoller-&gt;nthreads) &#123;</span><br><span class="line">			mpoller-&gt;nodes_buf = nodes_buf;</span><br><span class="line">			<span class="keyword">return</span> <span class="number">0</span>;</span><br><span class="line">		&#125;</span><br><span class="line">		<span class="comment">// ...</span></span><br><span class="line">	&#125;</span><br><span class="line"></span><br><span class="line">	<span class="keyword">return</span> <span class="number">-1</span>;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p>代码很简单，就是分配一个max_open_files大小的指针数组（nodes_buf），然后调用__poller_create函数，将nodes_buf作为参数构造__poller对象，__poller_create会根据传入的参数对__poller做一些初始化，而__poller的nodes成员被初始化为指向nodes_buf，前面介绍过，nodes成员可根据socket fd索引__poller_node。 <strong>那么问题就来了，多个__poller共用一个nodes_buf，这样不会有问题吗？？？</strong></p>
+<p>（经过深入思考）我可以明确的告诉你，确实不会，而且这种用法还很奇妙。这是因为有 <strong>{nodes成员可根据socket fd索引__poller_node}</strong> 这句话保底，因为在linux当中，一个进程当中的描述符（fd）绝对不可能重复！所以即使你创建的多个__poller对象，多个__poller对象又共用一个nodes_buf，但是分配给它们的socket fd（__poller_node）绝对<strong>互不相同</strong>，又因为__poller_node是根据socket fd索引的，故真实的情况是：<strong>每个__poller会共用一个nodes_buf，但是各自使用nodes_buf的不同entry。</strong></p>
+<p>然后就是__poller的启动，调用mpoller的mpoller_start函数可以启动所有的__poller，对于每个__poller的启动会调用poller_start函数，它的实现如下：</p>
+<figure class="highlight cpp"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br></pre></td><td class="code"><pre><span class="line"><span class="function"><span class="type">int</span> <span class="title">poller_start</span><span class="params">(<span class="type">poller_t</span> *poller)</span> </span>&#123;</span><br><span class="line">	<span class="type">pthread_t</span> tid;</span><br><span class="line">	<span class="type">int</span> ret;</span><br><span class="line"></span><br><span class="line">	<span class="built_in">pthread_mutex_lock</span>(&amp;poller-&gt;mutex);</span><br><span class="line">	<span class="keyword">if</span> (__poller_open_pipe(poller) &gt;= <span class="number">0</span>) &#123;</span><br><span class="line">		ret = <span class="built_in">pthread_create</span>(&amp;tid, <span class="literal">NULL</span>, __poller_thread_routine, poller);</span><br><span class="line">		<span class="keyword">if</span> (ret == <span class="number">0</span>) &#123;</span><br><span class="line">			poller-&gt;tid = tid;</span><br><span class="line">			poller-&gt;stopped = <span class="number">0</span>;</span><br><span class="line">		&#125;</span><br><span class="line">		<span class="keyword">else</span> &#123;</span><br><span class="line">			errno = ret;</span><br><span class="line">			<span class="built_in">close</span>(poller-&gt;pipe_wr);</span><br><span class="line">			<span class="built_in">close</span>(poller-&gt;pipe_rd);</span><br><span class="line">		&#125;</span><br><span class="line">	&#125;</span><br><span class="line"></span><br><span class="line">	<span class="built_in">pthread_mutex_unlock</span>(&amp;poller-&gt;mutex);</span><br><span class="line">	<span class="keyword">return</span> -poller-&gt;stopped;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p>主要就干了两件事：</p>
+<ol>
+<li><p>调用__poller_open_pipe函数创建pipfd，将pipfd读端注册到epollfd上，pipfd在__poller当中起到内存回收的作用。具体是什么玩法，后面详细解释。（PS：说实话第一次看到用pipfd做内存回收的用法感觉挺不可思议的。真得感叹一句真是艺高人胆大！）</p>
+</li>
+<li><p>创建并启动事件循环线程。</p>
+</li>
+</ol>
+<p>总结一下就是和Muduo<strong>很像</strong>的One loop per thread，注意这里的加粗，在看完workflow的__poller源码后，感觉和Muduo的还是有很大差别的，我只能说Muduo的One loop per thread的思想的纯净，Muduo的代码阅读起来也很舒服。而workflow的却不同，它可能夹杂着业务优化的考量，所以并不是那么纯粹的One loop per thread，所以我在源码阅读时比较坎坷。（也可能是我功力不够深厚，没能领悟其奥妙。）针对加锁方面尤为明显，两者每个loop线程都会有自己的互斥锁，Muduo仅在对任务队列操作的时候会加锁，而workflow加锁的范围会稍微大点，凡是对__poller内部数据成员的访问都会加锁。</p>
+<p>事件循环的历程函数是__poller_thread_routine，它的实现如下：</p>
+<figure class="highlight cpp"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br><span class="line">36</span><br><span class="line">37</span><br><span class="line">38</span><br><span class="line">39</span><br><span class="line">40</span><br><span class="line">41</span><br><span class="line">42</span><br><span class="line">43</span><br><span class="line">44</span><br><span class="line">45</span><br><span class="line">46</span><br><span class="line">47</span><br><span class="line">48</span><br><span class="line">49</span><br><span class="line">50</span><br><span class="line">51</span><br><span class="line">52</span><br><span class="line">53</span><br><span class="line">54</span><br><span class="line">55</span><br><span class="line">56</span><br><span class="line">57</span><br><span class="line">58</span><br><span class="line">59</span><br><span class="line">60</span><br><span class="line">61</span><br></pre></td><td class="code"><pre><span class="line"><span class="type">static</span> <span class="type">void</span> *__poller_thread_routine(<span class="type">void</span> *arg) &#123;</span><br><span class="line">	<span class="type">poller_t</span> *poller = (<span class="type">poller_t</span> *)arg;</span><br><span class="line">	<span class="type">__poller_event_t</span> events[POLLER_EVENTS_MAX];</span><br><span class="line">	<span class="keyword">struct</span> <span class="title class_">__poller_node</span> time_node;</span><br><span class="line">	<span class="keyword">struct</span> <span class="title class_">__poller_node</span> *node;</span><br><span class="line">	<span class="type">int</span> has_pipe_event;</span><br><span class="line">	<span class="type">int</span> nevents;</span><br><span class="line">	<span class="type">int</span> i;</span><br><span class="line"></span><br><span class="line">	<span class="keyword">while</span> (<span class="number">1</span>) &#123;</span><br><span class="line">		<span class="comment">// 将最早超时的节点的超时时间作为定时器的超时时间</span></span><br><span class="line">		__poller_set_timer(poller);</span><br><span class="line">		<span class="comment">// 等待时间的到来</span></span><br><span class="line">		nevents = __poller_wait(events, POLLER_EVENTS_MAX, poller);</span><br><span class="line">		<span class="comment">// 获取当前时间，小于该时间的节点视为超时。</span></span><br><span class="line">		<span class="built_in">clock_gettime</span>(CLOCK_MONOTONIC, &amp;time_node.timeout);</span><br><span class="line">		<span class="comment">// pipfd可读？</span></span><br><span class="line">		has_pipe_event = <span class="number">0</span>;</span><br><span class="line">		<span class="keyword">for</span> (i = <span class="number">0</span>; i &lt; nevents; i++) &#123;</span><br><span class="line">			<span class="comment">// 将private转换为__poller_node*</span></span><br><span class="line">			node = (<span class="keyword">struct</span> __poller_node *)__poller_event_data(&amp;events[i]);</span><br><span class="line">			<span class="keyword">if</span> (node &lt;= (<span class="keyword">struct</span> __poller_node *)<span class="number">1</span>) &#123;	<span class="comment">// 是pipfd？</span></span><br><span class="line">				<span class="keyword">if</span> (node == (<span class="keyword">struct</span> __poller_node *)<span class="number">1</span>)</span><br><span class="line">					has_pipe_event = <span class="number">1</span>;</span><br><span class="line">				<span class="keyword">continue</span>;</span><br><span class="line">			&#125;</span><br><span class="line">			<span class="comment">// 根据__poller_node.data的operation调用对应的回调函数。</span></span><br><span class="line">			<span class="keyword">switch</span> (node-&gt;data.operation) &#123;</span><br><span class="line">			<span class="keyword">case</span> PD_OP_READ:</span><br><span class="line">				__poller_handle_read(node, poller);</span><br><span class="line">				<span class="keyword">break</span>;</span><br><span class="line">			<span class="keyword">case</span> PD_OP_WRITE:</span><br><span class="line">				__poller_handle_write(node, poller);</span><br><span class="line">				<span class="keyword">break</span>;</span><br><span class="line">			<span class="keyword">case</span> PD_OP_LISTEN:</span><br><span class="line">				__poller_handle_listen(node, poller);</span><br><span class="line">				<span class="keyword">break</span>;</span><br><span class="line">			<span class="keyword">case</span> PD_OP_CONNECT:</span><br><span class="line">				__poller_handle_connect(node, poller);</span><br><span class="line">				<span class="keyword">break</span>;</span><br><span class="line">			<span class="comment">/* 省略SSL、UDP相关部分... */</span></span><br><span class="line">			<span class="keyword">case</span> PD_OP_EVENT:</span><br><span class="line">				__poller_handle_event(node, poller);</span><br><span class="line">				<span class="keyword">break</span>;</span><br><span class="line">			<span class="keyword">case</span> PD_OP_NOTIFY:</span><br><span class="line">				__poller_handle_notify(node, poller);</span><br><span class="line">				<span class="keyword">break</span>;</span><br><span class="line">			&#125;</span><br><span class="line">		&#125;</span><br><span class="line"></span><br><span class="line">		<span class="keyword">if</span> (has_pipe_event) &#123;</span><br><span class="line">			<span class="comment">// 内存回收</span></span><br><span class="line">			<span class="keyword">if</span> (__poller_handle_pipe(poller))</span><br><span class="line">				<span class="keyword">break</span>;</span><br><span class="line">		&#125;</span><br><span class="line">		<span class="comment">// 处理超时的__poller_node</span></span><br><span class="line">		__poller_handle_timeout(&amp;time_node, poller);</span><br><span class="line">	&#125;</span><br><span class="line"></span><br><span class="line">	<span class="keyword">return</span> <span class="literal">NULL</span>;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p>流程事件循环的流程图如下所示：</p>
+<p><img src="/2024/11/02/workflow/TCPServer_1/photo/EventLoopFlowChart.drawio.png"></p>
+<p>最后改造了一下之前画的Muduo的one loop per thread的架构图。放在下面，读者可以好好品味一下。</p>
+<p><img src="/2024/11/02/workflow/TCPServer_1/photo/EventLoopThreadPool.drawio.png"></p>
+<p>你可以参考一下<a href="../muduo/EventLoopThreadPool.md">Muduo的one loop per thread的架构图</a>，以及<a href="../xv6/Scheduler.md">xv6最后优化其调度器模型的架构图</a>，再来看workflow的__poller的架构图，你一定会吃惊它们是如此的相似！</p>
+<h3 id="对poller-node的增删改"><a href="#对poller-node的增删改" class="headerlink" title="对poller_node的增删改"></a>对poller_node的增删改</h3><p>poller对外暴露的对对poller_node的增删改的接口包括：poller_add、poller_del、poller_mod。</p>
+<p><strong>首先：</strong></p>
+<p>这些接口在sylar、muduo中其实也有类似的。从函数的名称其实就能推测出它们分别代表：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><span class="line">poller_add -&gt; 向poller中添加poller_node;</span><br><span class="line"></span><br><span class="line">poller_del -&gt; 删除poller_node;</span><br><span class="line"></span><br><span class="line">poller_mod -&gt; 修改poller_node;</span><br></pre></td></tr></table></figure>
+
+<p><strong>进一步的：</strong></p>
+<ol>
+<li><p>poller_add本质上会将poller_node.data.fd连同关心的读&#x2F;写事件<strong>添加</strong>到epoll当中。如果poller_node.timeout被用户设置过，还会将poller_node挂到超时链表上或者是红黑树上。<strong>适当的时候更新timefd的设置。</strong></p>
+</li>
+<li><p>poller_del本质会将poller_node.data.fd连同关心的读&#x2F;写事件从epoll当中<strong>删除</strong>。</p>
+</li>
+<li><p>poller_mod本质上会<strong>修改</strong>被挂到epoll当中的poller_node.data.fd所关心的读&#x2F;写事件。当然此时如果用户重新设置了poller_node的超时时间，则应该<strong>调整</strong>poller_node在超时链表&#x2F;红黑树的位置。<strong>适当的时候更新timefd的设置。</strong></p>
+</li>
+</ol>
+<p><strong>实际上的：</strong></p>
+<p>poller实际源码也正是这样做的。这里有一些比较意思的实践，这里一一列举一下：</p>
+<p>首先是根据poller_node的超时时间，将poller_node挂到超时链表&#x2F;红黑树上的操作。这个操作在poller_add、poller_mod都有需求。所以在poller当中是实现一个专门的函数__poller_insert_node，该函数功能就是<strong>将poller_node插入到超时链表&#x2F;红黑树适当位置，并且在poller_node是最早超时的节点时，更新timefd的设置。</strong></p>
+<p>poller_node源码如下：</p>
+<figure class="highlight cpp"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br></pre></td><td class="code"><pre><span class="line"></span><br><span class="line"><span class="type">static</span> <span class="type">void</span> __poller_insert_node(<span class="keyword">struct</span> __poller_node *node,</span><br><span class="line">								 <span class="type">poller_t</span> *poller) &#123;</span><br><span class="line">	<span class="keyword">struct</span> <span class="title class_">__poller_node</span> *end;</span><br><span class="line"></span><br><span class="line">	end = <span class="built_in">list_entry</span>(poller-&gt;timeo_list.prev, <span class="keyword">struct</span> __poller_node, list);</span><br><span class="line">	<span class="keyword">if</span> (<span class="built_in">list_empty</span>(&amp;poller-&gt;timeo_list)) &#123;</span><br><span class="line">		<span class="built_in">list_add</span>(&amp;node-&gt;list, &amp;poller-&gt;timeo_list);</span><br><span class="line">		end = <span class="built_in">rb_entry</span>(poller-&gt;tree_first, <span class="keyword">struct</span> __poller_node, rb);</span><br><span class="line">	&#125; <span class="keyword">else</span> <span class="keyword">if</span> (__timeout_cmp(node, end) &gt;= <span class="number">0</span>) &#123;</span><br><span class="line">		<span class="built_in">list_add_tail</span>(&amp;node-&gt;list, &amp;poller-&gt;timeo_list);</span><br><span class="line">		<span class="keyword">return</span>;</span><br><span class="line">	&#125; <span class="keyword">else</span> &#123;</span><br><span class="line">		__poller_tree_insert(node, poller);</span><br><span class="line">		<span class="keyword">if</span> (&amp;node-&gt;rb != poller-&gt;tree_first)</span><br><span class="line">			<span class="keyword">return</span>;</span><br><span class="line"></span><br><span class="line">		end = <span class="built_in">list_entry</span>(poller-&gt;timeo_list.next, <span class="keyword">struct</span> __poller_node, list);</span><br><span class="line">	&#125;</span><br><span class="line"></span><br><span class="line">	<span class="keyword">if</span> (!poller-&gt;tree_first || __timeout_cmp(node, end) &lt; <span class="number">0</span>)</span><br><span class="line">		__poller_set_timerfd(poller-&gt;timerfd, &amp;node-&gt;timeout, poller);</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p>第一次看这段代码可能会感觉比较绕，下面我来梳理它的逻辑：</p>
+<p>其实主要是三个分支，假设现在要添加名为node的poller_node：</p>
+<ol start="0">
+<li><p>先获取（按升序排列的）超时链表上的最后一个元素。</p>
+</li>
+<li><p>如果超时链表为空，直接将node加到超时链表尾部，然后获取红黑树第一个poller_node，如果红黑树为空或者说node比红黑树的第一个poller_node还小。那么将timefd的超时时间设置为node的超时时间。</p>
+</li>
+<li><p>如果node比超时链表最后一个poller_node超时时间还大。那直接将node添加到超时链表末尾即可。timefd不用改。</p>
+</li>
+<li><p>如果node超时时间小于超时链表最后一个元素超时时间，就将node添加到红黑树上。此时要是node正好作为红黑树的第一个元素（红黑树当中最小的节点），就比较一下node超时时间和超时链表第一个元素的超时时间。如果node比链表第一个元素超时时间小的话，更新timefd为node的超时时间。</p>
+</li>
+</ol>
+<p>仔细梳理一下该函数的逻辑其实也是很清晰的。说白了就是将node添加到链表&#x2F;红黑树当中，同时当node是作为最小超时时间时，更新一下timefd的超时时间。这里使用两种数据结构的原因是：</p>
+<ol>
+<li><p>利用升序链表追加比红黑树快的优点；</p>
+</li>
+<li><p>利用红黑树随机插入比升序链表快的优点；</p>
+</li>
+</ol>
+<p>其次就是poller当中内存管理的做法：</p>
+<p>对于poller_add、poller_mod其实会调用__poller_new_node（间接调用malloc）分配一个新的地址作为poller_node。</p>
+<p>对于poller_del，会将poller_node从超时链表&#x2F;红黑树上移除。同时<strong>将poller_node的地址作为数据，写到pipe当中。等待pipe读时间处理函数调用poller-&gt;callback去回收</strong>。这种将地址写到管道然后异步回收的做法在我最开始看到的时候是为它捏了一把汗的。像我这种普通人肯定写不出这样的代码的。</p>
+<p>这里可以欣赏一下poller_del的代码</p>
+<figure class="highlight cpp"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br><span class="line">36</span><br><span class="line">37</span><br><span class="line">38</span><br></pre></td><td class="code"><pre><span class="line"><span class="function"><span class="type">int</span> <span class="title">poller_del</span><span class="params">(<span class="type">int</span> fd, <span class="type">poller_t</span> *poller)</span> </span>&#123;</span><br><span class="line">	<span class="keyword">struct</span> <span class="title class_">__poller_node</span> *node;</span><br><span class="line">	<span class="type">int</span> stopped = <span class="number">0</span>;</span><br><span class="line"></span><br><span class="line">	<span class="built_in">pthread_mutex_lock</span>(&amp;poller-&gt;mutex);</span><br><span class="line">	node = poller-&gt;nodes[fd];</span><br><span class="line">	<span class="keyword">if</span> (node) &#123;</span><br><span class="line">		poller-&gt;nodes[fd] = <span class="literal">NULL</span>;</span><br><span class="line"></span><br><span class="line">		<span class="keyword">if</span> (node-&gt;in_rbtree)</span><br><span class="line">			__poller_tree_erase(node, poller);</span><br><span class="line">		<span class="keyword">else</span></span><br><span class="line">			<span class="comment">// 要么是被从超时链表上移除，要么是被从非超时链表上删除。统一都可以使用list_del来删除。</span></span><br><span class="line">			<span class="built_in">list_del</span>(&amp;node-&gt;list);</span><br><span class="line"></span><br><span class="line">		__poller_del_fd(fd, node-&gt;event, poller);</span><br><span class="line"></span><br><span class="line">		node-&gt;error = <span class="number">0</span>;</span><br><span class="line">		node-&gt;state = PR_ST_DELETED;</span><br><span class="line">		stopped = poller-&gt;stopped;</span><br><span class="line">		<span class="keyword">if</span> (!stopped) &#123;</span><br><span class="line">			node-&gt;removed = <span class="number">1</span>;</span><br><span class="line">			<span class="comment">// 将地址写到pipe当中，异步让pipe读事件去回收</span></span><br><span class="line">			<span class="built_in">write</span>(poller-&gt;pipe_wr, &amp;node, <span class="built_in">sizeof</span> (<span class="type">void</span> *));</span><br><span class="line">		&#125;</span><br><span class="line">	&#125;</span><br><span class="line">	<span class="keyword">else</span></span><br><span class="line">		errno = ENOENT;</span><br><span class="line"></span><br><span class="line">	<span class="built_in">pthread_mutex_unlock</span>(&amp;poller-&gt;mutex);</span><br><span class="line">	<span class="keyword">if</span> (stopped) &#123;</span><br><span class="line">		<span class="comment">// 事件处理线程停止了，就主动去释放了。其实pipe读事件处理函数也是做下面这两步操作</span></span><br><span class="line">		<span class="built_in">free</span>(node-&gt;res);</span><br><span class="line">		poller-&gt;<span class="built_in">callback</span>((<span class="keyword">struct</span> poller_result *)node, poller-&gt;context);</span><br><span class="line">	&#125;</span><br><span class="line"></span><br><span class="line">	<span class="keyword">return</span> -!node;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<h3 id="定时器的增删"><a href="#定时器的增删" class="headerlink" title="定时器的增删"></a>定时器的增删</h3><p>poller对外暴露的定时器操作的接口包括：poller_add_timer、poller_del_timer，简单来说就是对定时器进行添加和删除。</p>
+<p>这里可以需要明确一点，超时事件分为两类：定时器超时 和 读写事件的超时。</p>
+<ul>
+<li><p>定时器超时是指：用户需要指定一个回调函数在延迟n ms后才执行。使用场景比如：1分钟向文件写入一条日志，日志内容是系统当前运行状态。</p>
+</li>
+<li><p>读写事件超时是指：在规定的超时时间内必需进行一次io，否则将操作视为超时，进行对应的超时处理。使用场景比如：HTTP的保活（keepalived）。</p>
+</li>
+</ul>
+<p>这两者区别是：定时器超时是<strong>一定会发生</strong>的，而对于读写事件超时，只要规定时间内有io事件发生，则超时<strong>不一定会发生</strong>。</p>
+<p>poller当中定时器其实就是fd为（无效）-1的__poller_node，它不会被添加到epoll当中，但是会根据超时时间被挂到超时链表&#x2F;红黑树上。超时后的处理和IO事件超时的处理一模一样。</p>
+<p>这里贴出部分poller_add_timer代码：</p>
+<figure class="highlight cpp"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br></pre></td><td class="code"><pre><span class="line"><span class="function"><span class="type">int</span> <span class="title">poller_add_timer</span><span class="params">(<span class="type">const</span> <span class="keyword">struct</span> timespec *value, <span class="type">void</span> *context, <span class="type">void</span> **timer,</span></span></span><br><span class="line"><span class="params"><span class="function">					 <span class="type">poller_t</span> *poller)</span> </span>&#123;</span><br><span class="line">	<span class="keyword">struct</span> <span class="title class_">__poller_node</span> *node;</span><br><span class="line"></span><br><span class="line">	node = (<span class="keyword">struct</span> __poller_node *)<span class="built_in">malloc</span>(<span class="built_in">sizeof</span> (<span class="keyword">struct</span> __poller_node));</span><br><span class="line">	<span class="keyword">if</span> (node) &#123;</span><br><span class="line">		node-&gt;data.operation = PD_OP_TIMER;</span><br><span class="line">		node-&gt;data.fd = <span class="number">-1</span>;					<span class="comment">// 标记为无效</span></span><br><span class="line">		node-&gt;data.context = context;</span><br><span class="line"></span><br><span class="line">		<span class="comment">/* ... */</span></span><br><span class="line">		<span class="built_in">clock_gettime</span>(CLOCK_MONOTONIC, &amp;node-&gt;timeout);</span><br><span class="line">		node-&gt;timeout.tv_sec += value-&gt;tv_sec;</span><br><span class="line">		node-&gt;timeout.tv_nsec += value-&gt;tv_nsec;</span><br><span class="line">		<span class="keyword">if</span> (node-&gt;timeout.tv_nsec &gt;= <span class="number">1000000000</span>) &#123;</span><br><span class="line">			node-&gt;timeout.tv_nsec -= <span class="number">1000000000</span>;</span><br><span class="line">			node-&gt;timeout.tv_sec++;</span><br><span class="line">		&#125;</span><br><span class="line"></span><br><span class="line">		*timer = node;</span><br><span class="line">		<span class="built_in">pthread_mutex_lock</span>(&amp;poller-&gt;mutex);</span><br><span class="line">		__poller_insert_node(node, poller);	<span class="comment">// 将poller_node添加到超时链表/红黑树上。</span></span><br><span class="line">		<span class="built_in">pthread_mutex_unlock</span>(&amp;poller-&gt;mutex);</span><br><span class="line">		<span class="keyword">return</span> <span class="number">0</span>;</span><br><span class="line">	&#125;</span><br><span class="line"></span><br><span class="line">	<span class="keyword">return</span> <span class="number">-1</span>;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p>__poller_insert_node函数代码上小结已贴出。poller_del_timer函数实现可以参考poller_del，感兴趣的读者可以直接翻看源码，这里不过多赘述。</p>
+<h3 id="事件处理函数"><a href="#事件处理函数" class="headerlink" title="事件处理函数"></a>事件处理函数</h3><p>下面逐个分析poller当中IO事件的处理函数细节。本文是以workflow的TCPServer为主，这里默认阅读本文的读者是有网络编程的经验的，那么你一定知道一个TCP的服务端最基本的框架如下：</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br></pre></td><td class="code"><pre><span class="line">+-----------+</span><br><span class="line">|	socket	|</span><br><span class="line">+-----------+</span><br><span class="line">	|</span><br><span class="line">	V</span><br><span class="line">+-----------+</span><br><span class="line">|	bind	|	最开始三步由Communicator完成，下一篇博客会细讲。</span><br><span class="line">+-----------+</span><br><span class="line">	|</span><br><span class="line">	V</span><br><span class="line">+-----------+</span><br><span class="line">|	listen	|</span><br><span class="line">+-----------+</span><br><span class="line">	|			______________________________________________</span><br><span class="line">	V</span><br><span class="line">+-----------+</span><br><span class="line">|	accept	|	从这里开始涉及到的所以函数就是接下来讲解的重点。</span><br><span class="line">+-----------+</span><br><span class="line">|	|	|	|</span><br><span class="line">V	V	V	V</span><br><span class="line">fd	fd	fd	...</span><br><span class="line">	/\</span><br><span class="line">read  write</span><br></pre></td></tr></table></figure>
+
+<p>本节就以上图所示顺序逐一介绍各个处理函数实现细节。</p>
+<p>&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;</p>
+<p>首先是accept事件处理函数————__poller_handle_listen，代码如下：</p>
+<figure class="highlight cpp"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br><span class="line">36</span><br><span class="line">37</span><br><span class="line">38</span><br><span class="line">39</span><br><span class="line">40</span><br><span class="line">41</span><br></pre></td><td class="code"><pre><span class="line"></span><br><span class="line"><span class="type">static</span> <span class="type">void</span> __poller_handle_listen(<span class="keyword">struct</span> __poller_node *node,</span><br><span class="line">								   <span class="type">poller_t</span> *poller) &#123;</span><br><span class="line">	<span class="keyword">struct</span> <span class="title class_">__poller_node</span> *res = node-&gt;res;</span><br><span class="line">	<span class="comment">/* ... */</span></span><br><span class="line">	<span class="keyword">while</span> (<span class="number">1</span>) &#123;</span><br><span class="line">		addrlen = <span class="built_in">sizeof</span> (<span class="keyword">struct</span> sockaddr_storage);</span><br><span class="line">		sockfd = <span class="built_in">accept</span>(node-&gt;data.fd, addr, &amp;addrlen);</span><br><span class="line">		<span class="keyword">if</span> (sockfd &lt; <span class="number">0</span>) &#123;</span><br><span class="line">			<span class="keyword">if</span> (errno == EAGAIN || errno == EMFILE || errno == ENFILE)</span><br><span class="line">				<span class="keyword">return</span>;</span><br><span class="line">			<span class="keyword">else</span> <span class="keyword">if</span> (errno == ECONNABORTED)</span><br><span class="line">				<span class="keyword">continue</span>;</span><br><span class="line">			<span class="keyword">else</span></span><br><span class="line">				<span class="keyword">break</span>;</span><br><span class="line">		&#125;</span><br><span class="line"></span><br><span class="line">		result = node-&gt;data.<span class="built_in">accept</span>(addr, addrlen, sockfd, node-&gt;data.context);</span><br><span class="line">		<span class="keyword">if</span> (!result)</span><br><span class="line">			<span class="keyword">break</span>;</span><br><span class="line"></span><br><span class="line">		res-&gt;data = node-&gt;data;</span><br><span class="line">		res-&gt;data.result = result;</span><br><span class="line">		res-&gt;error = <span class="number">0</span>;</span><br><span class="line">		res-&gt;state = PR_ST_SUCCESS;</span><br><span class="line">		poller-&gt;<span class="built_in">callback</span>((<span class="keyword">struct</span> poller_result *)res, poller-&gt;context);</span><br><span class="line"></span><br><span class="line">		res = (<span class="keyword">struct</span> __poller_node *)<span class="built_in">malloc</span>(<span class="built_in">sizeof</span> (<span class="keyword">struct</span> __poller_node));</span><br><span class="line">		node-&gt;res = res;</span><br><span class="line">		<span class="keyword">if</span> (!res)</span><br><span class="line">			<span class="keyword">break</span>;</span><br><span class="line">	&#125;</span><br><span class="line"></span><br><span class="line">	<span class="keyword">if</span> (__poller_remove_node(node, poller))	<span class="comment">// 从epoll当中移除fd</span></span><br><span class="line">		<span class="keyword">return</span>;</span><br><span class="line"></span><br><span class="line">	node-&gt;error = errno;</span><br><span class="line">	node-&gt;state = PR_ST_ERROR;</span><br><span class="line">	<span class="built_in">free</span>(node-&gt;res);</span><br><span class="line">	poller-&gt;<span class="built_in">callback</span>((<span class="keyword">struct</span> poller_result *)node, poller-&gt;context);	<span class="comment">// 一般是server在停止或出错才会走到这里。	</span></span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p>逻辑是：不断在一个while循环当中执行如下过程：</p>
+<ol>
+<li><p>（非阻塞的）调用accept系统调用接受客户端的连接。EAGAIN、EMFILE、ENFILE、ECONNABORTED分别代表没有可用连接、文件描述符达到上限、系统无句柄可用、连接终止（客户端的原因）。这些错误都是网络编程当中很常规的错误。都是可以容忍的。所以该return的return，该continue就continue。</p>
+</li>
+<li><p>当接收到一条合法的io连接，就将其scoketfd作为参数回调node-&gt;data.accept，它会回调 Communicator::accept函数，该函数会为连接构造一个CommServiceTarget对象作为返回值，<strong>这里并没有将sockfd设置为非阻塞</strong>。这里读者可以先不必探究CommServiceTarget是干什么的，在下一章讲解Communicator自然会明了。因为我一开始也不知道CommServiceTarget的作用。可以从它的命名先猜测它其实就是IO连接在服务端的一个对象实体吧。</p>
+</li>
+<li><p>回调poller-&gt;callback，其实在看完后面的read、write等io事件的处理函数之后，就会发现最早都会调用poller-&gt;callback，该回调也是在下章讲解Communicator后才发挥重要作用，读者先把它看作黑盒即可。可以预料到它里面一定会将接受的sockfd<strong>设置为非阻塞</strong>，并且最终会将它包装成poller_node加入到poller当中。</p>
+</li>
+</ol>
+<p>&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;</p>
+<p>然后是read事件处理函数————__poller_handle_read，（去除了和SSL相关的代码，剩余的）代码如下：</p>
+<figure class="highlight cpp"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br><span class="line">36</span><br><span class="line">37</span><br><span class="line">38</span><br><span class="line">39</span><br><span class="line">40</span><br><span class="line">41</span><br><span class="line">42</span><br><span class="line">43</span><br><span class="line">44</span><br><span class="line">45</span><br><span class="line">46</span><br><span class="line">47</span><br><span class="line">48</span><br><span class="line">49</span><br><span class="line">50</span><br><span class="line">51</span><br><span class="line">52</span><br><span class="line">53</span><br><span class="line">54</span><br><span class="line">55</span><br><span class="line">56</span><br><span class="line">57</span><br><span class="line">58</span><br><span class="line">59</span><br><span class="line">60</span><br><span class="line">61</span><br><span class="line">62</span><br><span class="line">63</span><br><span class="line">64</span><br><span class="line">65</span><br><span class="line">66</span><br><span class="line">67</span><br><span class="line">68</span><br><span class="line">69</span><br><span class="line">70</span><br><span class="line">71</span><br><span class="line">72</span><br><span class="line">73</span><br><span class="line">74</span><br><span class="line">75</span><br><span class="line">76</span><br><span class="line">77</span><br><span class="line">78</span><br><span class="line">79</span><br><span class="line">80</span><br><span class="line">81</span><br><span class="line">82</span><br><span class="line">83</span><br><span class="line">84</span><br></pre></td><td class="code"><pre><span class="line"><span class="type">static</span> <span class="type">int</span> __poller_append_message(<span class="type">const</span> <span class="type">void</span> *buf, <span class="type">size_t</span> *n,</span><br><span class="line">								   <span class="keyword">struct</span> __poller_node *node,</span><br><span class="line">								   <span class="type">poller_t</span> *poller) &#123;</span><br><span class="line">	<span class="type">poller_message_t</span> *msg = node-&gt;data.message;</span><br><span class="line">	<span class="keyword">struct</span> <span class="title class_">__poller_node</span> *res;</span><br><span class="line">	<span class="type">int</span> ret;</span><br><span class="line"></span><br><span class="line">	<span class="keyword">if</span> (!msg) &#123;	<span class="comment">// 为连接的每个请求包分配一个msg</span></span><br><span class="line">		res = (<span class="keyword">struct</span> __poller_node *)<span class="built_in">malloc</span>(<span class="built_in">sizeof</span> (<span class="keyword">struct</span> __poller_node));</span><br><span class="line">		<span class="keyword">if</span> (!res)</span><br><span class="line">			<span class="keyword">return</span> <span class="number">-1</span>;</span><br><span class="line"></span><br><span class="line">		msg = node-&gt;data.<span class="built_in">create_message</span>(node-&gt;data.context);</span><br><span class="line">		<span class="keyword">if</span> (!msg) &#123;</span><br><span class="line">			<span class="built_in">free</span>(res);</span><br><span class="line">			<span class="keyword">return</span> <span class="number">-1</span>;</span><br><span class="line">		&#125;</span><br><span class="line"></span><br><span class="line">		node-&gt;data.message = msg;</span><br><span class="line">		node-&gt;res = res;</span><br><span class="line">	&#125;</span><br><span class="line">	<span class="keyword">else</span></span><br><span class="line">		res = node-&gt;res;</span><br><span class="line"></span><br><span class="line">	ret = msg-&gt;<span class="built_in">append</span>(buf, n, msg);	<span class="comment">// 通过msg解析请求包（PS，注意同一个请求可能会被拆分成多个tcp报文发送，所以函数可能会被多次回调）</span></span><br><span class="line">	<span class="keyword">if</span> (ret &gt; <span class="number">0</span>) &#123;</span><br><span class="line">		res-&gt;data = node-&gt;data;</span><br><span class="line">		res-&gt;error = <span class="number">0</span>;</span><br><span class="line">		res-&gt;state = PR_ST_SUCCESS;</span><br><span class="line">		<span class="comment">// 当msg收到完整的请求包且解析完后同样回调一下poller-&gt;callback</span></span><br><span class="line">		poller-&gt;<span class="built_in">callback</span>((<span class="keyword">struct</span> poller_result *)res, poller-&gt;context);</span><br><span class="line"></span><br><span class="line">		node-&gt;data.message = <span class="literal">NULL</span>;	<span class="comment">// 清空，为下一个请求做准备</span></span><br><span class="line">		node-&gt;res = <span class="literal">NULL</span>;</span><br><span class="line">	&#125;</span><br><span class="line"></span><br><span class="line">	<span class="keyword">return</span> ret;</span><br><span class="line">&#125;</span><br><span class="line"></span><br><span class="line"><span class="type">static</span> <span class="type">void</span> __poller_handle_read(<span class="keyword">struct</span> __poller_node *node,</span><br><span class="line">								 <span class="type">poller_t</span> *poller) &#123;</span><br><span class="line">	<span class="type">ssize_t</span> nleft;</span><br><span class="line">	<span class="type">size_t</span> n;</span><br><span class="line">	<span class="type">char</span> *p;</span><br><span class="line"></span><br><span class="line">	<span class="keyword">while</span> (<span class="number">1</span>) &#123;</span><br><span class="line">		p = poller-&gt;buf;</span><br><span class="line">		nleft = <span class="built_in">read</span>(node-&gt;data.fd, p, POLLER_BUFSIZE);</span><br><span class="line">		<span class="keyword">if</span> (nleft &lt; <span class="number">0</span>) &#123;</span><br><span class="line">			<span class="keyword">if</span> (errno == EAGAIN)</span><br><span class="line">				<span class="keyword">return</span>;</span><br><span class="line">		&#125;</span><br><span class="line"></span><br><span class="line">		<span class="keyword">if</span> (nleft &lt;= <span class="number">0</span>)</span><br><span class="line">			<span class="keyword">break</span>;</span><br><span class="line"></span><br><span class="line">		<span class="keyword">do</span> &#123;</span><br><span class="line">			n = nleft;</span><br><span class="line">			<span class="keyword">if</span> (__poller_append_message(p, &amp;n, node, poller) &gt;= <span class="number">0</span>) &#123;</span><br><span class="line">				nleft -= n;</span><br><span class="line">				p += n;</span><br><span class="line">			&#125;</span><br><span class="line">			<span class="keyword">else</span></span><br><span class="line">				nleft = <span class="number">-1</span>;</span><br><span class="line">		&#125; <span class="keyword">while</span> (nleft &gt; <span class="number">0</span>);</span><br><span class="line"></span><br><span class="line">		<span class="keyword">if</span> (nleft &lt; <span class="number">0</span>)</span><br><span class="line">			<span class="keyword">break</span>;</span><br><span class="line">	&#125;	<span class="comment">// 连接断开或则有错误发生</span></span><br><span class="line"></span><br><span class="line">	<span class="keyword">if</span> (__poller_remove_node(node, poller))</span><br><span class="line">		<span class="keyword">return</span>;</span><br><span class="line"></span><br><span class="line">	<span class="keyword">if</span> (nleft == <span class="number">0</span>) &#123;</span><br><span class="line">		node-&gt;error = <span class="number">0</span>;</span><br><span class="line">		node-&gt;state = PR_ST_FINISHED;</span><br><span class="line">	&#125; <span class="keyword">else</span> &#123;</span><br><span class="line">		node-&gt;error = errno;</span><br><span class="line">		node-&gt;state = PR_ST_ERROR;</span><br><span class="line">	&#125;</span><br><span class="line"></span><br><span class="line">	<span class="built_in">free</span>(node-&gt;res);</span><br><span class="line">	poller-&gt;<span class="built_in">callback</span>((<span class="keyword">struct</span> poller_result *)node, poller-&gt;context);</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p>因为是异步read，所以__poller_handle_read回调多次才能读完一个完整的客户端请求报文。它的逻辑。主要就是两步，（非阻塞的方式）调用原始read系统调用，然后调用__poller_append_message函数去逐步解析收到的数据。当连接断开或则出现错误就跳出循环，回调poller-&gt;callback处理错误。<strong>这里我们其实可以大胆猜测__poller_append_message函数当中msg-&gt;append函数肯定是一个（HTTP、DNS等）报文解析器。</strong></p>
+<p>这里有一个比较有意思的点是read系统调用所使用的buffer是poller-&gt;buf，它是poller的数据成员，这里所有的fd在read的时候使用同一个buffer，难道不会出问题吗？read的数据不会乱吗？</p>
+<p>这里简单分析一下，首先考虑线程安全问题，因为前面说过：一个poller对应一个线程。所以在线程处理IO事件的时候，一定是串行的，这就排除并行导致的线程安全问题。</p>
+<p>其次，再考虑异步非阻塞的方式读数据，东读一下西读一下会不会存在数据乱掉的问题，如果你仔细分析过__poller_handle_read其实就不会出现这个疑问，因为__poller_handle_read在通过poller-&gt;buf接受到数据后，不管这个请求是否完整，都会在__poller_append_message函数里面的msg-&gt;append进行<strong>异步解析</strong>。解析完毕后，poller-&gt;buf上的数据也就失去了它的意义。所以在处理下一个read事件的时候，放心的随他使用poller-&gt;buf吧。</p>
+<p>&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;</p>
+<p>最后write事件处理函数————__poller_handle_write，代码如下：</p>
+<figure class="highlight cpp"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br><span class="line">36</span><br><span class="line">37</span><br><span class="line">38</span><br><span class="line">39</span><br><span class="line">40</span><br><span class="line">41</span><br><span class="line">42</span><br><span class="line">43</span><br><span class="line">44</span><br><span class="line">45</span><br><span class="line">46</span><br><span class="line">47</span><br><span class="line">48</span><br><span class="line">49</span><br><span class="line">50</span><br><span class="line">51</span><br><span class="line">52</span><br><span class="line">53</span><br><span class="line">54</span><br><span class="line">55</span><br><span class="line">56</span><br><span class="line">57</span><br><span class="line">58</span><br></pre></td><td class="code"><pre><span class="line"><span class="type">static</span> <span class="type">void</span> __poller_handle_write(<span class="keyword">struct</span> __poller_node *node,</span><br><span class="line">								  <span class="type">poller_t</span> *poller)</span><br><span class="line">&#123;</span><br><span class="line">	<span class="keyword">struct</span> <span class="title class_">iovec</span> *iov = node-&gt;data.write_iov;</span><br><span class="line">	<span class="type">size_t</span> count = <span class="number">0</span>;</span><br><span class="line">	<span class="type">ssize_t</span> nleft;</span><br><span class="line">	<span class="type">int</span> iovcnt;</span><br><span class="line">	<span class="type">int</span> ret;</span><br><span class="line"></span><br><span class="line">	<span class="keyword">while</span> (node-&gt;data.iovcnt &gt; <span class="number">0</span>) &#123;</span><br><span class="line">		iovcnt = node-&gt;data.iovcnt;</span><br><span class="line">		<span class="keyword">if</span> (iovcnt &gt; IOV_MAX)</span><br><span class="line">			iovcnt = IOV_MAX;</span><br><span class="line"></span><br><span class="line">		nleft = <span class="built_in">writev</span>(node-&gt;data.fd, iov, iovcnt);</span><br><span class="line">		<span class="keyword">if</span> (nleft &lt; <span class="number">0</span>) &#123;</span><br><span class="line">			ret = errno == EAGAIN ? <span class="number">0</span> : <span class="number">-1</span>;</span><br><span class="line">			<span class="keyword">break</span>;</span><br><span class="line">		&#125;</span><br><span class="line"></span><br><span class="line">		count += nleft;</span><br><span class="line">		<span class="keyword">do</span> &#123;							<span class="comment">// 修正iov</span></span><br><span class="line">			<span class="keyword">if</span> (nleft &gt;= iov-&gt;iov_len) &#123;</span><br><span class="line">				nleft -= iov-&gt;iov_len;</span><br><span class="line">				iov-&gt;iov_base = (<span class="type">char</span> *)iov-&gt;iov_base + iov-&gt;iov_len;</span><br><span class="line">				iov-&gt;iov_len = <span class="number">0</span>;</span><br><span class="line">				iov++;</span><br><span class="line">				node-&gt;data.iovcnt--;</span><br><span class="line">			&#125; <span class="keyword">else</span> &#123;</span><br><span class="line">				iov-&gt;iov_base = (<span class="type">char</span> *)iov-&gt;iov_base + nleft;</span><br><span class="line">				iov-&gt;iov_len -= nleft;</span><br><span class="line">				<span class="keyword">break</span>;</span><br><span class="line">			&#125;</span><br><span class="line">		&#125; <span class="keyword">while</span> (node-&gt;data.iovcnt &gt; <span class="number">0</span>);</span><br><span class="line">	&#125;</span><br><span class="line"></span><br><span class="line">	node-&gt;data.write_iov = iov;</span><br><span class="line">	<span class="keyword">if</span> (node-&gt;data.iovcnt &gt; <span class="number">0</span> &amp;&amp; ret &gt;= <span class="number">0</span>) &#123;</span><br><span class="line">		<span class="keyword">if</span> (count == <span class="number">0</span>)</span><br><span class="line">			<span class="keyword">return</span>;</span><br><span class="line"></span><br><span class="line">		<span class="keyword">if</span> (node-&gt;data.<span class="built_in">partial_written</span>(count, node-&gt;data.context) &gt;= <span class="number">0</span>)	<span class="comment">// 通知一下已发送的数据量</span></span><br><span class="line">			<span class="keyword">return</span>;</span><br><span class="line">	&#125;</span><br><span class="line"></span><br><span class="line">	<span class="keyword">if</span> (__poller_remove_node(node, poller))</span><br><span class="line">		<span class="keyword">return</span>;</span><br><span class="line"></span><br><span class="line">	<span class="keyword">if</span> (node-&gt;data.iovcnt == <span class="number">0</span>) &#123;	<span class="comment">// 为零结束</span></span><br><span class="line">		node-&gt;error = <span class="number">0</span>;</span><br><span class="line">		node-&gt;state = PR_ST_FINISHED;	</span><br><span class="line">	&#125; <span class="keyword">else</span> &#123;						<span class="comment">// 否则出错</span></span><br><span class="line">		node-&gt;error = errno;</span><br><span class="line">		node-&gt;state = PR_ST_ERROR;		</span><br><span class="line">	&#125;</span><br><span class="line"></span><br><span class="line">	poller-&gt;<span class="built_in">callback</span>((<span class="keyword">struct</span> poller_result *)node, poller-&gt;context);</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p>同样，因为是异步写数据，一个客户请求的回复报文可能分多次write才能发送完毕。poller向socketfd写数据采用的是writev接口，writev接口可以很方便的将内存不连续的数据发送到网络上。这在需要向网络写入大量的数据时很方便。因为数据量大所以系统无法一次性分配那么大块内存，所以数据可能被放在内存不连续的离散的buffer当中。writev使用元素类型为struct iovec的数组作为数据缓存，数组当中每个元素存放指向一块缓存的首地址的指针和长度。（非阻塞的）writev会返回实际发送的字节数。从代码中可以看到while循环嵌套了一个do while，因为tcp发送缓存区是有限的，do while作用是根据实际发送的字节数抹除已经发生的buffer，重新计算iov数组等待下一轮while循环继续发送。</p>
+<p>当发送缓存满，会因为EAGAIN跳出while循环，同时因为还存在没有发送完毕的数据，会调用node-&gt;data.partial_written。当数发送完毕，会将poller_node从epoll当中移除（对写事件的监听），最后回调poller-&gt;callback。</p>
+<hr>
+<p><strong>本章完结</strong></p>
+
+    </div>
+
+    
+    
+    
+        <div class="reward-container">
+  <div></div>
+  <button onclick="var qr = document.getElementById('qr'); qr.style.display = (qr.style.display === 'none') ? 'block' : 'none';">
+    打赏
+  </button>
+  <div id="qr" style="display: none;">
+      
+      <div style="display: inline-block;">
+        <img src="/images/wechatpay.jpg" alt="半个馒头 微信支付">
+        <p>微信支付</p>
+      </div>
+
+  </div>
+</div>
+
+
+      <footer class="post-footer">
+          <div class="post-tags">
+              <a href="/tags/%E9%AB%98%E6%80%A7%E8%83%BD%E6%9C%8D%E5%8A%A1%E5%99%A8%E6%A1%86%E6%9E%B6/" rel="tag"># 高性能服务器框架</a>
+          </div>
+
+        
+
+
+        
+    <div class="post-nav">
+      <div class="post-nav-item">
+    <a href="/2024/10/22/else/win_vs_package/" rel="prev" title="VS2022搭建FFMPEG + Opencv开发环境 + 如何打包项目让程序也能独立跑在其他人的电脑上？">
+      <i class="fa fa-chevron-left"></i> VS2022搭建FFMPEG + Opencv开发环境 + 如何打包项目让程序也能独立跑在其他人的电脑上？
+    </a></div>
+      <div class="post-nav-item">
+    <a href="/2024/11/04/workflow/TCPServer_2/" rel="next" title="WorkFlow源码剖析——Communicator之TCPServer（中）">
+      WorkFlow源码剖析——Communicator之TCPServer（中） <i class="fa fa-chevron-right"></i>
+    </a></div>
+    </div>
+      </footer>
+    
+  </article>
+  
+  
+  
+
+
+
+          </div>
+          
+
+<script>
+  window.addEventListener('tabs:register', () => {
+    let { activeClass } = CONFIG.comments;
+    if (CONFIG.comments.storage) {
+      activeClass = localStorage.getItem('comments_active') || activeClass;
+    }
+    if (activeClass) {
+      let activeTab = document.querySelector(`a[href="#comment-${activeClass}"]`);
+      if (activeTab) {
+        activeTab.click();
+      }
+    }
+  });
+  if (CONFIG.comments.storage) {
+    window.addEventListener('tabs:click', event => {
+      if (!event.target.matches('.tabs-comment .tab-content .tab-pane')) return;
+      let commentClass = event.target.classList[1];
+      localStorage.setItem('comments_active', commentClass);
+    });
+  }
+</script>
+
+        </div>
+          
+  
+  <div class="toggle sidebar-toggle">
+    <span class="toggle-line toggle-line-first"></span>
+    <span class="toggle-line toggle-line-middle"></span>
+    <span class="toggle-line toggle-line-last"></span>
+  </div>
+
+  <aside class="sidebar">
+    <div class="sidebar-inner">
+
+      <ul class="sidebar-nav motion-element">
+        <li class="sidebar-nav-toc">
+          文章目录
+        </li>
+        <li class="sidebar-nav-overview">
+          站点概览
+        </li>
+      </ul>
+
+      <!--noindex-->
+      <div class="post-toc-wrap sidebar-panel">
+          <div class="post-toc motion-element"><ol class="nav"><li class="nav-item nav-level-2"><a class="nav-link" href="#%E5%89%8D%E8%A8%80"><span class="nav-number">1.</span> <span class="nav-text">前言</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#%E5%AF%B9IO%E4%BB%A5%E5%8F%8AIO%E5%A4%9A%E8%B7%AF%E5%A4%8D%E7%94%A8%E7%9A%84%E5%B0%81%E8%A3%85"><span class="nav-number">2.</span> <span class="nav-text">对IO以及IO多路复用的封装</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#%E6%95%B0%E6%8D%AE%E7%BB%93%E6%9E%84%E7%9A%84%E5%88%86%E6%9E%90"><span class="nav-number">2.1.</span> <span class="nav-text">数据结构的分析</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#%E4%BA%8B%E4%BB%B6%E5%BE%AA%E7%8E%AF%EF%BC%88Event-Loop%EF%BC%89-%E2%80%94-%E4%B8%BB%E5%B9%B2"><span class="nav-number">2.2.</span> <span class="nav-text">事件循环（Event Loop） — 主干</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#%E5%AF%B9poller-node%E7%9A%84%E5%A2%9E%E5%88%A0%E6%94%B9"><span class="nav-number">2.3.</span> <span class="nav-text">对poller_node的增删改</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#%E5%AE%9A%E6%97%B6%E5%99%A8%E7%9A%84%E5%A2%9E%E5%88%A0"><span class="nav-number">2.4.</span> <span class="nav-text">定时器的增删</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#%E4%BA%8B%E4%BB%B6%E5%A4%84%E7%90%86%E5%87%BD%E6%95%B0"><span class="nav-number">2.5.</span> <span class="nav-text">事件处理函数</span></a></li></ol></li></ol></div>
+      </div>
+      <!--/noindex-->
+
+      <div class="site-overview-wrap sidebar-panel">
+        <div class="site-author motion-element" itemprop="author" itemscope itemtype="http://schema.org/Person">
+    <img class="site-author-image" itemprop="image" alt="半个馒头"
+      src="/images/avatar.jpg">
+  <p class="site-author-name" itemprop="name">半个馒头</p>
+  <div class="site-description" itemprop="description"></div>
+</div>
+<div class="site-state-wrap motion-element">
+  <nav class="site-state">
+      <div class="site-state-item site-state-posts">
+          <a href="/archives/">
+        
+          <span class="site-state-item-count">58</span>
+          <span class="site-state-item-name">日志</span>
+        </a>
+      </div>
+      <div class="site-state-item site-state-tags">
+            <a href="/tags/">
+          
+        <span class="site-state-item-count">18</span>
+        <span class="site-state-item-name">标签</span></a>
+      </div>
+  </nav>
+</div>
+  <div class="links-of-author motion-element">
+      <span class="links-of-author-item">
+        <a href="https://github.com/LunarStore" title="GitHub → https:&#x2F;&#x2F;github.com&#x2F;LunarStore" rel="noopener" target="_blank"><i class="fa fa-fw fa-github"></i>GitHub</a>
+      </span>
+      <span class="links-of-author-item">
+        <a href="mailto:18772124875@163.com" title="网易邮箱 → mailto:18772124875@163.com" rel="noopener" target="_blank"><i class="fa fa-fw fa-fas fa-envelope"></i>网易邮箱</a>
+      </span>
+  </div>
+
+
+  <div class="links-of-blogroll motion-element">
+    <div class="links-of-blogroll-title">
+      <i class="fa fa-fw fa-link"></i>
+      友情链接
+    </div>
+    <ul class="links-of-blogroll-list">
+        <li class="links-of-blogroll-item">
+          <a href="https://blog.csdn.net/m0_52566365" title="https:&#x2F;&#x2F;blog.csdn.net&#x2F;m0_52566365" rel="noopener" target="_blank">CSDN博客地址</a>
+        </li>
+    </ul>
+  </div>
+
+      </div>
+        <div class="back-to-top motion-element">
+          <i class="fa fa-arrow-up"></i>
+          <span>0%</span>
+        </div>
+
+    </div>
+  </aside>
+  <div id="sidebar-dimmer"></div>
+
+
+      </div>
+    </main>
+
+    <footer class="footer">
+      <div class="footer-inner">
+        
+
+        
+
+<div class="copyright">
+  
+  &copy; 
+  <span itemprop="copyrightYear">2025</span>
+  <span class="with-love">
+    <i class="fa fa-user"></i>
+  </span>
+  <span class="author" itemprop="copyrightHolder">半个馒头</span>
+</div>
+  <div class="powered-by">由 <a href="https://hexo.io/" class="theme-link" rel="noopener" target="_blank">Hexo</a> & <a href="https://theme-next.org/" class="theme-link" rel="noopener" target="_blank">NexT.Gemini</a> 强力驱动
+  </div>
+
+        
+<div class="busuanzi-count">
+  <script async src="https://busuanzi.ibruce.info/busuanzi/2.3/busuanzi.pure.mini.js"></script>
+    <span class="post-meta-item" id="busuanzi_container_site_uv" style="display: none;">
+      <span class="post-meta-item-icon">
+        <i class="fa fa-user"></i>
+      </span>
+      <span class="site-uv" title="总访客量">
+        <span id="busuanzi_value_site_uv"></span>
+      </span>
+    </span>
+    <span class="post-meta-divider">|</span>
+    <span class="post-meta-item" id="busuanzi_container_site_pv" style="display: none;">
+      <span class="post-meta-item-icon">
+        <i class="fa fa-eye"></i>
+      </span>
+      <span class="site-pv" title="总访问量">
+        <span id="busuanzi_value_site_pv"></span>
+      </span>
+    </span>
+</div>
+
+
+
+
+
+
+
+
+      </div>
+    </footer>
+  </div>
+
+  
+  <script src="/lib/anime.min.js"></script>
+  <script src="/lib/velocity/velocity.min.js"></script>
+  <script src="/lib/velocity/velocity.ui.min.js"></script>
+
+<script src="/js/utils.js"></script>
+
+<script src="/js/motion.js"></script>
+
+
+<script src="/js/schemes/pisces.js"></script>
+
+
+<script src="/js/next-boot.js"></script>
+
+
+
+
+  
+
+
+
+
+  
+<script src="/js/local-search.js"></script>
+
+
+
+
+
+
+
+
+
+
+
+
+
+  
+
+  
+
+</body>
+</html>

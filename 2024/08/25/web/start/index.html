@@ -1,0 +1,725 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=2">
+<meta name="theme-color" content="#222">
+<meta name="generator" content="Hexo 7.3.0">
+  <link rel="apple-touch-icon" sizes="180x180" href="/images/apple-touch-icon-next.png">
+  <link rel="icon" type="image/png" sizes="32x32" href="/images/favicon-32x32-next.png">
+  <link rel="icon" type="image/png" sizes="16x16" href="/images/favicon-16x16-next.png">
+  <link rel="mask-icon" href="/images/logo.svg" color="#222">
+
+<link rel="stylesheet" href="/css/main.css">
+
+
+<link rel="stylesheet" href="/lib/font-awesome/css/font-awesome.min.css">
+  <link rel="stylesheet" href="/lib/pace/pace-theme-flash.min.css">
+  <script src="/lib/pace/pace.min.js"></script>
+
+<script id="hexo-configurations">
+    var NexT = window.NexT || {};
+    var CONFIG = {"hostname":"www.halfmantou.xyz","root":"/","scheme":"Gemini","version":"7.8.0","exturl":false,"sidebar":{"position":"left","display":"post","padding":18,"offset":12,"onmobile":false},"copycode":{"enable":true,"show_result":true,"style":null},"back2top":{"enable":true,"sidebar":true,"scrollpercent":true},"bookmark":{"enable":false,"color":"#222","save":"auto"},"fancybox":false,"mediumzoom":false,"lazyload":false,"pangu":false,"comments":{"style":"tabs","active":null,"storage":true,"lazyload":false,"nav":null},"algolia":{"hits":{"per_page":10},"labels":{"input_placeholder":"Search for Posts","hits_empty":"We didn't find any results for the search: ${query}","hits_stats":"${hits} results found in ${time} ms"}},"localsearch":{"enable":true,"trigger":"auto","top_n_per_article":3,"unescape":false,"preload":false},"motion":{"enable":true,"async":false,"transition":{"post_block":"fadeIn","post_header":"slideDownIn","post_body":"slideDownIn","coll_header":"slideLeftIn","sidebar":"slideUpIn"}},"path":"search.json"};
+  </script>
+
+  <meta name="description" content="本文主要讲解ANgular在Windows平台的环境搭建。 安装Node.JS 官网下载稳定版本的node.js：https:&#x2F;&#x2F;nodejs.org&#x2F;en&#x2F;  安装对话框一路默认下一步，当然，可以按需修改安装路径。  安装完成后会自动将Node.JS的根目录添加到环境变量，读者可以自行查询。  在nodejs根目录,创建node_global，node_cache文件夹  以管理人员身份运行CM">
+<meta property="og:type" content="article">
+<meta property="og:title" content="Angular快速入门">
+<meta property="og:url" content="https://www.halfmantou.xyz/2024/08/25/web/start/index.html">
+<meta property="og:site_name" content="碎碎念念">
+<meta property="og:description" content="本文主要讲解ANgular在Windows平台的环境搭建。 安装Node.JS 官网下载稳定版本的node.js：https:&#x2F;&#x2F;nodejs.org&#x2F;en&#x2F;  安装对话框一路默认下一步，当然，可以按需修改安装路径。  安装完成后会自动将Node.JS的根目录添加到环境变量，读者可以自行查询。  在nodejs根目录,创建node_global，node_cache文件夹  以管理人员身份运行CM">
+<meta property="og:locale" content="zh_CN">
+<meta property="og:image" content="https://www.halfmantou.xyz/2024/08/25/web/start/photo/FormResult.png">
+<meta property="article:published_time" content="2024-08-25T04:00:00.000Z">
+<meta property="article:modified_time" content="2025-09-29T14:24:25.571Z">
+<meta property="article:author" content="半个馒头">
+<meta property="article:tag" content="Angular">
+<meta name="twitter:card" content="summary">
+<meta name="twitter:image" content="https://www.halfmantou.xyz/2024/08/25/web/start/photo/FormResult.png">
+
+<link rel="canonical" href="https://www.halfmantou.xyz/2024/08/25/web/start/">
+
+
+<script id="page-configurations">
+  // https://hexo.io/docs/variables.html
+  CONFIG.page = {
+    sidebar: "",
+    isHome : false,
+    isPost : true,
+    lang   : 'zh-CN'
+  };
+</script>
+
+  <title>Angular快速入门 | 碎碎念念</title>
+  
+
+
+
+
+
+
+  <noscript>
+  <style>
+  .use-motion .brand,
+  .use-motion .menu-item,
+  .sidebar-inner,
+  .use-motion .post-block,
+  .use-motion .pagination,
+  .use-motion .comments,
+  .use-motion .post-header,
+  .use-motion .post-body,
+  .use-motion .collection-header { opacity: initial; }
+
+  .use-motion .site-title,
+  .use-motion .site-subtitle {
+    opacity: initial;
+    top: initial;
+  }
+
+  .use-motion .logo-line-before i { left: initial; }
+  .use-motion .logo-line-after i { right: initial; }
+  </style>
+</noscript>
+
+</head>
+
+<body itemscope itemtype="http://schema.org/WebPage">
+  <div class="container use-motion">
+    <div class="headband"></div>
+
+    <header class="header" itemscope itemtype="http://schema.org/WPHeader">
+      <div class="header-inner"><div class="site-brand-container">
+  <div class="site-nav-toggle">
+    <div class="toggle" aria-label="切换导航栏">
+      <span class="toggle-line toggle-line-first"></span>
+      <span class="toggle-line toggle-line-middle"></span>
+      <span class="toggle-line toggle-line-last"></span>
+    </div>
+  </div>
+
+  <div class="site-meta">
+
+    <a href="/" class="brand" rel="start">
+      <span class="logo-line-before"><i></i></span>
+      <h1 class="site-title">碎碎念念</h1>
+      <span class="logo-line-after"><i></i></span>
+    </a>
+  </div>
+
+  <div class="site-nav-right">
+    <div class="toggle popup-trigger">
+        <i class="fa fa-search fa-fw fa-lg"></i>
+    </div>
+  </div>
+</div>
+
+
+
+
+<nav class="site-nav">
+  <ul id="menu" class="menu">
+        <li class="menu-item menu-item-home">
+
+    <a href="/" rel="section"><i class="fa fa-fw fa-home"></i>首页</a>
+
+  </li>
+        <li class="menu-item menu-item-about">
+
+    <a href="/about/" rel="section"><i class="fa fa-fw fa-user"></i>关于</a>
+
+  </li>
+        <li class="menu-item menu-item-tags">
+
+    <a href="/tags/" rel="section"><i class="fa fa-fw fa-tags"></i>标签<span class="badge">18</span></a>
+
+  </li>
+        <li class="menu-item menu-item-categories">
+
+    <a href="/categories/" rel="section"><i class="fa fa-fw fa-th"></i>分类<span class="badge">0</span></a>
+
+  </li>
+        <li class="menu-item menu-item-archives">
+
+    <a href="/archives/" rel="section"><i class="fa fa-fw fa-archive"></i>归档<span class="badge">58</span></a>
+
+  </li>
+      <li class="menu-item menu-item-search">
+        <a role="button" class="popup-trigger"><i class="fa fa-search fa-fw"></i>搜索
+        </a>
+      </li>
+  </ul>
+</nav>
+
+
+
+  <div class="search-pop-overlay">
+    <div class="popup search-popup">
+        <div class="search-header">
+  <span class="search-icon">
+    <i class="fa fa-search"></i>
+  </span>
+  <div class="search-input-container">
+    <input autocomplete="off" autocapitalize="off"
+           placeholder="搜索..." spellcheck="false"
+           type="search" class="search-input">
+  </div>
+  <span class="popup-btn-close">
+    <i class="fa fa-times-circle"></i>
+  </span>
+</div>
+<div id="search-result">
+  <div id="no-result">
+    <i class="fa fa-spinner fa-pulse fa-5x fa-fw"></i>
+  </div>
+</div>
+
+    </div>
+  </div>
+
+</div>
+    </header>
+
+    
+  <div class="reading-progress-bar"></div>
+
+  <a href="https://github.com/LunarStore" class="github-corner" title="Follow me on GitHub" aria-label="Follow me on GitHub" rel="noopener" target="_blank"><svg width="80" height="80" viewBox="0 0 250 250" aria-hidden="true"><path d="M0,0 L115,115 L130,115 L142,142 L250,250 L250,0 Z"></path><path d="M128.3,109.0 C113.8,99.7 119.0,89.6 119.0,89.6 C122.0,82.7 120.5,78.6 120.5,78.6 C119.2,72.0 123.4,76.3 123.4,76.3 C127.3,80.9 125.5,87.3 125.5,87.3 C122.9,97.6 130.6,101.9 134.4,103.2" fill="currentColor" style="transform-origin: 130px 106px;" class="octo-arm"></path><path d="M115.0,115.0 C114.9,115.1 118.7,116.5 119.8,115.4 L133.7,101.6 C136.9,99.2 139.9,98.4 142.2,98.6 C133.8,88.0 127.5,74.4 143.8,58.0 C148.5,53.4 154.0,51.2 159.7,51.0 C160.3,49.4 163.2,43.6 171.4,40.1 C171.4,40.1 176.1,42.5 178.8,56.2 C183.1,58.6 187.2,61.8 190.9,65.4 C194.5,69.0 197.7,73.2 200.1,77.6 C213.8,80.2 216.3,84.9 216.3,84.9 C212.7,93.1 206.9,96.0 205.4,96.6 C205.1,102.4 203.0,107.8 198.3,112.5 C181.9,128.9 168.3,122.5 157.7,114.1 C157.9,116.9 156.7,120.9 152.7,124.9 L141.0,136.5 C139.8,137.7 141.6,141.9 141.8,141.8 Z" fill="currentColor" class="octo-body"></path></svg></a>
+
+
+    <main class="main">
+      <div class="main-inner">
+        <div class="content-wrap">
+          
+
+          <div class="content post posts-expand">
+            
+
+    
+  
+  
+  <article itemscope itemtype="http://schema.org/Article" class="post-block" lang="zh-CN">
+    <link itemprop="mainEntityOfPage" href="https://www.halfmantou.xyz/2024/08/25/web/start/">
+
+    <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
+      <meta itemprop="image" content="/images/avatar.jpg">
+      <meta itemprop="name" content="半个馒头">
+      <meta itemprop="description" content="">
+    </span>
+
+    <span hidden itemprop="publisher" itemscope itemtype="http://schema.org/Organization">
+      <meta itemprop="name" content="碎碎念念">
+    </span>
+      <header class="post-header">
+        <h1 class="post-title" itemprop="name headline">
+          Angular快速入门
+        </h1>
+
+        <div class="post-meta">
+            <span class="post-meta-item">
+              <span class="post-meta-item-icon">
+                <i class="fa fa-calendar-o"></i>
+              </span>
+              <span class="post-meta-item-text">发表于</span>
+
+              <time title="创建时间：2024-08-25 12:00:00" itemprop="dateCreated datePublished" datetime="2024-08-25T12:00:00+08:00">2024-08-25</time>
+            </span>
+              <span class="post-meta-item">
+                <span class="post-meta-item-icon">
+                  <i class="fa fa-calendar-check-o"></i>
+                </span>
+                <span class="post-meta-item-text">更新于</span>
+                <time title="修改时间：2025-09-29 22:24:25" itemprop="dateModified" datetime="2025-09-29T22:24:25+08:00">2025-09-29</time>
+              </span>
+
+          
+            <span class="post-meta-item" title="阅读次数" id="busuanzi_container_page_pv" style="display: none;">
+              <span class="post-meta-item-icon">
+                <i class="fa fa-eye"></i>
+              </span>
+              <span class="post-meta-item-text">阅读次数：</span>
+              <span id="busuanzi_value_page_pv"></span>
+            </span>
+
+        </div>
+      </header>
+
+    
+    
+    
+    <div class="post-body" itemprop="articleBody">
+
+      
+        <p>本文主要讲解ANgular在Windows平台的环境搭建。</p>
+<h2 id="安装Node-JS"><a href="#安装Node-JS" class="headerlink" title="安装Node.JS"></a>安装Node.JS</h2><ol>
+<li><p>官网下载稳定版本的node.js：<a target="_blank" rel="noopener" href="https://nodejs.org/en/">https://nodejs.org/en/</a></p>
+</li>
+<li><p>安装对话框一路默认下一步，当然，可以按需修改安装路径。</p>
+</li>
+<li><p>安装完成后会自动将Node.JS的根目录添加到环境变量，读者可以自行查询。</p>
+</li>
+<li><p>在nodejs根目录,创建node_global，node_cache文件夹</p>
+</li>
+<li><p>以管理人员身份运行CMD。输入如下命令：</p>
+<span id="more"></span></li>
+</ol>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment"># 根据实际安装路径更改路径！</span></span><br><span class="line">npm config <span class="built_in">set</span> prefix <span class="string">&quot;D:\DevelopmentToolRoot\WebFront\nodejs\node_global&quot;</span></span><br><span class="line"></span><br><span class="line">npm config <span class="built_in">set</span> cache <span class="string">&quot;D:\DevelopmentToolRoot\WebFront\nodejs\node_cache&quot;</span></span><br></pre></td></tr></table></figure>
+
+<ol start="6">
+<li><p>将node_global、node_cache所在路径添加到path环境变量中</p>
+</li>
+<li><p>全局安装最常用的 express 模块</p>
+</li>
+</ol>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">npm install express -g</span><br></pre></td></tr></table></figure>
+
+<ol start="8">
+<li>配置淘宝镜像并安装cpm ：</li>
+</ol>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br></pre></td><td class="code"><pre><span class="line">npm config <span class="built_in">set</span> registry https://registry.npmmirror.com</span><br><span class="line"></span><br><span class="line"><span class="comment"># 1. 注意修改nodejs安装目录的访问权限，让所有用户都能读写执行。</span></span><br><span class="line"><span class="comment"># 如果之前下载过nodejs，注意删除系统user目录下的package-lock.json文件</span></span><br><span class="line"><span class="comment"># npm install cnpm@7.1.1 -g</span></span><br><span class="line">npm install -g cnpm</span><br></pre></td></tr></table></figure>
+
+<ol start="9">
+<li>可以使用配置查看命令，查看配置是否成功：</li>
+</ol>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">npm config <span class="built_in">ls</span></span><br></pre></td></tr></table></figure>
+
+<h2 id="安装Angular"><a href="#安装Angular" class="headerlink" title="安装Angular"></a>安装Angular</h2><ol>
+<li>首先卸载已经安装的版本：</li>
+</ol>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment"># 老版本</span></span><br><span class="line">npm uninstall -g angular-cli</span><br><span class="line">npm uninstall --save-dev angular-cli</span><br><span class="line"></span><br><span class="line"><span class="comment"># 新版本</span></span><br><span class="line">npm uninstall -g @angular/cli</span><br><span class="line"></span><br><span class="line"><span class="comment"># 清空缓存</span></span><br><span class="line">npm cache verify <span class="comment"># npm cache clean --force</span></span><br></pre></td></tr></table></figure>
+
+<ol start="2">
+<li>开始安装，报权限不允许的错误就使用管理员的方式打开cmd！</li>
+</ol>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment"># cnpm install -g @angular/cli@8.2.2</span></span><br><span class="line">cnpm install -g @angular/cli@latest</span><br></pre></td></tr></table></figure>
+
+<ol start="3">
+<li>检查是否安装成功</li>
+</ol>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">ng <span class="built_in">help</span></span><br></pre></td></tr></table></figure>
+
+<ol start="4">
+<li>项目创建</li>
+</ol>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment"># 新建一个Angular项目，默认会执行np install</span></span><br><span class="line">ng new projectName</span><br><span class="line"></span><br><span class="line"><span class="comment"># 只创建不安装</span></span><br><span class="line"></span><br><span class="line">ng new projectName --skip-install</span><br><span class="line"></span><br><span class="line"><span class="built_in">cd</span> projectName</span><br><span class="line"></span><br><span class="line"><span class="comment"># npm install、yarn install</span></span><br><span class="line">cnpm install</span><br></pre></td></tr></table></figure>
+
+<ol start="5">
+<li>项目编译&amp;启动</li>
+</ol>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">ng serve --open</span><br></pre></td></tr></table></figure>
+
+<ol start="6">
+<li>在浏览器键入：<a target="_blank" rel="noopener" href="http://localhost:4200/%EF%BC%8C%E5%8F%AF%E7%9C%8B%E5%88%B0%E6%AC%A2%E8%BF%8E%E9%A1%B5%E9%9D%A2">http://localhost:4200/，可看到欢迎页面</a></li>
+</ol>
+<hr>
+<p>常见报错：</p>
+<p>angular 6中使用socket.io报错：global is not define<br>在src&#x2F;polyfills.ts中添加</p>
+<figure class="highlight typescript"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">(<span class="variable language_">window</span> <span class="keyword">as</span> <span class="built_in">any</span>).<span class="property">global</span> = <span class="variable language_">window</span>;</span><br></pre></td></tr></table></figure>
+
+<h2 id="创建一个组件"><a href="#创建一个组件" class="headerlink" title="创建一个组件"></a>创建一个组件</h2><p>在项目根目录下使用如下命令：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br></pre></td><td class="code"><pre><span class="line">D:\root\WorkSpace\AngularRoot\Start&gt;ng g component component/news</span><br><span class="line">CREATE src/app/component/news/news.component.html (19 bytes)</span><br><span class="line">CREATE src/app/component/news/news.component.spec.ts (614 bytes)</span><br><span class="line">CREATE src/app/component/news/news.component.ts (262 bytes)</span><br><span class="line">CREATE src/app/component/news/news.component.scss (0 bytes)</span><br><span class="line">UPDATE src/app/app.module.ts (398 bytes)</span><br></pre></td></tr></table></figure>
+
+<p>vscode终端执行ng serve报错：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><span class="line">ng : 无法加载文件 C:\Users\root\AppData\Roaming\npm\ng.ps1，因为在此系统上禁止运行脚本。有关详细信息，请参阅 https:/go.microsoft.com/fwlink/?LinkID=135170 中的 about_Execution_Policie</span><br><span class="line">s。</span><br><span class="line">所在位置 行:1 字符: 1</span><br><span class="line">+ ng serve</span><br><span class="line">+ ~~</span><br></pre></td></tr></table></figure>
+
+<p>在搜索框搜索：Windows PowerShell ISE，执行如下命令并选A（全是）即可解决</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">set-ExecutionPolicy RemoteSigned</span><br></pre></td></tr></table></figure>
+
+<p>angular不建议使用dom操作来改变class</p>
+<h2 id="使用Forms模块"><a href="#使用Forms模块" class="headerlink" title="使用Forms模块"></a>使用Forms模块</h2><p>在src&#x2F;app&#x2F;app.module.ts文件夹中添加：</p>
+<figure class="highlight typescript"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">// ...</span></span><br><span class="line"><span class="keyword">import</span> &#123; <span class="title class_">FormsModule</span> &#125; <span class="keyword">from</span> <span class="string">&#x27;@angular/forms&#x27;</span>;</span><br><span class="line"></span><br><span class="line"><span class="meta">@NgModule</span>(&#123;</span><br><span class="line">  <span class="attr">imports</span>: [</span><br><span class="line">    <span class="comment">// ...</span></span><br><span class="line">    <span class="title class_">FormsModule</span></span><br><span class="line">  ],</span><br><span class="line"></span><br><span class="line">&#125;)</span><br></pre></td></tr></table></figure>
+
+<p>html 如下：</p>
+<figure class="highlight html"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br></pre></td><td class="code"><pre><span class="line"><span class="tag">&lt;<span class="name">div</span>&gt;</span></span><br><span class="line">    <span class="tag">&lt;<span class="name">form</span> <span class="attr">class</span>=<span class="string">&quot;form&quot;</span> [<span class="attr">formGroup</span>]=<span class="string">&quot;infoForm&quot;</span>&gt;</span></span><br><span class="line">        <span class="tag">&lt;<span class="name">ng-container</span>&gt;</span></span><br><span class="line">        <span class="tag">&lt;<span class="name">div</span> <span class="attr">formArrayName</span>=<span class="string">&quot;infos&quot;</span>&gt;</span></span><br><span class="line">            <span class="tag">&lt;<span class="name">div</span> *<span class="attr">ngFor</span>=<span class="string">&quot;let info of infos.controls; let i = index&quot;</span>&gt;</span></span><br><span class="line">            <span class="tag">&lt;<span class="name">ng-container</span> [<span class="attr">formGroupName</span>]=<span class="string">&quot;i&quot;</span>&gt;</span></span><br><span class="line">                <span class="tag">&lt;<span class="name">label</span>&gt;</span>&#123;&#123; info.get(&quot;name&quot;).value&#125;&#125;<span class="tag">&lt;/<span class="name">label</span>&gt;</span></span><br><span class="line">                <span class="tag">&lt;<span class="name">input</span> <span class="attr">type</span>=<span class="string">&quot;text&quot;</span> <span class="attr">formControlName</span>=<span class="string">&quot;value&quot;</span> [<span class="attr">id</span>]=<span class="string">&quot;i&quot;</span>&gt;</span></span><br><span class="line">            <span class="tag">&lt;/<span class="name">ng-container</span>&gt;</span></span><br><span class="line">            <span class="tag">&lt;/<span class="name">div</span>&gt;</span></span><br><span class="line">        <span class="tag">&lt;/<span class="name">div</span>&gt;</span></span><br><span class="line">        <span class="tag">&lt;<span class="name">button</span> (<span class="attr">click</span>)=<span class="string">&quot;onSubmit()&quot;</span>&gt;</span></span><br><span class="line">            保存</span><br><span class="line">        <span class="tag">&lt;/<span class="name">button</span>&gt;</span></span><br><span class="line">        <span class="tag">&lt;/<span class="name">ng-container</span>&gt;</span></span><br><span class="line">    <span class="tag">&lt;/<span class="name">form</span>&gt;</span></span><br><span class="line"><span class="tag">&lt;/<span class="name">div</span>&gt;</span></span><br></pre></td></tr></table></figure>
+
+<p>ts代码如下：</p>
+<figure class="highlight typescript"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br><span class="line">36</span><br><span class="line">37</span><br><span class="line">38</span><br><span class="line">39</span><br><span class="line">40</span><br><span class="line">41</span><br><span class="line">42</span><br><span class="line">43</span><br><span class="line">44</span><br><span class="line">45</span><br><span class="line">46</span><br><span class="line">47</span><br><span class="line">48</span><br><span class="line">49</span><br><span class="line">50</span><br><span class="line">51</span><br><span class="line">52</span><br><span class="line">53</span><br><span class="line">54</span><br><span class="line">55</span><br><span class="line">56</span><br><span class="line">57</span><br><span class="line">58</span><br><span class="line">59</span><br><span class="line">60</span><br><span class="line">61</span><br><span class="line">62</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">export</span> <span class="keyword">class</span> <span class="title class_">FormComponent</span> <span class="keyword">implements</span> <span class="title class_">OnInit</span> &#123;</span><br><span class="line">  <span class="comment">// fb:FormBuilder;</span></span><br><span class="line">  <span class="title function_">constructor</span>(<span class="params"><span class="keyword">private</span> <span class="attr">fb</span>:<span class="title class_">FormBuilder</span></span>) &#123; </span><br><span class="line">    <span class="comment">// this.fb = fb;</span></span><br><span class="line">  &#125;</span><br><span class="line">  infoForm = <span class="variable language_">this</span>.<span class="property">fb</span>.<span class="property">group</span> (&#123;</span><br><span class="line">    <span class="attr">infos</span>: <span class="variable language_">this</span>.<span class="property">fb</span>.<span class="title function_">array</span>([]),</span><br><span class="line">  &#125;);</span><br><span class="line">  <span class="keyword">get</span> <span class="title function_">infos</span>(): <span class="title class_">FormArray</span> &#123;</span><br><span class="line">    <span class="keyword">return</span> <span class="variable language_">this</span>.<span class="property">infoForm</span>.<span class="title function_">get</span>(<span class="string">&#x27;infos&#x27;</span>) <span class="keyword">as</span> <span class="title class_">FormArray</span>;</span><br><span class="line">  &#125;</span><br><span class="line">  <span class="title function_">ngOnInit</span>(<span class="params"></span>) &#123;</span><br><span class="line"></span><br><span class="line">    <span class="keyword">const</span> fm = <span class="variable language_">this</span>.<span class="property">fb</span>.<span class="title function_">group</span>(&#123;</span><br><span class="line">      <span class="attr">id</span>: <span class="number">1</span>,</span><br><span class="line">      <span class="attr">name</span>: <span class="string">&quot;aaa&quot;</span>,</span><br><span class="line">      <span class="attr">value</span>: <span class="string">&quot;aiaiai&quot;</span>,</span><br><span class="line"></span><br><span class="line">    &#125;);</span><br><span class="line">    <span class="variable language_">this</span>.<span class="property">infos</span>.<span class="title function_">push</span>(fm);</span><br><span class="line"></span><br><span class="line">    <span class="keyword">const</span> fm1 = <span class="variable language_">this</span>.<span class="property">fb</span>.<span class="title function_">group</span>(&#123;</span><br><span class="line">      <span class="attr">id</span>:<span class="number">2</span>,</span><br><span class="line">      <span class="attr">name</span>:<span class="string">&quot;bbb&quot;</span>,</span><br><span class="line">      <span class="attr">value</span>:<span class="string">&quot;bibibi&quot;</span>,</span><br><span class="line"></span><br><span class="line">    &#125;);</span><br><span class="line">    <span class="variable language_">this</span>.<span class="property">infos</span>.<span class="title function_">push</span>(fm1);</span><br><span class="line"></span><br><span class="line">    <span class="keyword">const</span> fm2 = <span class="variable language_">this</span>.<span class="property">fb</span>.<span class="title function_">group</span>(&#123;</span><br><span class="line">      <span class="attr">id</span>:<span class="number">3</span>,</span><br><span class="line">      <span class="attr">name</span>:<span class="string">&quot;ccc&quot;</span>,</span><br><span class="line">      <span class="attr">value</span>:<span class="string">&quot;cicici&quot;</span>,</span><br><span class="line"></span><br><span class="line">    &#125;);</span><br><span class="line">    <span class="variable language_">this</span>.<span class="property">infos</span>.<span class="title function_">push</span>(fm2);</span><br><span class="line"></span><br><span class="line">    <span class="keyword">var</span> playerInterval_dvp = <span class="built_in">setInterval</span>(<span class="function">() =&gt;</span> &#123;</span><br><span class="line">      <span class="variable language_">console</span>.<span class="title function_">log</span>(<span class="string">&quot;aaa&quot;</span>)</span><br><span class="line">    &#125;);</span><br><span class="line">  &#125;</span><br><span class="line"></span><br><span class="line">  <span class="title function_">onSubmit</span>(<span class="params"></span>)&#123;</span><br><span class="line">    <span class="variable language_">console</span>.<span class="title function_">log</span>(<span class="variable language_">this</span>.<span class="property">infos</span>.<span class="title function_">at</span>(<span class="number">1</span>).<span class="title function_">get</span>(<span class="string">&#x27;name&#x27;</span>).<span class="property">value</span>);</span><br><span class="line"></span><br><span class="line">    <span class="variable language_">console</span>.<span class="title function_">log</span>((<span class="variable language_">this</span>.<span class="property">infos</span>.<span class="title function_">at</span>(<span class="number">1</span>)))</span><br><span class="line"></span><br><span class="line">    <span class="variable language_">console</span>.<span class="title function_">log</span>((<span class="variable language_">this</span>.<span class="property">infos</span>.<span class="title function_">at</span>(<span class="number">1</span>).<span class="property">value</span>))</span><br><span class="line"></span><br><span class="line">    <span class="variable language_">console</span>.<span class="title function_">log</span>((<span class="variable language_">this</span>.<span class="property">infos</span>.<span class="title function_">at</span>(<span class="number">1</span>).<span class="property">value</span> <span class="keyword">as</span> <span class="title class_">MyInfoInterface</span>))</span><br><span class="line"></span><br><span class="line">    <span class="variable language_">console</span>.<span class="title function_">log</span>((<span class="variable language_">this</span>.<span class="property">infos</span>.<span class="title function_">at</span>(<span class="number">1</span>).<span class="property">value</span> <span class="keyword">as</span> <span class="title class_">MyInfoInterface</span>).<span class="property">value</span>)</span><br><span class="line">  &#125;</span><br><span class="line"></span><br><span class="line">&#125;</span><br><span class="line"></span><br><span class="line"></span><br><span class="line"><span class="keyword">export</span> <span class="keyword">interface</span> <span class="title class_">MyInfoInterface</span> &#123;</span><br><span class="line">  <span class="attr">id</span>: <span class="built_in">number</span>;</span><br><span class="line">  <span class="attr">name</span>: <span class="built_in">string</span>;</span><br><span class="line">  <span class="attr">value</span>: <span class="built_in">string</span>;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p>点击按钮后，结果如下：</p>
+<p><img src="/2024/08/25/web/start/photo/FormResult.png"></p>
+<h2 id="创建一个服务"><a href="#创建一个服务" class="headerlink" title="创建一个服务"></a>创建一个服务</h2><figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">ng g service service/storage</span><br></pre></td></tr></table></figure>
+
+<p>在src&#x2F;app&#x2F;app.module.ts文件夹中添加：</p>
+<figure class="highlight typescript"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">import</span> &#123; <span class="title class_">StorageService</span> &#125; <span class="keyword">from</span> <span class="string">&#x27;./service/storage.service&#x27;</span>;</span><br><span class="line"></span><br><span class="line"><span class="meta">@NgModule</span>(&#123;</span><br><span class="line">  <span class="comment">// ...</span></span><br><span class="line">  <span class="attr">providers</span>: [<span class="title class_">StorageService</span>],</span><br><span class="line">  <span class="comment">// ...</span></span><br><span class="line">&#125;)</span><br></pre></td></tr></table></figure>
+
+<p>在组件文件中添加：</p>
+<figure class="highlight typescript"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">import</span> &#123; <span class="title class_">StorageService</span> &#125; <span class="keyword">from</span> <span class="string">&#x27;../../service/storage.service&#x27;</span>;</span><br><span class="line"></span><br><span class="line"><span class="keyword">export</span> <span class="keyword">class</span> <span class="title class_">SearchComponent</span> <span class="keyword">implements</span> <span class="title class_">OnInit</span> &#123;</span><br><span class="line"></span><br><span class="line">  <span class="keyword">public</span> <span class="attr">keyword</span>:<span class="built_in">string</span>=<span class="string">&quot;电脑&quot;</span>;</span><br><span class="line">  <span class="keyword">public</span> <span class="attr">history</span>:<span class="built_in">any</span>[]=[];</span><br><span class="line">  <span class="attr">storage</span>:<span class="title class_">StorageService</span>;</span><br><span class="line">  <span class="title function_">constructor</span>(<span class="params"><span class="attr">storage</span>:<span class="title class_">StorageService</span></span>) &#123;</span><br><span class="line">    <span class="variable language_">this</span>.<span class="property">storage</span> = storage;</span><br><span class="line">    <span class="keyword">var</span> hi = <span class="variable language_">this</span>.<span class="property">storage</span>.<span class="title function_">get</span>(<span class="string">&quot;history&quot;</span>);</span><br><span class="line">    <span class="keyword">if</span> (hi) &#123;</span><br><span class="line">      <span class="variable language_">this</span>.<span class="property">history</span> = hi;</span><br><span class="line">    &#125;</span><br><span class="line">  &#125;</span><br><span class="line"></span><br><span class="line">  <span class="title function_">ngOnInit</span>(<span class="params"></span>) &#123;</span><br><span class="line">  &#125;</span><br><span class="line">&#125;</span><br><span class="line"></span><br></pre></td></tr></table></figure>
+
+<h2 id="DOM操作"><a href="#DOM操作" class="headerlink" title="DOM操作"></a>DOM操作</h2><p>DOM操作最好在ngAfterViewInit函数中进行，ngOnInit中操作的话，可能一些dom还没有加载完成导致获取不到DOM</p>
+<p>在angular中，操作dom的方式有两种：使用原生js和使用ViewChild</p>
+<figure class="highlight html"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line"><span class="tag">&lt;<span class="name">p</span> #<span class="attr">myfirstdom</span>&gt;</span>domopt works!<span class="tag">&lt;/<span class="name">p</span>&gt;</span></span><br></pre></td></tr></table></figure>
+
+<figure class="highlight typescript"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">import</span> &#123; <span class="title class_">Component</span>, <span class="title class_">OnInit</span>, <span class="title class_">ViewChild</span>&#125; <span class="keyword">from</span> <span class="string">&#x27;@angular/core&#x27;</span>;</span><br><span class="line"></span><br><span class="line"><span class="meta">@Component</span>(&#123;</span><br><span class="line">  <span class="attr">selector</span>: <span class="string">&#x27;app-domopt&#x27;</span>,</span><br><span class="line">  <span class="attr">templateUrl</span>: <span class="string">&#x27;./domopt.component.html&#x27;</span>,</span><br><span class="line">  <span class="attr">styleUrls</span>: [<span class="string">&#x27;./domopt.component.scss&#x27;</span>]</span><br><span class="line">&#125;)</span><br><span class="line"><span class="keyword">export</span> <span class="keyword">class</span> <span class="title class_">DomoptComponent</span> <span class="keyword">implements</span> <span class="title class_">OnInit</span> &#123;</span><br><span class="line"></span><br><span class="line">  <span class="meta">@ViewChild</span>(<span class="string">&quot;myfirstdom&quot;</span>, &#123;<span class="attr">static</span>:<span class="literal">true</span>&#125;) <span class="attr">myfirstdom</span>:<span class="built_in">any</span>;</span><br><span class="line">  <span class="title function_">constructor</span>(<span class="params"></span>) &#123; &#125;</span><br><span class="line"></span><br><span class="line">  <span class="title function_">ngOnInit</span>(<span class="params"></span>) &#123;</span><br><span class="line">  &#125;</span><br><span class="line"></span><br><span class="line">  <span class="title function_">ngAfterViewInit</span>(<span class="params"></span>)&#123;</span><br><span class="line">    <span class="variable language_">console</span>.<span class="title function_">log</span>(<span class="variable language_">this</span>.<span class="property">myfirstdom</span>);</span><br><span class="line">    <span class="variable language_">this</span>.<span class="property">myfirstdom</span>.<span class="property">nativeElement</span>.<span class="property">innerHTML</span> = <span class="string">&quot;aaa&quot;</span>;</span><br><span class="line">  &#125;</span><br><span class="line">&#125;</span><br><span class="line"></span><br></pre></td></tr></table></figure>
+
+<h2 id="父子组件传值"><a href="#父子组件传值" class="headerlink" title="父子组件传值"></a>父子组件传值</h2><h3 id="方式一："><a href="#方式一：" class="headerlink" title="方式一："></a>方式一：</h3><p>数据、函数、父组件本身都能通过该方法传递。</p>
+<p>父组件中定义:</p>
+<figure class="highlight typescript"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">export</span> <span class="keyword">class</span> <span class="title class_">NewsComponent</span> <span class="keyword">implements</span> <span class="title class_">OnInit</span> &#123;</span><br><span class="line"></span><br><span class="line">  <span class="keyword">public</span> <span class="attr">title</span>:<span class="built_in">string</span> = <span class="string">&quot;新闻&quot;</span>;</span><br><span class="line">  <span class="meta">@ViewChild</span>(<span class="string">&quot;myheader&quot;</span>, &#123;<span class="attr">static</span>:<span class="literal">true</span>&#125;) <span class="attr">header</span>:<span class="built_in">any</span>;</span><br><span class="line">  <span class="title function_">constructor</span>(<span class="params"></span>) &#123; &#125;</span><br><span class="line"></span><br><span class="line">  <span class="title function_">ngOnInit</span>(<span class="params"></span>) &#123;</span><br><span class="line">  &#125;</span><br><span class="line"></span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<figure class="highlight html"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line"><span class="tag">&lt;<span class="name">app-header</span> #<span class="attr">myheader</span> [<span class="attr">title</span>]=<span class="string">&quot;title&quot;</span>&gt;</span><span class="tag">&lt;/<span class="name">app-header</span>&gt;</span></span><br></pre></td></tr></table></figure>
+
+<p>子组件中定义：</p>
+<figure class="highlight typescript"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">import</span> &#123; <span class="title class_">Component</span>, <span class="title class_">OnInit</span>, <span class="title class_">Input</span>&#125; <span class="keyword">from</span> <span class="string">&#x27;@angular/core&#x27;</span>;</span><br><span class="line"></span><br><span class="line"><span class="keyword">export</span> <span class="keyword">class</span> <span class="title class_">HeaderComponent</span> <span class="keyword">implements</span> <span class="title class_">OnInit</span> &#123;</span><br><span class="line">  <span class="meta">@Input</span>() <span class="attr">title</span>:<span class="built_in">any</span>;</span><br><span class="line">  <span class="title function_">constructor</span>(<span class="params"></span>) &#123;</span><br><span class="line"></span><br><span class="line">  &#125;</span><br><span class="line"></span><br><span class="line">  <span class="title function_">ngOnInit</span>(<span class="params"></span>) &#123;</span><br><span class="line">  &#125;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<h3 id="方式二："><a href="#方式二：" class="headerlink" title="方式二："></a>方式二：</h3><p>子组件通过事件驱动的方式给父组件发消息。</p>
+<p>子组件配置：</p>
+<figure class="highlight typescript"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">import</span> &#123; <span class="title class_">Component</span>, <span class="title class_">OnInit</span>, <span class="title class_">Input</span>, <span class="title class_">Output</span>, <span class="title class_">EventEmitter</span>&#125; <span class="keyword">from</span> <span class="string">&#x27;@angular/core&#x27;</span>;</span><br><span class="line"></span><br><span class="line"><span class="keyword">export</span> <span class="keyword">class</span> <span class="title class_">HeaderComponent</span> <span class="keyword">implements</span> <span class="title class_">OnInit</span> &#123;</span><br><span class="line">  <span class="meta">@Output</span>() outer = <span class="keyword">new</span> <span class="title class_">EventEmitter</span>();</span><br><span class="line">  <span class="title function_">constructor</span>(<span class="params"></span>) &#123;</span><br><span class="line">    <span class="variable language_">console</span>.<span class="title function_">log</span>(<span class="variable language_">this</span>.<span class="property">dt</span>)</span><br><span class="line">  &#125;</span><br><span class="line"></span><br><span class="line">  <span class="title function_">ngOnInit</span>(<span class="params"></span>) &#123;</span><br><span class="line">    <span class="variable language_">this</span>.<span class="property">mvvm</span>=<span class="string">&quot;初始值&quot;</span></span><br><span class="line">  &#125;</span><br><span class="line"></span><br><span class="line">  <span class="title function_">sendParent</span>(<span class="params"></span>)&#123;</span><br><span class="line">    <span class="variable language_">console</span>.<span class="title function_">log</span>(<span class="string">&quot;header的sendParent方法&quot;</span>);</span><br><span class="line">    <span class="variable language_">this</span>.<span class="property">outer</span>.<span class="title function_">emit</span>(<span class="string">&quot;header的sendParent&quot;</span>);</span><br><span class="line">  &#125;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p>父组件配置：</p>
+<figure class="highlight html"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line"><span class="tag">&lt;<span class="name">app-header</span> (<span class="attr">outer</span>)=<span class="string">&quot;run($event)&quot;</span>&gt;</span><span class="tag">&lt;/<span class="name">app-header</span>&gt;</span></span><br></pre></td></tr></table></figure>
+
+<figure class="highlight typescript"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">import</span> &#123; <span class="title class_">Component</span>, <span class="title class_">OnInit</span>, <span class="title class_">ViewChild</span> &#125; <span class="keyword">from</span> <span class="string">&#x27;@angular/core&#x27;</span>;</span><br><span class="line"></span><br><span class="line"><span class="keyword">export</span> <span class="keyword">class</span> <span class="title class_">NewsComponent</span> <span class="keyword">implements</span> <span class="title class_">OnInit</span> &#123;</span><br><span class="line">  <span class="title function_">constructor</span>(<span class="params"></span>) &#123; &#125;</span><br><span class="line"></span><br><span class="line">  <span class="title function_">ngOnInit</span>(<span class="params"></span>) &#123;</span><br><span class="line">  &#125;</span><br><span class="line">  <span class="title function_">run</span>(<span class="params"><span class="attr">arg</span>:<span class="built_in">any</span></span>)&#123;</span><br><span class="line">    <span class="title function_">alert</span>(<span class="string">&quot;新闻中的run方法，还可以直接把整个新闻组件传给header！！！&quot;</span> + arg);</span><br><span class="line">  &#125;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<h2 id="异步处理"><a href="#异步处理" class="headerlink" title="异步处理"></a>异步处理</h2><p>有两种：rxjs（observable）或者promise，主要介绍一下rxjs</p>
+<h3 id="使用rxjs："><a href="#使用rxjs：" class="headerlink" title="使用rxjs："></a>使用rxjs：</h3><figure class="highlight typescript"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">import</span> &#123;map,filter&#125; <span class="keyword">from</span> <span class="string">&#x27;rxjs/operators&#x27;</span></span><br><span class="line"><span class="keyword">import</span> &#123; <span class="title class_">RequestService</span> &#125; <span class="keyword">from</span> <span class="string">&#x27;../../service/request.service&#x27;</span></span><br><span class="line"></span><br><span class="line"><span class="keyword">export</span> <span class="keyword">class</span> <span class="title class_">HomeComponent</span> <span class="keyword">implements</span> <span class="title class_">OnInit</span> &#123;</span><br><span class="line">  <span class="attr">request</span>:<span class="title class_">RequestService</span>;</span><br><span class="line"></span><br><span class="line">  <span class="title function_">constructor</span>(<span class="params"><span class="attr">request</span>:<span class="title class_">RequestService</span></span>) &#123;</span><br><span class="line"></span><br><span class="line">  &#125;</span><br><span class="line"></span><br><span class="line">  <span class="title function_">ngOnInit</span>(<span class="params"></span>) &#123;</span><br><span class="line">    <span class="keyword">var</span> streamNum = <span class="variable language_">this</span>.<span class="property">request</span>.<span class="title function_">getRxjsIntervalTimer</span>();</span><br><span class="line"></span><br><span class="line">    streamNum.<span class="title function_">pipe</span>(</span><br><span class="line">      <span class="title function_">filter</span>(</span><br><span class="line">        <span class="function">(<span class="params">value</span>)=&gt;</span>&#123;</span><br><span class="line">          <span class="keyword">if</span> (<span class="title class_">Number</span>(value)%<span class="number">2</span> == <span class="number">0</span>) &#123;</span><br><span class="line">            <span class="keyword">return</span> <span class="literal">true</span>;</span><br><span class="line">          &#125;</span><br><span class="line">          <span class="comment">// console.log(Number(value)*Number(value));</span></span><br><span class="line">          <span class="keyword">return</span> <span class="literal">false</span>;</span><br><span class="line">      &#125;),</span><br><span class="line">      <span class="title function_">map</span>(</span><br><span class="line">        <span class="function">(<span class="params">val</span>)=&gt;</span>&#123;</span><br><span class="line">            <span class="keyword">return</span> <span class="title class_">Number</span>(val)*<span class="title class_">Number</span>(val);</span><br><span class="line">        &#125;)</span><br><span class="line">    ).<span class="title function_">subscribe</span>(<span class="function">(<span class="params">value</span>) =&gt;</span> &#123;</span><br><span class="line">      <span class="variable language_">console</span>.<span class="title function_">log</span>(value);</span><br><span class="line">    &#125;);</span><br><span class="line">  &#125;</span><br><span class="line"></span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p>RequestServer：</p>
+<figure class="highlight typescript"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">import</span> &#123; <span class="title class_">Observable</span> &#125; <span class="keyword">from</span> <span class="string">&#x27;rxjs&#x27;</span>;</span><br><span class="line"></span><br><span class="line"><span class="keyword">export</span> <span class="keyword">class</span> <span class="title class_">RequestService</span> &#123;</span><br><span class="line"></span><br><span class="line">  <span class="title function_">constructor</span>(<span class="params"></span>) &#123; &#125;</span><br><span class="line"></span><br><span class="line">  <span class="title function_">getRxjsIntervalTimer</span>(<span class="params"></span>)&#123;</span><br><span class="line">    <span class="keyword">var</span> cnt = <span class="number">0</span>;</span><br><span class="line">    <span class="keyword">return</span> <span class="keyword">new</span> <span class="title class_">Observable</span>(</span><br><span class="line">      <span class="function">(<span class="params">observe</span>)=&gt;</span>&#123;</span><br><span class="line">        <span class="built_in">setInterval</span>(<span class="function">()=&gt;</span>&#123;</span><br><span class="line">          cnt++;</span><br><span class="line">          <span class="comment">// console.log(cnt);</span></span><br><span class="line">          observe.<span class="title function_">next</span>(cnt);</span><br><span class="line">        &#125;, <span class="number">1000</span>);</span><br><span class="line">      &#125;</span><br><span class="line">    );</span><br><span class="line">  &#125;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<h2 id="使用get、post请求"><a href="#使用get、post请求" class="headerlink" title="使用get、post请求"></a>使用get、post请求</h2><p>app.module.ts:</p>
+<figure class="highlight typescript"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">import</span> &#123; <span class="title class_">HttpClientModule</span> &#125; <span class="keyword">from</span> <span class="string">&#x27;@angular/common/http&#x27;</span></span><br><span class="line"></span><br><span class="line"><span class="meta">@NgModule</span>(&#123;</span><br><span class="line">  <span class="comment">// ...</span></span><br><span class="line">  <span class="attr">imports</span>: [</span><br><span class="line">    <span class="comment">// ...</span></span><br><span class="line">    <span class="title class_">HttpClientModule</span>,</span><br><span class="line">  ]</span><br><span class="line">  <span class="comment">// ...</span></span><br><span class="line">&#125;)</span><br></pre></td></tr></table></figure>
+
+<p>http如下：</p>
+<figure class="highlight html"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br></pre></td><td class="code"><pre><span class="line"></span><br><span class="line"><span class="tag">&lt;<span class="name">button</span> (<span class="attr">click</span>)=<span class="string">&quot;getRequest()&quot;</span>&gt;</span>get请求<span class="tag">&lt;/<span class="name">button</span>&gt;</span></span><br><span class="line"></span><br><span class="line"><span class="tag">&lt;<span class="name">button</span> (<span class="attr">click</span>)=<span class="string">&quot;postRequest()&quot;</span>&gt;</span>post请求<span class="tag">&lt;/<span class="name">button</span>&gt;</span></span><br><span class="line"></span><br><span class="line"><span class="tag">&lt;<span class="name">button</span> (<span class="attr">click</span>)=<span class="string">&quot;getJsonpData()&quot;</span>&gt;</span>jsonp请求<span class="tag">&lt;/<span class="name">button</span>&gt;</span></span><br><span class="line"></span><br></pre></td></tr></table></figure>
+
+<p>请求逻辑如下：</p>
+<figure class="highlight typescript"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">import</span> &#123; <span class="title class_">HttpClient</span>, <span class="title class_">HttpHeaders</span> &#125; <span class="keyword">from</span> <span class="string">&#x27;@angular/common/http&#x27;</span></span><br><span class="line"></span><br><span class="line"><span class="keyword">export</span> <span class="keyword">class</span> <span class="title class_">RequesthttpComponent</span> <span class="keyword">implements</span> <span class="title class_">OnInit</span> &#123;</span><br><span class="line">  <span class="attr">http</span>:<span class="title class_">HttpClient</span>;</span><br><span class="line">  <span class="title function_">constructor</span>(<span class="params"><span class="attr">http</span>:<span class="title class_">HttpClient</span></span>) &#123;</span><br><span class="line">    <span class="variable language_">this</span>.<span class="property">http</span> = http;</span><br><span class="line">  &#125;</span><br><span class="line"></span><br><span class="line">  <span class="title function_">ngOnInit</span>(<span class="params"></span>) &#123;  &#125;</span><br><span class="line"></span><br><span class="line">  <span class="title function_">getRequest</span>(<span class="params"></span>)&#123;</span><br><span class="line">    <span class="variable language_">this</span>.<span class="property">http</span>.<span class="title function_">get</span>(<span class="string">&quot;http://a.itying.com/api/productlist&quot;</span>).<span class="title function_">subscribe</span>(<span class="function">(<span class="params">value</span>)=&gt;</span>&#123;</span><br><span class="line">      <span class="variable language_">console</span>.<span class="title function_">log</span>(value);</span><br><span class="line">    &#125;);</span><br><span class="line">  &#125;</span><br><span class="line"></span><br><span class="line">  <span class="title function_">postRequest</span>(<span class="params"></span>) &#123;</span><br><span class="line">    <span class="keyword">var</span> httpOptions = &#123; <span class="attr">headers</span>: <span class="keyword">new</span> <span class="title class_">HttpHeaders</span>(&#123;<span class="string">&quot;Content-Type&quot;</span>: <span class="string">&quot;application/json&quot;</span>&#125;) &#125;;</span><br><span class="line">    <span class="variable language_">this</span>.<span class="property">http</span>.<span class="title function_">post</span>(<span class="string">&quot;www.baidu.com&quot;</span>, &#123;<span class="string">&quot;username&quot;</span>:<span class="string">&quot;zhangsan&quot;</span>, <span class="string">&quot;password&quot;</span>:<span class="string">&quot;123&quot;</span>&#125;, httpOptions).<span class="title function_">subscribe</span>(<span class="function">(<span class="params">data</span>)=&gt;</span>&#123;</span><br><span class="line">        <span class="variable language_">console</span>.<span class="title function_">log</span>(data);</span><br><span class="line">    &#125;);</span><br><span class="line">  &#125;</span><br><span class="line"></span><br><span class="line">  <span class="title function_">getJsonpData</span>(<span class="params"></span>)&#123;</span><br><span class="line">    <span class="variable language_">this</span>.<span class="property">http</span>.<span class="title function_">jsonp</span>(<span class="string">&quot;http://a.itying.com/api/productlist&quot;</span>, <span class="string">&quot;callback&quot;</span>).<span class="title function_">subscribe</span>(<span class="function">(<span class="params">value</span>)=&gt;</span>&#123;</span><br><span class="line">      <span class="variable language_">console</span>.<span class="title function_">log</span>(value);</span><br><span class="line">    &#125;); </span><br><span class="line">  &#125;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<h2 id="路由"><a href="#路由" class="headerlink" title="路由"></a>路由</h2><p>在app-routing.module.ts可配置静态路由：</p>
+<figure class="highlight typescript"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">import</span> &#123; <span class="title class_">NewsComponent</span> &#125; <span class="keyword">from</span> <span class="string">&#x27;./components/news/news.component&#x27;</span>;</span><br><span class="line"><span class="keyword">import</span> &#123; <span class="title class_">MovieComponent</span> &#125; <span class="keyword">from</span> <span class="string">&#x27;./components/movie/movie.component&#x27;</span>;</span><br><span class="line"><span class="keyword">import</span> &#123; <span class="title class_">GameComponent</span> &#125; <span class="keyword">from</span> <span class="string">&#x27;./components/game/game.component&#x27;</span>;</span><br><span class="line"><span class="keyword">import</span> &#123; <span class="title class_">ContentComponent</span> &#125; <span class="keyword">from</span> <span class="string">&#x27;./components/content/content.component&#x27;</span>;</span><br><span class="line"></span><br><span class="line"><span class="keyword">const</span> <span class="attr">routes</span>: <span class="title class_">Routes</span> = [</span><br><span class="line">  &#123;</span><br><span class="line">    <span class="attr">path</span>:<span class="string">&quot;news&quot;</span>,</span><br><span class="line">    <span class="attr">component</span>: <span class="title class_">NewsComponent</span>,</span><br><span class="line">  &#125;,&#123;</span><br><span class="line">    <span class="attr">path</span>:<span class="string">&quot;movie&quot;</span>,</span><br><span class="line">    <span class="attr">component</span>: <span class="title class_">MovieComponent</span>,</span><br><span class="line">  &#125;,&#123;</span><br><span class="line">    <span class="attr">path</span>:<span class="string">&quot;game&quot;</span>,</span><br><span class="line">    <span class="attr">component</span>: <span class="title class_">GameComponent</span>,</span><br><span class="line">  &#125;,&#123;</span><br><span class="line">    <span class="attr">path</span>:<span class="string">&quot;content&quot;</span>,</span><br><span class="line">    <span class="attr">component</span>: <span class="title class_">ContentComponent</span>,</span><br><span class="line">  &#125;,&#123;</span><br><span class="line">    <span class="attr">path</span>:<span class="string">&quot;**&quot;</span>,</span><br><span class="line">    <span class="attr">component</span>: <span class="title class_">NewsComponent</span>,</span><br><span class="line">  &#125;,</span><br><span class="line">];</span><br></pre></td></tr></table></figure>
+
+<p>加routerLinkActive可实现激活</p>
+<figure class="highlight html"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><span class="line"><span class="tag">&lt;<span class="name">a</span> [<span class="attr">routerLink</span>]=<span class="string">&quot;&#x27;/news&#x27;&quot;</span> <span class="attr">routerLinkActive</span>=<span class="string">&quot;active&quot;</span>&gt;</span>新闻<span class="tag">&lt;/<span class="name">a</span>&gt;</span></span><br><span class="line"><span class="tag">&lt;<span class="name">a</span> [<span class="attr">routerLink</span>]=<span class="string">&quot;&#x27;/movie&#x27;&quot;</span> <span class="attr">routerLinkActive</span>=<span class="string">&quot;active&quot;</span>&gt;</span>电影<span class="tag">&lt;/<span class="name">a</span>&gt;</span></span><br><span class="line"><span class="tag">&lt;<span class="name">a</span> [<span class="attr">routerLink</span>]=<span class="string">&quot;&#x27;/game&#x27;&quot;</span> <span class="attr">routerLinkActive</span>=<span class="string">&quot;active&quot;</span>&gt;</span>游戏<span class="tag">&lt;/<span class="name">a</span>&gt;</span></span><br></pre></td></tr></table></figure>
+
+<p>组件路由并传参：</p>
+<p>get路由：</p>
+<figure class="highlight typescript"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><span class="line">&#123;</span><br><span class="line">    <span class="attr">path</span>:<span class="string">&quot;content&quot;</span>,</span><br><span class="line">    <span class="attr">component</span>: <span class="title class_">ContentComponent</span>,</span><br><span class="line">  &#125;</span><br></pre></td></tr></table></figure>
+
+<p>父：</p>
+<figure class="highlight html"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br></pre></td><td class="code"><pre><span class="line"><span class="tag">&lt;<span class="name">p</span>&gt;</span>news works!<span class="tag">&lt;/<span class="name">p</span>&gt;</span></span><br><span class="line"></span><br><span class="line"></span><br><span class="line"><span class="tag">&lt;<span class="name">ul</span>&gt;</span></span><br><span class="line">    <span class="tag">&lt;<span class="name">li</span> *<span class="attr">ngFor</span>=<span class="string">&quot;let item of list; let i=index;&quot;</span>&gt;</span></span><br><span class="line">        <span class="tag">&lt;<span class="name">a</span> [<span class="attr">routerLink</span>]=<span class="string">&quot;&#x27;/content&#x27;&quot;</span> [<span class="attr">queryParams</span>]=<span class="string">&quot;&#123;aid:i&#125;&quot;</span>&gt;</span>&#123;&#123;i&#125;&#125; === &#123;&#123;item&#125;&#125;<span class="tag">&lt;/<span class="name">a</span>&gt;</span></span><br><span class="line">    <span class="tag">&lt;/<span class="name">li</span>&gt;</span></span><br><span class="line"><span class="tag">&lt;/<span class="name">ul</span>&gt;</span></span><br></pre></td></tr></table></figure>
+
+<p>子：</p>
+<figure class="highlight typescript"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">import</span> &#123; <span class="title class_">ActivatedRoute</span> &#125; <span class="keyword">from</span> <span class="string">&#x27;@angular/router&#x27;</span>;</span><br><span class="line"></span><br><span class="line"><span class="keyword">export</span> <span class="keyword">class</span> <span class="title class_">ContentComponent</span> <span class="keyword">implements</span> <span class="title class_">OnInit</span> &#123;</span><br><span class="line">  <span class="attr">router</span>:<span class="title class_">ActivatedRoute</span>;</span><br><span class="line">  <span class="title function_">constructor</span>(<span class="params"><span class="attr">router</span>:<span class="title class_">ActivatedRoute</span></span>) &#123;</span><br><span class="line">    <span class="variable language_">this</span>.<span class="property">router</span> = router;</span><br><span class="line"></span><br><span class="line">  &#125;</span><br><span class="line"></span><br><span class="line">  <span class="title function_">ngOnInit</span>(<span class="params"></span>) &#123;</span><br><span class="line">    <span class="variable language_">this</span>.<span class="property">router</span>.<span class="property">queryParams</span>.<span class="title function_">subscribe</span>(<span class="function">(<span class="params">value</span>)=&gt;</span>&#123;</span><br><span class="line">      <span class="variable language_">console</span>.<span class="title function_">log</span>(value);</span><br><span class="line">    &#125;);</span><br><span class="line">  &#125;</span><br><span class="line"></span><br><span class="line">&#125;</span><br><span class="line"></span><br></pre></td></tr></table></figure>
+
+<p>动态路由：</p>
+<figure class="highlight typescript"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><span class="line">&#123;</span><br><span class="line">    <span class="attr">path</span>:<span class="string">&quot;content/:aid&quot;</span>,</span><br><span class="line">    <span class="attr">component</span>: <span class="title class_">ContentComponent</span>,</span><br><span class="line">  &#125;</span><br></pre></td></tr></table></figure>
+
+<p>父：</p>
+<figure class="highlight html"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><span class="line"><span class="tag">&lt;<span class="name">ul</span>&gt;</span></span><br><span class="line">    <span class="tag">&lt;<span class="name">li</span> *<span class="attr">ngFor</span>=<span class="string">&quot;let item of list; let i=index;&quot;</span>&gt;</span></span><br><span class="line">        <span class="tag">&lt;<span class="name">a</span> [<span class="attr">routerLink</span>]=<span class="string">&quot;[&#x27;/content/&#x27;, i]&quot;</span>&gt;</span>&#123;&#123;i&#125;&#125; === &#123;&#123;item&#125;&#125;<span class="tag">&lt;/<span class="name">a</span>&gt;</span></span><br><span class="line">    <span class="tag">&lt;/<span class="name">li</span>&gt;</span></span><br><span class="line"><span class="tag">&lt;/<span class="name">ul</span>&gt;</span></span><br></pre></td></tr></table></figure>
+
+<p>子：</p>
+<figure class="highlight typescript"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">import</span> &#123; <span class="title class_">ActivatedRoute</span> &#125; <span class="keyword">from</span> <span class="string">&#x27;@angular/router&#x27;</span>;</span><br><span class="line"></span><br><span class="line"><span class="keyword">export</span> <span class="keyword">class</span> <span class="title class_">ContentComponent</span> <span class="keyword">implements</span> <span class="title class_">OnInit</span> &#123;</span><br><span class="line">  <span class="attr">router</span>:<span class="title class_">ActivatedRoute</span>;</span><br><span class="line">  <span class="title function_">constructor</span>(<span class="params"><span class="attr">router</span>:<span class="title class_">ActivatedRoute</span></span>) &#123;</span><br><span class="line">    <span class="variable language_">this</span>.<span class="property">router</span> = router;</span><br><span class="line"></span><br><span class="line">  &#125;</span><br><span class="line"></span><br><span class="line">  <span class="title function_">ngOnInit</span>(<span class="params"></span>) &#123;</span><br><span class="line">    <span class="variable language_">this</span>.<span class="property">router</span>.<span class="property">params</span>.<span class="title function_">subscribe</span>(<span class="function">(<span class="params">value</span>)=&gt;</span>&#123;</span><br><span class="line">      <span class="variable language_">console</span>.<span class="title function_">log</span>(value);</span><br><span class="line">    &#125;);</span><br><span class="line">  &#125;</span><br><span class="line"></span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p>js 动态路由：</p>
+<p>app-routing.module.ts:</p>
+<figure class="highlight typescript"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><span class="line">&#123;</span><br><span class="line">    <span class="attr">path</span>:<span class="string">&quot;content/:aid&quot;</span>,</span><br><span class="line">    <span class="attr">component</span>: <span class="title class_">ContentComponent</span>,</span><br><span class="line">  &#125;</span><br></pre></td></tr></table></figure>
+
+<p>父</p>
+<figure class="highlight typescript"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">import</span> &#123; <span class="title class_">Router</span> &#125; <span class="keyword">from</span> <span class="string">&#x27;@angular/router&#x27;</span>;</span><br><span class="line"></span><br><span class="line"></span><br><span class="line"><span class="keyword">export</span> <span class="keyword">class</span> <span class="title class_">NewsComponent</span> <span class="keyword">implements</span> <span class="title class_">OnInit</span> &#123;</span><br><span class="line"></span><br><span class="line">  <span class="attr">router</span>:<span class="title class_">Router</span>;</span><br><span class="line">  <span class="title function_">constructor</span>(<span class="params"><span class="attr">router</span>:<span class="title class_">Router</span></span>) &#123;</span><br><span class="line">    <span class="variable language_">this</span>.<span class="property">router</span> = router;</span><br><span class="line">  &#125;</span><br><span class="line"></span><br><span class="line">  <span class="title function_">ngOnInit</span>(<span class="params"></span>) &#123;</span><br><span class="line">    <span class="variable language_">this</span>.<span class="property">router</span>.<span class="title function_">navigate</span>([<span class="string">&quot;/content&quot;</span>, <span class="string">&quot;123&quot;</span>]);</span><br><span class="line">  &#125;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p>子</p>
+<figure class="highlight typescript"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">import</span> &#123; <span class="title class_">ActivatedRoute</span> &#125; <span class="keyword">from</span> <span class="string">&#x27;@angular/router&#x27;</span>;</span><br><span class="line"></span><br><span class="line"><span class="keyword">export</span> <span class="keyword">class</span> <span class="title class_">ContentComponent</span> <span class="keyword">implements</span> <span class="title class_">OnInit</span> &#123;</span><br><span class="line">  <span class="attr">router</span>:<span class="title class_">ActivatedRoute</span>;</span><br><span class="line">  <span class="title function_">constructor</span>(<span class="params"><span class="attr">router</span>:<span class="title class_">ActivatedRoute</span></span>) &#123;</span><br><span class="line">    <span class="variable language_">this</span>.<span class="property">router</span> = router;</span><br><span class="line"></span><br><span class="line">  &#125;</span><br><span class="line"></span><br><span class="line">  <span class="title function_">ngOnInit</span>(<span class="params"></span>) &#123;</span><br><span class="line">    <span class="variable language_">this</span>.<span class="property">router</span>.<span class="property">params</span>.<span class="title function_">subscribe</span>(<span class="function">(<span class="params">value</span>)=&gt;</span>&#123;</span><br><span class="line">      <span class="variable language_">console</span>.<span class="title function_">log</span>(value);</span><br><span class="line">    &#125;);</span><br><span class="line">  &#125;</span><br><span class="line"></span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p>js get路由：</p>
+<figure class="highlight typescript"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><span class="line">&#123;</span><br><span class="line">    <span class="attr">path</span>:<span class="string">&quot;content&quot;</span>,</span><br><span class="line">    <span class="attr">component</span>: <span class="title class_">ContentComponent</span>,</span><br><span class="line">  &#125;</span><br></pre></td></tr></table></figure>
+
+<p>父：</p>
+<figure class="highlight typescript"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">import</span> &#123; <span class="title class_">Router</span>, <span class="title class_">NavigationExtras</span> &#125; <span class="keyword">from</span> <span class="string">&#x27;@angular/router&#x27;</span>;</span><br><span class="line"></span><br><span class="line"></span><br><span class="line"><span class="keyword">export</span> <span class="keyword">class</span> <span class="title class_">NewsComponent</span> <span class="keyword">implements</span> <span class="title class_">OnInit</span> &#123;</span><br><span class="line">  <span class="attr">router</span>:<span class="title class_">Router</span>;</span><br><span class="line">  <span class="title function_">constructor</span>(<span class="params"><span class="attr">router</span>:<span class="title class_">Router</span></span>) &#123;</span><br><span class="line">    <span class="variable language_">this</span>.<span class="property">router</span> = router;</span><br><span class="line">  &#125;</span><br><span class="line"></span><br><span class="line">  <span class="title function_">ngOnInit</span>(<span class="params"></span>) &#123;</span><br><span class="line">    <span class="keyword">let</span> <span class="attr">params</span>:<span class="title class_">NavigationExtras</span> = &#123;</span><br><span class="line">      <span class="attr">queryParams</span>:&#123;<span class="attr">aid</span>:<span class="string">&quot;123&quot;</span>&#125;,</span><br><span class="line">      <span class="attr">fragment</span>:<span class="string">&quot;anchor&quot;</span></span><br><span class="line">    &#125;</span><br><span class="line">    <span class="variable language_">this</span>.<span class="property">router</span>.<span class="title function_">navigate</span>([<span class="string">&quot;/content&quot;</span>], params);</span><br><span class="line">  &#125;</span><br><span class="line">&#125;</span><br><span class="line"></span><br></pre></td></tr></table></figure>
+
+<p>子：</p>
+<figure class="highlight typescript"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br></pre></td><td class="code"><pre><span class="line"></span><br><span class="line"><span class="keyword">import</span> &#123; <span class="title class_">ActivatedRoute</span>, <span class="title class_">Router</span> &#125; <span class="keyword">from</span> <span class="string">&#x27;@angular/router&#x27;</span>;</span><br><span class="line"></span><br><span class="line"><span class="keyword">export</span> <span class="keyword">class</span> <span class="title class_">ContentComponent</span> <span class="keyword">implements</span> <span class="title class_">OnInit</span> &#123;</span><br><span class="line">  <span class="attr">router</span>:<span class="title class_">ActivatedRoute</span>;</span><br><span class="line">  <span class="title function_">constructor</span>(<span class="params"><span class="attr">router</span>:<span class="title class_">ActivatedRoute</span></span>) &#123;</span><br><span class="line">    <span class="variable language_">this</span>.<span class="property">router</span> = router;</span><br><span class="line"></span><br><span class="line">  &#125;</span><br><span class="line"></span><br><span class="line">  <span class="title function_">ngOnInit</span>(<span class="params"></span>) &#123;</span><br><span class="line">    <span class="variable language_">this</span>.<span class="property">router</span>.<span class="property">queryParams</span>.<span class="title function_">subscribe</span>(<span class="function">(<span class="params">value</span>)=&gt;</span>&#123;</span><br><span class="line">      <span class="variable language_">console</span>.<span class="title function_">log</span>(value);</span><br><span class="line">    &#125;);</span><br><span class="line">  &#125;</span><br><span class="line"></span><br><span class="line">&#125;</span><br><span class="line"></span><br></pre></td></tr></table></figure>
+
+<p>路由嵌套：</p>
+<p>根：</p>
+<figure class="highlight html"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><span class="line"><span class="tag">&lt;<span class="name">a</span> [<span class="attr">routerLink</span>]=<span class="string">&quot;&#x27;/news&#x27;&quot;</span> <span class="attr">routerLinkActive</span>=<span class="string">&quot;active&quot;</span>&gt;</span>新闻<span class="tag">&lt;/<span class="name">a</span>&gt;</span></span><br><span class="line"><span class="tag">&lt;<span class="name">a</span> [<span class="attr">routerLink</span>]=<span class="string">&quot;&#x27;/movie&#x27;&quot;</span> <span class="attr">routerLinkActive</span>=<span class="string">&quot;active&quot;</span>&gt;</span>电影<span class="tag">&lt;/<span class="name">a</span>&gt;</span></span><br><span class="line"><span class="tag">&lt;<span class="name">a</span> [<span class="attr">routerLink</span>]=<span class="string">&quot;&#x27;/game&#x27;&quot;</span> <span class="attr">routerLinkActive</span>=<span class="string">&quot;active&quot;</span>&gt;</span>游戏<span class="tag">&lt;/<span class="name">a</span>&gt;</span></span><br><span class="line"><span class="tag">&lt;<span class="name">router-outlet</span>&gt;</span><span class="tag">&lt;/<span class="name">router-outlet</span>&gt;</span></span><br></pre></td></tr></table></figure>
+
+<p>app-routing.module.ts:</p>
+<figure class="highlight typescript"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br><span class="line">36</span><br><span class="line">37</span><br><span class="line">38</span><br><span class="line">39</span><br><span class="line">40</span><br><span class="line">41</span><br><span class="line">42</span><br><span class="line">43</span><br><span class="line">44</span><br><span class="line">45</span><br><span class="line">46</span><br><span class="line">47</span><br><span class="line">48</span><br><span class="line">49</span><br><span class="line">50</span><br><span class="line">51</span><br><span class="line">52</span><br><span class="line">53</span><br><span class="line">54</span><br><span class="line">55</span><br><span class="line">56</span><br><span class="line">57</span><br><span class="line">58</span><br><span class="line">59</span><br><span class="line">60</span><br><span class="line">61</span><br><span class="line">62</span><br><span class="line">63</span><br><span class="line">64</span><br><span class="line">65</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">import</span> &#123; <span class="title class_">NgModule</span> &#125; <span class="keyword">from</span> <span class="string">&#x27;@angular/core&#x27;</span>;</span><br><span class="line"><span class="keyword">import</span> &#123; <span class="title class_">Routes</span>, <span class="title class_">RouterModule</span> &#125; <span class="keyword">from</span> <span class="string">&#x27;@angular/router&#x27;</span>;</span><br><span class="line"></span><br><span class="line"><span class="keyword">import</span> &#123; <span class="title class_">NewsComponent</span> &#125; <span class="keyword">from</span> <span class="string">&#x27;./components/news/news.component&#x27;</span>;</span><br><span class="line"><span class="keyword">import</span> &#123; <span class="title class_">MovieComponent</span> &#125; <span class="keyword">from</span> <span class="string">&#x27;./components/movie/movie.component&#x27;</span>;</span><br><span class="line"><span class="keyword">import</span> &#123; <span class="title class_">GameComponent</span> &#125; <span class="keyword">from</span> <span class="string">&#x27;./components/game/game.component&#x27;</span>;</span><br><span class="line"><span class="keyword">import</span> &#123; <span class="title class_">ContentComponent</span> &#125; <span class="keyword">from</span> <span class="string">&#x27;./components/content/content.component&#x27;</span>;</span><br><span class="line"></span><br><span class="line"><span class="keyword">import</span> &#123; <span class="title class_">SystemsetComponent</span> &#125; <span class="keyword">from</span> <span class="string">&#x27;./components/movie/systemset/systemset.component&#x27;</span>;</span><br><span class="line"><span class="keyword">import</span> &#123; <span class="title class_">SystemmaintainComponent</span> &#125; <span class="keyword">from</span> <span class="string">&#x27;./components/movie/systemmaintain/systemmaintain.component&#x27;</span>;</span><br><span class="line"><span class="keyword">import</span> &#123; <span class="title class_">GamesetComponent</span> &#125; <span class="keyword">from</span> <span class="string">&#x27;./components/game/gameset/gameset.component&#x27;</span>;</span><br><span class="line"><span class="keyword">import</span> &#123; <span class="title class_">GameupdateComponent</span> &#125; <span class="keyword">from</span> <span class="string">&#x27;./components/game/gameupdate/gameupdate.component&#x27;</span>;</span><br><span class="line"></span><br><span class="line"><span class="keyword">const</span> <span class="attr">routes</span>: <span class="title class_">Routes</span> = [</span><br><span class="line">  &#123;</span><br><span class="line">    <span class="attr">path</span>:<span class="string">&quot;news&quot;</span>,</span><br><span class="line">    <span class="attr">component</span>: <span class="title class_">NewsComponent</span></span><br><span class="line">  &#125;,&#123;</span><br><span class="line">    <span class="attr">path</span>:<span class="string">&quot;movie&quot;</span>,</span><br><span class="line">    <span class="attr">component</span>: <span class="title class_">MovieComponent</span>,</span><br><span class="line">    <span class="attr">children</span>:[</span><br><span class="line">      &#123;</span><br><span class="line">        <span class="attr">path</span>:<span class="string">&quot;systemset&quot;</span>,</span><br><span class="line">        <span class="attr">component</span>:<span class="title class_">SystemsetComponent</span>,</span><br><span class="line">      &#125;,&#123;</span><br><span class="line">        <span class="attr">path</span>:<span class="string">&quot;systemmaintain&quot;</span>,</span><br><span class="line">        <span class="attr">component</span>:<span class="title class_">SystemmaintainComponent</span>,</span><br><span class="line">      &#125;,&#123;</span><br><span class="line">        <span class="attr">path</span>:<span class="string">&quot;**&quot;</span>,</span><br><span class="line">        <span class="attr">component</span>:<span class="title class_">SystemsetComponent</span>,</span><br><span class="line">      &#125;</span><br><span class="line">    ],</span><br><span class="line">  &#125;,&#123;</span><br><span class="line">    <span class="attr">path</span>:<span class="string">&quot;game&quot;</span>,</span><br><span class="line">    <span class="attr">component</span>: <span class="title class_">GameComponent</span>,</span><br><span class="line">    <span class="attr">children</span>:[</span><br><span class="line">      &#123;</span><br><span class="line">        <span class="attr">path</span>:<span class="string">&quot;gameset&quot;</span>,</span><br><span class="line">        <span class="attr">component</span>:<span class="title class_">GamesetComponent</span>,</span><br><span class="line">      &#125;,&#123;</span><br><span class="line">        <span class="attr">path</span>:<span class="string">&quot;gameupdate&quot;</span>,</span><br><span class="line">        <span class="attr">component</span>:<span class="title class_">GameupdateComponent</span>,</span><br><span class="line">      &#125;,&#123;</span><br><span class="line">        <span class="attr">path</span>:<span class="string">&quot;**&quot;</span>,</span><br><span class="line">        <span class="attr">component</span>:<span class="title class_">GamesetComponent</span>,</span><br><span class="line">      &#125;</span><br><span class="line">    ],</span><br><span class="line">  <span class="comment">// &#125;,&#123;</span></span><br><span class="line">  <span class="comment">//   path:&quot;content&quot;,</span></span><br><span class="line">  <span class="comment">//   component: ContentComponent,</span></span><br><span class="line">  <span class="comment">// &#125;,&#123;</span></span><br><span class="line">  &#125;,&#123;</span><br><span class="line">    <span class="attr">path</span>:<span class="string">&quot;content&quot;</span>,</span><br><span class="line">    <span class="attr">component</span>: <span class="title class_">ContentComponent</span>,</span><br><span class="line">  &#125;,&#123;</span><br><span class="line">    <span class="attr">path</span>:<span class="string">&quot;**&quot;</span>,</span><br><span class="line">    <span class="attr">component</span>: <span class="title class_">NewsComponent</span>,</span><br><span class="line">  &#125;,</span><br><span class="line">];</span><br><span class="line"></span><br><span class="line"><span class="meta">@NgModule</span>(&#123;</span><br><span class="line">  <span class="attr">imports</span>: [<span class="title class_">RouterModule</span>.<span class="title function_">forRoot</span>(routes)],</span><br><span class="line">  <span class="attr">exports</span>: [<span class="title class_">RouterModule</span>]</span><br><span class="line">&#125;)</span><br><span class="line"><span class="keyword">export</span> <span class="keyword">class</span> <span class="title class_">AppRoutingModule</span> &#123; &#125;</span><br></pre></td></tr></table></figure>
+
+<p>component&#x2F;movie&#x2F;movie.component.html</p>
+<figure class="highlight html"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br></pre></td><td class="code"><pre><span class="line"><span class="tag">&lt;<span class="name">p</span>&gt;</span>movie works!<span class="tag">&lt;/<span class="name">p</span>&gt;</span></span><br><span class="line"></span><br><span class="line"></span><br><span class="line"><span class="tag">&lt;<span class="name">div</span> <span class="attr">class</span>=<span class="string">&quot;content&quot;</span>&gt;</span></span><br><span class="line"></span><br><span class="line">    <span class="tag">&lt;<span class="name">div</span> <span class="attr">class</span>=<span class="string">&quot;left&quot;</span>&gt;</span></span><br><span class="line">        <span class="tag">&lt;<span class="name">a</span> [<span class="attr">routerLink</span>]=<span class="string">&quot;&#x27;/movie/systemset&#x27;&quot;</span> <span class="attr">routerLinkActive</span>=<span class="string">&quot;active&quot;</span>&gt;</span>系统设置<span class="tag">&lt;/<span class="name">a</span>&gt;</span></span><br><span class="line">        <span class="tag">&lt;<span class="name">br</span>&gt;</span></span><br><span class="line">        <span class="tag">&lt;<span class="name">br</span>&gt;</span></span><br><span class="line">        <span class="tag">&lt;<span class="name">a</span> [<span class="attr">routerLink</span>]=<span class="string">&quot;&#x27;/movie/systemmaintain&#x27;&quot;</span> <span class="attr">routerLinkActive</span>=<span class="string">&quot;active&quot;</span>&gt;</span>系统维护<span class="tag">&lt;/<span class="name">a</span>&gt;</span></span><br><span class="line">    <span class="tag">&lt;/<span class="name">div</span>&gt;</span></span><br><span class="line"></span><br><span class="line">    <span class="tag">&lt;<span class="name">div</span> <span class="attr">class</span>=<span class="string">&quot;right&quot;</span>&gt;</span></span><br><span class="line">        <span class="tag">&lt;<span class="name">router-outlet</span>&gt;</span><span class="tag">&lt;/<span class="name">router-outlet</span>&gt;</span></span><br><span class="line">    <span class="tag">&lt;/<span class="name">div</span>&gt;</span></span><br><span class="line"><span class="tag">&lt;/<span class="name">div</span>&gt;</span> </span><br></pre></td></tr></table></figure>
+
+<p>component&#x2F;game&#x2F;game.component.html</p>
+<figure class="highlight html"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br></pre></td><td class="code"><pre><span class="line"><span class="tag">&lt;<span class="name">p</span>&gt;</span>game works!<span class="tag">&lt;/<span class="name">p</span>&gt;</span></span><br><span class="line"></span><br><span class="line"></span><br><span class="line"><span class="tag">&lt;<span class="name">div</span> <span class="attr">class</span>=<span class="string">&quot;content&quot;</span>&gt;</span></span><br><span class="line"></span><br><span class="line">    <span class="tag">&lt;<span class="name">div</span> <span class="attr">class</span>=<span class="string">&quot;left&quot;</span>&gt;</span></span><br><span class="line">        <span class="tag">&lt;<span class="name">a</span> [<span class="attr">routerLink</span>]=<span class="string">&quot;&#x27;/game/gameset&#x27;&quot;</span> <span class="attr">routerLinkActive</span>=<span class="string">&quot;active&quot;</span>&gt;</span>游戏设置<span class="tag">&lt;/<span class="name">a</span>&gt;</span></span><br><span class="line"></span><br><span class="line">        <span class="tag">&lt;<span class="name">br</span>&gt;</span></span><br><span class="line">        <span class="tag">&lt;<span class="name">br</span>&gt;</span></span><br><span class="line">        <span class="tag">&lt;<span class="name">a</span> [<span class="attr">routerLink</span>]=<span class="string">&quot;&#x27;/game/gameupdate&#x27;&quot;</span> <span class="attr">routerLinkActive</span>=<span class="string">&quot;active&quot;</span>&gt;</span>游戏更新<span class="tag">&lt;/<span class="name">a</span>&gt;</span></span><br><span class="line">    <span class="tag">&lt;/<span class="name">div</span>&gt;</span></span><br><span class="line"></span><br><span class="line">    <span class="tag">&lt;<span class="name">div</span> <span class="attr">class</span>=<span class="string">&quot;right&quot;</span>&gt;</span></span><br><span class="line">        <span class="tag">&lt;<span class="name">router-outlet</span>&gt;</span><span class="tag">&lt;/<span class="name">router-outlet</span>&gt;</span></span><br><span class="line">    <span class="tag">&lt;/<span class="name">div</span>&gt;</span></span><br><span class="line"><span class="tag">&lt;/<span class="name">div</span>&gt;</span> </span><br></pre></td></tr></table></figure>
+
+<hr>
+<hr>
+<h2 id="Subject和Observable的区别"><a href="#Subject和Observable的区别" class="headerlink" title="Subject和Observable的区别"></a>Subject和Observable的区别</h2><p>Observable是Subject的特例，Subject是典型的发布订阅模式，可以将消息传递给多个订阅者，但是Observable只能一对一。</p>
+<h2 id="关于Renderer2的介绍"><a href="#关于Renderer2的介绍" class="headerlink" title="关于Renderer2的介绍"></a>关于Renderer2的介绍</h2><p>Renderer2 是 Angular 提供的一个用于操作 DOM 的服务类。它允许你在不直接访问浏览器的 DOM API 的情况下，通过抽象层安全地操作 DOM。Renderer2 是为了增强跨平台兼容性和更好的安全性而设计的，使得你的应用可以在浏览器、服务器端渲染（如 Angular Universal）以及 Web Workers 等不同的环境中运行。</p>
+<h2 id="关于dom操作"><a href="#关于dom操作" class="headerlink" title="关于dom操作"></a>关于dom操作</h2><p>constructor(<br>  private Re2: Renderer2,<br>  private el: ElementRef,<br>  &#x2F;&#x2F; 其他依赖项…<br>) { }</p>
+<p>直接访问宿主元素：</p>
+<ol>
+<li><p>ElementRef 提供了对 Angular 组件、指令或 HTML 元素的宿主元素的直接引用。通过 el.nativeElement，你可以访问并操作该元素。例如，如果这个 ElementRef 是在一个组件中注入的，那么 el.nativeElement 指向该组件的根 DOM 元素。<br>与 Renderer2 结合使用：</p>
+</li>
+<li><p>在你提供的构造函数中，ElementRef 通常与 Renderer2 一起使用。Renderer2 提供了一组安全的方法来操作 DOM，而 ElementRef 提供了操作的目标元素。<br>例如，在 ngOnInit 或其他方法中，你可能会通过 el.nativeElement 获取 DOM 元素，然后使用 Renderer2 对其应用样式、添加类或处理事件。</p>
+</li>
+</ol>
+<h2 id="Data-URL"><a href="#Data-URL" class="headerlink" title="Data URL"></a>Data URL</h2><p>例如，一个图像的Data URL可能看起来像这样：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">data:image/png;<span class="built_in">base64</span>,iVBORw0KGgoAAAANSUhEUgAAAAUAAAAFCAYAAACNbyblAAAAHElEQVQI12P4//8/w38GIAXDIBKE0DHxgljNBAAO9TXL0Y4OHwAAAABJRU5ErkJggg==</span><br></pre></td></tr></table></figure>
+
+<p>在这个例子中：</p>
+<ol>
+<li><p>image&#x2F;png 指定了MIME类型，表示这是一个PNG图像。</p>
+</li>
+<li><p>base64 表示数据是使用Base64编码的。</p>
+</li>
+<li><p>后面的长字符串是图像数据的Base64编码表示。</p>
+</li>
+</ol>
+<p>它允许将小文件直接嵌入到网页或网络请求中，而不需要从服务器上单独请求资源。Data URL 通常用于图像、字体、CSS、JavaScript 和其他小型文件，以减少HTTP请求的数量，从而提高页面加载速度。</p>
+<hr>
+<p>本章完结</p>
+
+    </div>
+
+    
+    
+    
+        <div class="reward-container">
+  <div></div>
+  <button onclick="var qr = document.getElementById('qr'); qr.style.display = (qr.style.display === 'none') ? 'block' : 'none';">
+    打赏
+  </button>
+  <div id="qr" style="display: none;">
+      
+      <div style="display: inline-block;">
+        <img src="/images/wechatpay.jpg" alt="半个馒头 微信支付">
+        <p>微信支付</p>
+      </div>
+
+  </div>
+</div>
+
+
+      <footer class="post-footer">
+          <div class="post-tags">
+              <a href="/tags/Angular/" rel="tag"># Angular</a>
+          </div>
+
+        
+
+
+        
+    <div class="post-nav">
+      <div class="post-nav-item">
+    <a href="/2024/07/28/dbus/Start/" rel="prev" title="DBus快速入门">
+      <i class="fa fa-chevron-left"></i> DBus快速入门
+    </a></div>
+      <div class="post-nav-item">
+    <a href="/2024/09/30/c++/TLS/" rel="next" title="有关线程局部变量的随记">
+      有关线程局部变量的随记 <i class="fa fa-chevron-right"></i>
+    </a></div>
+    </div>
+      </footer>
+    
+  </article>
+  
+  
+  
+
+
+
+          </div>
+          
+
+<script>
+  window.addEventListener('tabs:register', () => {
+    let { activeClass } = CONFIG.comments;
+    if (CONFIG.comments.storage) {
+      activeClass = localStorage.getItem('comments_active') || activeClass;
+    }
+    if (activeClass) {
+      let activeTab = document.querySelector(`a[href="#comment-${activeClass}"]`);
+      if (activeTab) {
+        activeTab.click();
+      }
+    }
+  });
+  if (CONFIG.comments.storage) {
+    window.addEventListener('tabs:click', event => {
+      if (!event.target.matches('.tabs-comment .tab-content .tab-pane')) return;
+      let commentClass = event.target.classList[1];
+      localStorage.setItem('comments_active', commentClass);
+    });
+  }
+</script>
+
+        </div>
+          
+  
+  <div class="toggle sidebar-toggle">
+    <span class="toggle-line toggle-line-first"></span>
+    <span class="toggle-line toggle-line-middle"></span>
+    <span class="toggle-line toggle-line-last"></span>
+  </div>
+
+  <aside class="sidebar">
+    <div class="sidebar-inner">
+
+      <ul class="sidebar-nav motion-element">
+        <li class="sidebar-nav-toc">
+          文章目录
+        </li>
+        <li class="sidebar-nav-overview">
+          站点概览
+        </li>
+      </ul>
+
+      <!--noindex-->
+      <div class="post-toc-wrap sidebar-panel">
+          <div class="post-toc motion-element"><ol class="nav"><li class="nav-item nav-level-2"><a class="nav-link" href="#%E5%AE%89%E8%A3%85Node-JS"><span class="nav-number">1.</span> <span class="nav-text">安装Node.JS</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#%E5%AE%89%E8%A3%85Angular"><span class="nav-number">2.</span> <span class="nav-text">安装Angular</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#%E5%88%9B%E5%BB%BA%E4%B8%80%E4%B8%AA%E7%BB%84%E4%BB%B6"><span class="nav-number">3.</span> <span class="nav-text">创建一个组件</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#%E4%BD%BF%E7%94%A8Forms%E6%A8%A1%E5%9D%97"><span class="nav-number">4.</span> <span class="nav-text">使用Forms模块</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#%E5%88%9B%E5%BB%BA%E4%B8%80%E4%B8%AA%E6%9C%8D%E5%8A%A1"><span class="nav-number">5.</span> <span class="nav-text">创建一个服务</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#DOM%E6%93%8D%E4%BD%9C"><span class="nav-number">6.</span> <span class="nav-text">DOM操作</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#%E7%88%B6%E5%AD%90%E7%BB%84%E4%BB%B6%E4%BC%A0%E5%80%BC"><span class="nav-number">7.</span> <span class="nav-text">父子组件传值</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#%E6%96%B9%E5%BC%8F%E4%B8%80%EF%BC%9A"><span class="nav-number">7.1.</span> <span class="nav-text">方式一：</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#%E6%96%B9%E5%BC%8F%E4%BA%8C%EF%BC%9A"><span class="nav-number">7.2.</span> <span class="nav-text">方式二：</span></a></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#%E5%BC%82%E6%AD%A5%E5%A4%84%E7%90%86"><span class="nav-number">8.</span> <span class="nav-text">异步处理</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#%E4%BD%BF%E7%94%A8rxjs%EF%BC%9A"><span class="nav-number">8.1.</span> <span class="nav-text">使用rxjs：</span></a></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#%E4%BD%BF%E7%94%A8get%E3%80%81post%E8%AF%B7%E6%B1%82"><span class="nav-number">9.</span> <span class="nav-text">使用get、post请求</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#%E8%B7%AF%E7%94%B1"><span class="nav-number">10.</span> <span class="nav-text">路由</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#Subject%E5%92%8CObservable%E7%9A%84%E5%8C%BA%E5%88%AB"><span class="nav-number">11.</span> <span class="nav-text">Subject和Observable的区别</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#%E5%85%B3%E4%BA%8ERenderer2%E7%9A%84%E4%BB%8B%E7%BB%8D"><span class="nav-number">12.</span> <span class="nav-text">关于Renderer2的介绍</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#%E5%85%B3%E4%BA%8Edom%E6%93%8D%E4%BD%9C"><span class="nav-number">13.</span> <span class="nav-text">关于dom操作</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#Data-URL"><span class="nav-number">14.</span> <span class="nav-text">Data URL</span></a></li></ol></div>
+      </div>
+      <!--/noindex-->
+
+      <div class="site-overview-wrap sidebar-panel">
+        <div class="site-author motion-element" itemprop="author" itemscope itemtype="http://schema.org/Person">
+    <img class="site-author-image" itemprop="image" alt="半个馒头"
+      src="/images/avatar.jpg">
+  <p class="site-author-name" itemprop="name">半个馒头</p>
+  <div class="site-description" itemprop="description"></div>
+</div>
+<div class="site-state-wrap motion-element">
+  <nav class="site-state">
+      <div class="site-state-item site-state-posts">
+          <a href="/archives/">
+        
+          <span class="site-state-item-count">58</span>
+          <span class="site-state-item-name">日志</span>
+        </a>
+      </div>
+      <div class="site-state-item site-state-tags">
+            <a href="/tags/">
+          
+        <span class="site-state-item-count">18</span>
+        <span class="site-state-item-name">标签</span></a>
+      </div>
+  </nav>
+</div>
+  <div class="links-of-author motion-element">
+      <span class="links-of-author-item">
+        <a href="https://github.com/LunarStore" title="GitHub → https:&#x2F;&#x2F;github.com&#x2F;LunarStore" rel="noopener" target="_blank"><i class="fa fa-fw fa-github"></i>GitHub</a>
+      </span>
+      <span class="links-of-author-item">
+        <a href="mailto:18772124875@163.com" title="网易邮箱 → mailto:18772124875@163.com" rel="noopener" target="_blank"><i class="fa fa-fw fa-fas fa-envelope"></i>网易邮箱</a>
+      </span>
+  </div>
+
+
+  <div class="links-of-blogroll motion-element">
+    <div class="links-of-blogroll-title">
+      <i class="fa fa-fw fa-link"></i>
+      友情链接
+    </div>
+    <ul class="links-of-blogroll-list">
+        <li class="links-of-blogroll-item">
+          <a href="https://blog.csdn.net/m0_52566365" title="https:&#x2F;&#x2F;blog.csdn.net&#x2F;m0_52566365" rel="noopener" target="_blank">CSDN博客地址</a>
+        </li>
+    </ul>
+  </div>
+
+      </div>
+        <div class="back-to-top motion-element">
+          <i class="fa fa-arrow-up"></i>
+          <span>0%</span>
+        </div>
+
+    </div>
+  </aside>
+  <div id="sidebar-dimmer"></div>
+
+
+      </div>
+    </main>
+
+    <footer class="footer">
+      <div class="footer-inner">
+        
+
+        
+
+<div class="copyright">
+  
+  &copy; 
+  <span itemprop="copyrightYear">2025</span>
+  <span class="with-love">
+    <i class="fa fa-user"></i>
+  </span>
+  <span class="author" itemprop="copyrightHolder">半个馒头</span>
+</div>
+  <div class="powered-by">由 <a href="https://hexo.io/" class="theme-link" rel="noopener" target="_blank">Hexo</a> & <a href="https://theme-next.org/" class="theme-link" rel="noopener" target="_blank">NexT.Gemini</a> 强力驱动
+  </div>
+
+        
+<div class="busuanzi-count">
+  <script async src="https://busuanzi.ibruce.info/busuanzi/2.3/busuanzi.pure.mini.js"></script>
+    <span class="post-meta-item" id="busuanzi_container_site_uv" style="display: none;">
+      <span class="post-meta-item-icon">
+        <i class="fa fa-user"></i>
+      </span>
+      <span class="site-uv" title="总访客量">
+        <span id="busuanzi_value_site_uv"></span>
+      </span>
+    </span>
+    <span class="post-meta-divider">|</span>
+    <span class="post-meta-item" id="busuanzi_container_site_pv" style="display: none;">
+      <span class="post-meta-item-icon">
+        <i class="fa fa-eye"></i>
+      </span>
+      <span class="site-pv" title="总访问量">
+        <span id="busuanzi_value_site_pv"></span>
+      </span>
+    </span>
+</div>
+
+
+
+
+
+
+
+
+      </div>
+    </footer>
+  </div>
+
+  
+  <script src="/lib/anime.min.js"></script>
+  <script src="/lib/velocity/velocity.min.js"></script>
+  <script src="/lib/velocity/velocity.ui.min.js"></script>
+
+<script src="/js/utils.js"></script>
+
+<script src="/js/motion.js"></script>
+
+
+<script src="/js/schemes/pisces.js"></script>
+
+
+<script src="/js/next-boot.js"></script>
+
+
+
+
+  
+
+
+
+
+  
+<script src="/js/local-search.js"></script>
+
+
+
+
+
+
+
+
+
+
+
+
+
+  
+
+  
+
+</body>
+</html>

@@ -1,0 +1,618 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=2">
+<meta name="theme-color" content="#222">
+<meta name="generator" content="Hexo 7.3.0">
+  <link rel="apple-touch-icon" sizes="180x180" href="/images/apple-touch-icon-next.png">
+  <link rel="icon" type="image/png" sizes="32x32" href="/images/favicon-32x32-next.png">
+  <link rel="icon" type="image/png" sizes="16x16" href="/images/favicon-16x16-next.png">
+  <link rel="mask-icon" href="/images/logo.svg" color="#222">
+
+<link rel="stylesheet" href="/css/main.css">
+
+
+<link rel="stylesheet" href="/lib/font-awesome/css/font-awesome.min.css">
+  <link rel="stylesheet" href="/lib/pace/pace-theme-flash.min.css">
+  <script src="/lib/pace/pace.min.js"></script>
+
+<script id="hexo-configurations">
+    var NexT = window.NexT || {};
+    var CONFIG = {"hostname":"www.halfmantou.xyz","root":"/","scheme":"Gemini","version":"7.8.0","exturl":false,"sidebar":{"position":"left","display":"post","padding":18,"offset":12,"onmobile":false},"copycode":{"enable":true,"show_result":true,"style":null},"back2top":{"enable":true,"sidebar":true,"scrollpercent":true},"bookmark":{"enable":false,"color":"#222","save":"auto"},"fancybox":false,"mediumzoom":false,"lazyload":false,"pangu":false,"comments":{"style":"tabs","active":null,"storage":true,"lazyload":false,"nav":null},"algolia":{"hits":{"per_page":10},"labels":{"input_placeholder":"Search for Posts","hits_empty":"We didn't find any results for the search: ${query}","hits_stats":"${hits} results found in ${time} ms"}},"localsearch":{"enable":true,"trigger":"auto","top_n_per_article":3,"unescape":false,"preload":false},"motion":{"enable":true,"async":false,"transition":{"post_block":"fadeIn","post_header":"slideDownIn","post_body":"slideDownIn","coll_header":"slideLeftIn","sidebar":"slideUpIn"}},"path":"search.json"};
+  </script>
+
+  <meta name="description" content="WorkFlow GO-Task 源码分析 WorkFlow源码剖析——Communicator之TCPServer（上） WorkFlow源码剖析——Communicator之TCPServer（中） WorkFlow源码剖析——Communicator之TCPServer（下） 前言任何好的框架的设计都是围绕着一个核心思想去展开，sylar的一切皆协程、muduo的one loop per t">
+<meta property="og:type" content="article">
+<meta property="og:title" content="WorkFlow GO-Task 源码分析">
+<meta property="og:url" content="https://www.halfmantou.xyz/2024/10/13/workflow/go_task/index.html">
+<meta property="og:site_name" content="碎碎念念">
+<meta property="og:description" content="WorkFlow GO-Task 源码分析 WorkFlow源码剖析——Communicator之TCPServer（上） WorkFlow源码剖析——Communicator之TCPServer（中） WorkFlow源码剖析——Communicator之TCPServer（下） 前言任何好的框架的设计都是围绕着一个核心思想去展开，sylar的一切皆协程、muduo的one loop per t">
+<meta property="og:locale" content="zh_CN">
+<meta property="article:published_time" content="2024-10-13T04:00:00.000Z">
+<meta property="article:modified_time" content="2025-09-29T14:24:25.649Z">
+<meta property="article:author" content="半个馒头">
+<meta property="article:tag" content="高性能服务器框架">
+<meta name="twitter:card" content="summary">
+
+<link rel="canonical" href="https://www.halfmantou.xyz/2024/10/13/workflow/go_task/">
+
+
+<script id="page-configurations">
+  // https://hexo.io/docs/variables.html
+  CONFIG.page = {
+    sidebar: "",
+    isHome : false,
+    isPost : true,
+    lang   : 'zh-CN'
+  };
+</script>
+
+  <title>WorkFlow GO-Task 源码分析 | 碎碎念念</title>
+  
+
+
+
+
+
+
+  <noscript>
+  <style>
+  .use-motion .brand,
+  .use-motion .menu-item,
+  .sidebar-inner,
+  .use-motion .post-block,
+  .use-motion .pagination,
+  .use-motion .comments,
+  .use-motion .post-header,
+  .use-motion .post-body,
+  .use-motion .collection-header { opacity: initial; }
+
+  .use-motion .site-title,
+  .use-motion .site-subtitle {
+    opacity: initial;
+    top: initial;
+  }
+
+  .use-motion .logo-line-before i { left: initial; }
+  .use-motion .logo-line-after i { right: initial; }
+  </style>
+</noscript>
+
+</head>
+
+<body itemscope itemtype="http://schema.org/WebPage">
+  <div class="container use-motion">
+    <div class="headband"></div>
+
+    <header class="header" itemscope itemtype="http://schema.org/WPHeader">
+      <div class="header-inner"><div class="site-brand-container">
+  <div class="site-nav-toggle">
+    <div class="toggle" aria-label="切换导航栏">
+      <span class="toggle-line toggle-line-first"></span>
+      <span class="toggle-line toggle-line-middle"></span>
+      <span class="toggle-line toggle-line-last"></span>
+    </div>
+  </div>
+
+  <div class="site-meta">
+
+    <a href="/" class="brand" rel="start">
+      <span class="logo-line-before"><i></i></span>
+      <h1 class="site-title">碎碎念念</h1>
+      <span class="logo-line-after"><i></i></span>
+    </a>
+  </div>
+
+  <div class="site-nav-right">
+    <div class="toggle popup-trigger">
+        <i class="fa fa-search fa-fw fa-lg"></i>
+    </div>
+  </div>
+</div>
+
+
+
+
+<nav class="site-nav">
+  <ul id="menu" class="menu">
+        <li class="menu-item menu-item-home">
+
+    <a href="/" rel="section"><i class="fa fa-fw fa-home"></i>首页</a>
+
+  </li>
+        <li class="menu-item menu-item-about">
+
+    <a href="/about/" rel="section"><i class="fa fa-fw fa-user"></i>关于</a>
+
+  </li>
+        <li class="menu-item menu-item-tags">
+
+    <a href="/tags/" rel="section"><i class="fa fa-fw fa-tags"></i>标签<span class="badge">18</span></a>
+
+  </li>
+        <li class="menu-item menu-item-categories">
+
+    <a href="/categories/" rel="section"><i class="fa fa-fw fa-th"></i>分类<span class="badge">0</span></a>
+
+  </li>
+        <li class="menu-item menu-item-archives">
+
+    <a href="/archives/" rel="section"><i class="fa fa-fw fa-archive"></i>归档<span class="badge">58</span></a>
+
+  </li>
+      <li class="menu-item menu-item-search">
+        <a role="button" class="popup-trigger"><i class="fa fa-search fa-fw"></i>搜索
+        </a>
+      </li>
+  </ul>
+</nav>
+
+
+
+  <div class="search-pop-overlay">
+    <div class="popup search-popup">
+        <div class="search-header">
+  <span class="search-icon">
+    <i class="fa fa-search"></i>
+  </span>
+  <div class="search-input-container">
+    <input autocomplete="off" autocapitalize="off"
+           placeholder="搜索..." spellcheck="false"
+           type="search" class="search-input">
+  </div>
+  <span class="popup-btn-close">
+    <i class="fa fa-times-circle"></i>
+  </span>
+</div>
+<div id="search-result">
+  <div id="no-result">
+    <i class="fa fa-spinner fa-pulse fa-5x fa-fw"></i>
+  </div>
+</div>
+
+    </div>
+  </div>
+
+</div>
+    </header>
+
+    
+  <div class="reading-progress-bar"></div>
+
+  <a href="https://github.com/LunarStore" class="github-corner" title="Follow me on GitHub" aria-label="Follow me on GitHub" rel="noopener" target="_blank"><svg width="80" height="80" viewBox="0 0 250 250" aria-hidden="true"><path d="M0,0 L115,115 L130,115 L142,142 L250,250 L250,0 Z"></path><path d="M128.3,109.0 C113.8,99.7 119.0,89.6 119.0,89.6 C122.0,82.7 120.5,78.6 120.5,78.6 C119.2,72.0 123.4,76.3 123.4,76.3 C127.3,80.9 125.5,87.3 125.5,87.3 C122.9,97.6 130.6,101.9 134.4,103.2" fill="currentColor" style="transform-origin: 130px 106px;" class="octo-arm"></path><path d="M115.0,115.0 C114.9,115.1 118.7,116.5 119.8,115.4 L133.7,101.6 C136.9,99.2 139.9,98.4 142.2,98.6 C133.8,88.0 127.5,74.4 143.8,58.0 C148.5,53.4 154.0,51.2 159.7,51.0 C160.3,49.4 163.2,43.6 171.4,40.1 C171.4,40.1 176.1,42.5 178.8,56.2 C183.1,58.6 187.2,61.8 190.9,65.4 C194.5,69.0 197.7,73.2 200.1,77.6 C213.8,80.2 216.3,84.9 216.3,84.9 C212.7,93.1 206.9,96.0 205.4,96.6 C205.1,102.4 203.0,107.8 198.3,112.5 C181.9,128.9 168.3,122.5 157.7,114.1 C157.9,116.9 156.7,120.9 152.7,124.9 L141.0,136.5 C139.8,137.7 141.6,141.9 141.8,141.8 Z" fill="currentColor" class="octo-body"></path></svg></a>
+
+
+    <main class="main">
+      <div class="main-inner">
+        <div class="content-wrap">
+          
+
+          <div class="content post posts-expand">
+            
+
+    
+  
+  
+  <article itemscope itemtype="http://schema.org/Article" class="post-block" lang="zh-CN">
+    <link itemprop="mainEntityOfPage" href="https://www.halfmantou.xyz/2024/10/13/workflow/go_task/">
+
+    <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
+      <meta itemprop="image" content="/images/avatar.jpg">
+      <meta itemprop="name" content="半个馒头">
+      <meta itemprop="description" content="">
+    </span>
+
+    <span hidden itemprop="publisher" itemscope itemtype="http://schema.org/Organization">
+      <meta itemprop="name" content="碎碎念念">
+    </span>
+      <header class="post-header">
+        <h1 class="post-title" itemprop="name headline">
+          WorkFlow GO-Task 源码分析
+        </h1>
+
+        <div class="post-meta">
+            <span class="post-meta-item">
+              <span class="post-meta-item-icon">
+                <i class="fa fa-calendar-o"></i>
+              </span>
+              <span class="post-meta-item-text">发表于</span>
+
+              <time title="创建时间：2024-10-13 12:00:00" itemprop="dateCreated datePublished" datetime="2024-10-13T12:00:00+08:00">2024-10-13</time>
+            </span>
+              <span class="post-meta-item">
+                <span class="post-meta-item-icon">
+                  <i class="fa fa-calendar-check-o"></i>
+                </span>
+                <span class="post-meta-item-text">更新于</span>
+                <time title="修改时间：2025-09-29 22:24:25" itemprop="dateModified" datetime="2025-09-29T22:24:25+08:00">2025-09-29</time>
+              </span>
+
+          
+            <span class="post-meta-item" title="阅读次数" id="busuanzi_container_page_pv" style="display: none;">
+              <span class="post-meta-item-icon">
+                <i class="fa fa-eye"></i>
+              </span>
+              <span class="post-meta-item-text">阅读次数：</span>
+              <span id="busuanzi_value_page_pv"></span>
+            </span>
+
+        </div>
+      </header>
+
+    
+    
+    
+    <div class="post-body" itemprop="articleBody">
+
+      
+        <p><a target="_blank" rel="noopener" href="https://blog.csdn.net/m0_52566365/article/details/142903964">WorkFlow GO-Task 源码分析</a></p>
+<p><a target="_blank" rel="noopener" href="https://blog.csdn.net/m0_52566365/article/details/143452443">WorkFlow源码剖析——Communicator之TCPServer（上）</a></p>
+<p><a target="_blank" rel="noopener" href="https://blog.csdn.net/m0_52566365/article/details/143493066">WorkFlow源码剖析——Communicator之TCPServer（中）</a></p>
+<p><a target="_blank" rel="noopener" href="https://blog.csdn.net/m0_52566365/article/details/143605123">WorkFlow源码剖析——Communicator之TCPServer（下）</a></p>
+<h2 id="前言"><a href="#前言" class="headerlink" title="前言"></a>前言</h2><p>任何好的框架的设计都是围绕着一个核心思想去展开，sylar的一切皆协程、muduo的one loop per thread等。一切皆是任务流就是workflow的精髓。（PS，目前作者功力尚浅，许多设计细节还未能悟透其用意，目前也只能尽力将我的理解呈现出来，有错误非常欢迎指出。</p>
+<p>也是尝试着阅读过许多开源优秀的代码，这里记录一下我个人在阅读一份源码时的习惯：<strong>适可而止的自低向上</strong>。因为我在阅读一份完全不了解的源码时，迫不及待的想去知道每个每个模块、每个函数的实现细节，我也曾尝试以自顶向下去阅读一份源码，但是无法克制自己钻牛角尖的心，并且在经验尚浅，完全不了解设计背景的境况下，自顶向下去阅读一份源码，某一个函数的实现你只能去猜，由于经验尚浅，你大概率猜的也是错误的。所以，兜兜转转，我还是遵循我个人的习惯，自低向上去阅读一份源码。当然，应该：<strong>适可而止的自低向上</strong>，一些你完全知道起什么作用的模块其实就不必去深究了，比如：链表、红黑树、编码器等。深入细节的同时，也不要忘了我们的初心：框架的设计思想。</p>
+<span id="more"></span>
+
+<p>网络框架（包括库）的模块设计其实有很多相似的地方，比如都会有的：线程池、对epoll的封装、对io接口的封装、对tcpserver以及tcpclient的封装等。在阅读网络并发相关的源码时可以以这些方面入手。</p>
+<p>在深入阅读workflow的源码之后，特别是在kernel文件夹下对一些基础模块的封装中感受到了对c++的克制使用。因为kernel下基础模块的实现大多都是以c语言为主。这点大家要有一个心理准备。</p>
+<p>这里建议读者在阅读workflow，go-task源码时，以如下顺序阅读：</p>
+<p>ExecQueue -&gt; ExecSession -&gt; Executor-&gt; ExecRequest -&gt; SubTask -&gt; __ExecManager -&gt; __WFGoTask -&gt; WFGoTask -&gt; SeriesWork</p>
+<h2 id="正文"><a href="#正文" class="headerlink" title="正文"></a>正文</h2><p>下面直接以workflow给的gotask的示例作为本文的切入点：</p>
+<h3 id="用法"><a href="#用法" class="headerlink" title="用法"></a>用法</h3><p>go-task的用法示例如下：</p>
+<figure class="highlight cpp"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br></pre></td><td class="code"><pre><span class="line"><span class="meta">#<span class="keyword">include</span> <span class="string">&lt;stdio.h&gt;</span></span></span><br><span class="line"><span class="meta">#<span class="keyword">include</span> <span class="string">&lt;utility&gt;</span></span></span><br><span class="line"><span class="meta">#<span class="keyword">include</span> <span class="string">&quot;workflow/WFTaskFactory.h&quot;</span></span></span><br><span class="line"><span class="meta">#<span class="keyword">include</span> <span class="string">&quot;workflow/WFFacilities.h&quot;</span></span></span><br><span class="line"></span><br><span class="line"><span class="function"><span class="type">void</span> <span class="title">add</span><span class="params">(<span class="type">int</span> a, <span class="type">int</span> b, <span class="type">int</span>&amp; res)</span> </span>&#123;</span><br><span class="line">    res = a + b;</span><br><span class="line">&#125;</span><br><span class="line"></span><br><span class="line"><span class="function"><span class="type">int</span> <span class="title">main</span><span class="params">(<span class="type">void</span>)</span> </span>&#123;</span><br><span class="line">    <span class="function">WFFacilities::WaitGroup <span class="title">wait_group</span><span class="params">(<span class="number">1</span>)</span></span>;</span><br><span class="line">    <span class="type">int</span> a = <span class="number">1</span>;</span><br><span class="line">    <span class="type">int</span> b = <span class="number">1</span>;</span><br><span class="line">    <span class="type">int</span> res;</span><br><span class="line"></span><br><span class="line">    WFGoTask *task = WFTaskFactory::<span class="built_in">create_go_task</span>(<span class="string">&quot;test&quot;</span>, add, a, b, std::<span class="built_in">ref</span>(res));   <span class="comment">// cb1</span></span><br><span class="line">    task-&gt;<span class="built_in">set_callback</span>([&amp;](WFGoTask *task) &#123;    <span class="comment">// cb2</span></span><br><span class="line">        <span class="built_in">printf</span>(<span class="string">&quot;%d + %d = %d\n&quot;</span>, a, b, res);</span><br><span class="line">        wait_group.<span class="built_in">done</span>();</span><br><span class="line">    &#125;);</span><br><span class="line"> </span><br><span class="line">    task-&gt;<span class="built_in">start</span>();</span><br><span class="line">    wait_group.<span class="built_in">wait</span>();</span><br><span class="line">    <span class="keyword">return</span> <span class="number">0</span>;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p>如果你有一定网络编程的基础，应该很容易看懂这段小daemo。我们可以这段代码猜测：</p>
+<p>第一行声明了一个WaitGroup变量，从后面的代码可以知道wait_group的作用是：阻塞主线程等待计算完成。在创建wait_group后，将计算过程add函数封装在一个回调函数（cb1）当中，cb1作为一个参数再来构造一个任务–WFGoTask，然后调用WFGoTask::set_callback函数又设置了一个回调函数（cb2），从代码上可以看到，该cb2的作用是：打印计算结果并通知主线程计算完毕。</p>
+<p>所以经过上面的分析，我们可以知道：</p>
+<ol>
+<li><p>WaitGroup的实现一定是基于条件变量&#x2F;信号量。</p>
+</li>
+<li><p>作为WFGoTask构造参数cb1，一定某一时刻被线程池里面的某个线程给调用了，并且该线程在调用add函数返回之后，一定是<strong>直接或者间接</strong>调用了一下cb2。</p>
+</li>
+</ol>
+<h3 id="源码简析"><a href="#源码简析" class="headerlink" title="源码简析"></a>源码简析</h3><p>示例代码中create_go_task的第一个参数其实是kernel目录下的ExecQueue队列对应的队列名。ExecQueue具体的用法以及作用稍后讲解，只需知道它是一个队列即可。</p>
+<p>create_go_task实现很简单，它里面就是依赖一个全局的单例__ExecManager，通过这个单例拿到队列名对应的队列指针以及Executor对象。然后将队列和Executor对象作为__WFGoTask的构造参数，创建出了继承自WFGoTask的__WFGoTask对象。</p>
+<p>这里备注一下：__ExecManager单例管理从队列名到队列指针的映射。并且在__ExecManager初始化时，会创建一个Executor对象。</p>
+<p>目前为止，出现了几个新的类：ExecQueue、Executor、__WFGoTask。</p>
+<p>对于ExecQueue从kernel目录下可以看到它的源码，单纯就是一个链表，使用的还是linux原生链表。它的每一个节点都是ExecSessionEntry类型，如下定义：</p>
+<figure class="highlight cpp"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">struct</span> <span class="title class_">ExecSessionEntry</span> &#123;</span><br><span class="line">	<span class="keyword">struct</span> <span class="title class_">list_head</span> list;</span><br><span class="line">	ExecSession *session;</span><br><span class="line">	<span class="type">thrdpool_t</span> *thrdpool;</span><br><span class="line">&#125;;</span><br></pre></td></tr></table></figure>
+
+<p>单独看ExecQueue、ExecSession、ExecSessionEntry的源码一定会蒙（我就是），所以这里直接讲解Executor的实现，前面的三个类就是被它所使用。</p>
+<figure class="highlight cpp"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br></pre></td><td class="code"><pre><span class="line"><span class="function"><span class="type">void</span> <span class="title">Executor::executor_thread_routine</span><span class="params">(<span class="type">void</span> *context)</span> </span>&#123;</span><br><span class="line">	ExecQueue *queue = (ExecQueue *)context;</span><br><span class="line">	<span class="keyword">struct</span> <span class="title class_">ExecSessionEntry</span> *entry;</span><br><span class="line">	ExecSession *session;</span><br><span class="line">	<span class="type">int</span> empty;</span><br><span class="line"></span><br><span class="line">	entry = <span class="built_in">list_entry</span>(queue-&gt;session_list.next, <span class="keyword">struct</span> ExecSessionEntry, list);</span><br><span class="line">	<span class="built_in">pthread_mutex_lock</span>(&amp;queue-&gt;mutex);</span><br><span class="line">	<span class="built_in">list_del</span>(&amp;entry-&gt;list);</span><br><span class="line">	empty = <span class="built_in">list_empty</span>(&amp;queue-&gt;session_list);</span><br><span class="line">	<span class="built_in">pthread_mutex_unlock</span>(&amp;queue-&gt;mutex);</span><br><span class="line"></span><br><span class="line">	session = entry-&gt;session;</span><br><span class="line">	<span class="keyword">if</span> (!empty) &#123;</span><br><span class="line">		<span class="keyword">struct</span> <span class="title class_">thrdpool_task</span> task = &#123;</span><br><span class="line">			.routine	=	Executor::executor_thread_routine,</span><br><span class="line">			.context	=	queue</span><br><span class="line">		&#125;;</span><br><span class="line">		__thrdpool_schedule(&amp;task, entry, entry-&gt;thrdpool);</span><br><span class="line">	&#125;</span><br><span class="line">	<span class="keyword">else</span></span><br><span class="line">		<span class="built_in">free</span>(entry);</span><br><span class="line"></span><br><span class="line">	session-&gt;<span class="built_in">execute</span>();</span><br><span class="line">	session-&gt;<span class="built_in">handle</span>(ES_STATE_FINISHED, <span class="number">0</span>);</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p>流程如下：</p>
+<ol>
+<li><p>从队列中取ExecSessionEntry。</p>
+</li>
+<li><p>队列非空的话，将ExecSessionEntry中的session包装成thrdpool_task，并且将ExecSessionEntry的地址复用成线程池的__thrdpool_task_entry（PS：线程池在拿到__thrdpool_task_entry时用完后会自动free掉）。</p>
+</li>
+<li><p>队列为非空的话，直接free掉ExecSessionEntry。</p>
+</li>
+<li><p>最后执行ExecSession的execute、handle。</p>
+</li>
+</ol>
+<p>这里的execute函数其实暗示着会调用cb1，handle其实就暗示里面会调用cb2。这下前后不就连起来了？（恍然大悟！）别着急，我们继续去剖析源码。</p>
+<p>细心的读者应该会发现这句代码没被放在锁里面：</p>
+<figure class="highlight cpp"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">entry = <span class="built_in">list_entry</span>(queue-&gt;session_list.next, <span class="keyword">struct</span> ExecSessionEntry, list);</span><br></pre></td></tr></table></figure>
+
+<p>为什么可以不放在锁里面？如果线程2，在线程1执行完list_del之前，拿到了同一个entry，这样不会有野指针的问题吗？</p>
+<p>这里放出我的猜测：Executor::executor_thread_routine本身就已经保证了一个时刻只会有一个线程访问队列头部。这个函数的执行逻辑是这样的：当前Executor::executor_thread_routine的回调是靠上一个Executor::executor_thread_routine回调访问完链表头部之后触发的，<strong>也即下一个队列头部访问的回调还得靠上一个回调来封装</strong>。这里其实有点并行任务串行化的味道了。</p>
+<figure class="highlight cpp"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">struct</span> <span class="title class_">thrdpool_task</span> task = &#123;</span><br><span class="line">    .routine	=	Executor::executor_thread_routine,</span><br><span class="line">    .context	=	queue</span><br><span class="line">&#125;;</span><br><span class="line">__thrdpool_schedule(&amp;task, entry, entry-&gt;thrdpool);</span><br></pre></td></tr></table></figure>
+
+<p>最后是ExecQueue队列的start点，如下：</p>
+<figure class="highlight cpp"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br></pre></td><td class="code"><pre><span class="line"><span class="function"><span class="type">int</span> <span class="title">Executor::request</span><span class="params">(ExecSession *session, ExecQueue *queue)</span> </span>&#123;</span><br><span class="line">	<span class="keyword">struct</span> <span class="title class_">ExecSessionEntry</span> *entry;</span><br><span class="line"></span><br><span class="line">	session-&gt;queue = queue;</span><br><span class="line">	entry = (<span class="keyword">struct</span> ExecSessionEntry *)<span class="built_in">malloc</span>(<span class="built_in">sizeof</span> (<span class="keyword">struct</span> ExecSessionEntry));</span><br><span class="line">	<span class="keyword">if</span> (entry) &#123;</span><br><span class="line">		entry-&gt;session = session;</span><br><span class="line">		entry-&gt;thrdpool = <span class="keyword">this</span>-&gt;thrdpool;</span><br><span class="line">		<span class="built_in">pthread_mutex_lock</span>(&amp;queue-&gt;mutex);</span><br><span class="line">		<span class="built_in">list_add_tail</span>(&amp;entry-&gt;list, &amp;queue-&gt;session_list);</span><br><span class="line">		<span class="keyword">if</span> (queue-&gt;session_list.next == &amp;entry-&gt;list) &#123;</span><br><span class="line">			<span class="keyword">struct</span> <span class="title class_">thrdpool_task</span> task = &#123;</span><br><span class="line">				.routine	=	Executor::executor_thread_routine,</span><br><span class="line">				.context	=	queue</span><br><span class="line">			&#125;;</span><br><span class="line">			<span class="keyword">if</span> (<span class="built_in">thrdpool_schedule</span>(&amp;task, <span class="keyword">this</span>-&gt;thrdpool) &lt; <span class="number">0</span>) &#123;</span><br><span class="line">				<span class="built_in">list_del</span>(&amp;entry-&gt;list);</span><br><span class="line">				<span class="built_in">free</span>(entry);</span><br><span class="line">				entry = <span class="literal">NULL</span>;</span><br><span class="line">			&#125;</span><br><span class="line">		&#125;</span><br><span class="line"></span><br><span class="line">		<span class="built_in">pthread_mutex_unlock</span>(&amp;queue-&gt;mutex);</span><br><span class="line">	&#125;</span><br><span class="line"></span><br><span class="line">	<span class="keyword">return</span> -!entry;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p>从源码中可以看到，就是使用malloc分配一块内存，将session封装成ExecSessionEntry，然后将其添加到队列尾部，如果队列原来为空（意味着ExecQueue没有开始执行），就启动第一个Executor::executor_thread_routine，这样它会<strong>自动链式触发</strong>执行队列当中的每一个任务的回调。</p>
+<p>这里malloc分配的ExecSessionEntry由两个地方去释放：</p>
+<ol>
+<li><p><strong>这里malloc分配的ExecSessionEntry会被复用为线程池的__thrdpool_task_entry，最后被线程池调用free释放掉。</strong></p>
+</li>
+<li><p><strong>在函数Executor::executor_thread_routine中，由ExecQueue最后一个任务调用free释放。</strong></p>
+</li>
+</ol>
+<p>从这里可以看到，workflow针对内存的释放也是极其晦涩（反正我在阅读源码时就是这样感觉）。为了性能，根本没使用智能指针，完全靠malloc和free。内存池也没有，这点我是无法理解的。</p>
+<p>经过上面的分析我们了解了ExecSession、ExecQueue、Executor的作用，接下来我们分析一下，__WFGoTask是怎么使用这些类的。</p>
+<p>从本段开头了解到ExecQueue、Executor是作为__WFGoTask的构造参数，所以下面我们以__WFGoTask为主去看看它是怎么实现的</p>
+<figure class="highlight cpp"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">class</span> <span class="title class_">__WFGoTask</span> : <span class="keyword">public</span> WFGoTask &#123;</span><br><span class="line">    <span class="comment">// ...</span></span><br><span class="line"><span class="keyword">protected</span>:</span><br><span class="line">	<span class="function"><span class="keyword">virtual</span> <span class="type">void</span> <span class="title">execute</span><span class="params">()</span> </span>&#123;</span><br><span class="line">		<span class="keyword">this</span>-&gt;<span class="built_in">go</span>();</span><br><span class="line">	&#125;</span><br><span class="line"></span><br><span class="line"><span class="keyword">protected</span>:</span><br><span class="line">	std::function&lt;<span class="type">void</span> ()&gt; go;</span><br><span class="line"></span><br><span class="line"><span class="keyword">public</span>:</span><br><span class="line">	__WFGoTask(ExecQueue *queue, Executor *executor,</span><br><span class="line">			   std::function&lt;<span class="built_in">void</span> ()&gt;&amp;&amp; func) :</span><br><span class="line">		<span class="built_in">WFGoTask</span>(queue, executor),</span><br><span class="line">		<span class="built_in">go</span>(std::<span class="built_in">move</span>(func)) &#123; <span class="comment">/* ... */</span> &#125;</span><br><span class="line">&#125;;</span><br></pre></td></tr></table></figure>
+
+<p><strong>使用了virtual关键字声明的execute函数！</strong>，并且调用了go也即cb1！（衔接起来了！）</p>
+<p>继续看它基类的实现：</p>
+<figure class="highlight cpp"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">class</span> <span class="title class_">WFGoTask</span> : <span class="keyword">public</span> ExecRequest &#123;</span><br><span class="line"><span class="keyword">public</span>:</span><br><span class="line">	<span class="function"><span class="type">void</span> <span class="title">start</span><span class="params">()</span> </span>&#123;</span><br><span class="line">		<span class="built_in">assert</span>(!<span class="built_in">series_of</span>(<span class="keyword">this</span>));</span><br><span class="line">		Workflow::<span class="built_in">start_series_work</span>(<span class="keyword">this</span>, <span class="literal">nullptr</span>);</span><br><span class="line">	&#125;</span><br><span class="line"></span><br><span class="line"><span class="keyword">public</span>:</span><br><span class="line">	<span class="type">void</span> *user_data;</span><br><span class="line"></span><br><span class="line"><span class="keyword">public</span>:</span><br><span class="line">	<span class="function"><span class="type">void</span> <span class="title">set_callback</span><span class="params">(std::function&lt;<span class="type">void</span> (WFGoTask *)&gt; cb)</span> </span>&#123;</span><br><span class="line">		<span class="keyword">this</span>-&gt;callback = std::<span class="built_in">move</span>(cb);</span><br><span class="line">	&#125;</span><br><span class="line"></span><br><span class="line"><span class="keyword">protected</span>:</span><br><span class="line">	<span class="function"><span class="keyword">virtual</span> SubTask *<span class="title">done</span><span class="params">()</span> </span>&#123;</span><br><span class="line">		SeriesWork *series = <span class="built_in">series_of</span>(<span class="keyword">this</span>);</span><br><span class="line"></span><br><span class="line">		<span class="keyword">if</span> (<span class="keyword">this</span>-&gt;callback)</span><br><span class="line">			<span class="keyword">this</span>-&gt;<span class="built_in">callback</span>(<span class="keyword">this</span>);</span><br><span class="line"></span><br><span class="line">		<span class="keyword">delete</span> <span class="keyword">this</span>;</span><br><span class="line">		<span class="keyword">return</span> series-&gt;<span class="built_in">pop</span>();</span><br><span class="line">	&#125;</span><br><span class="line"></span><br><span class="line"><span class="keyword">protected</span>:</span><br><span class="line">	std::function&lt;<span class="type">void</span> (WFGoTask *)&gt; callback;</span><br><span class="line"></span><br><span class="line"><span class="keyword">public</span>:</span><br><span class="line">	<span class="built_in">WFGoTask</span>(ExecQueue *queue, Executor *executor) :</span><br><span class="line">		<span class="built_in">ExecRequest</span>(queue, executor) &#123; <span class="comment">/* ... */</span> &#125;</span><br><span class="line">&#125;;</span><br></pre></td></tr></table></figure>
+
+<p>WFGoTask::start()正是示例当中调用的start函数，set_callback正是设置的cb2回调。我可以明确的说，start_series_work会创建一个SeriesWork对象，并且将SeriesWork对象的指针赋值给WFGoTask祖父类SubTask的user_data成员，并且SeriesWork其实也是一个队列，它是串行队列，队列当中的任务是有先后执行顺序的。这里串行队列的设计是为特定的有先后依赖顺序的计算场景所设计的。</p>
+<p>深入查看ExecRequest的实现：</p>
+<figure class="highlight cpp"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">class</span> <span class="title class_">ExecRequest</span> : <span class="keyword">public</span> SubTask, <span class="keyword">public</span> ExecSession &#123;</span><br><span class="line"><span class="keyword">public</span>:</span><br><span class="line">	<span class="built_in">ExecRequest</span>(ExecQueue *queue, Executor *executor) &#123; <span class="comment">/* ... */</span> &#125;</span><br><span class="line"></span><br><span class="line"><span class="keyword">public</span>:</span><br><span class="line">	<span class="function"><span class="keyword">virtual</span> <span class="type">void</span> <span class="title">dispatch</span><span class="params">()</span> </span>&#123;</span><br><span class="line">		<span class="keyword">if</span> (<span class="keyword">this</span>-&gt;executor-&gt;<span class="built_in">request</span>(<span class="keyword">this</span>, <span class="keyword">this</span>-&gt;queue) &lt; <span class="number">0</span>)</span><br><span class="line">			<span class="keyword">this</span>-&gt;<span class="built_in">handle</span>(ES_STATE_ERROR, errno);</span><br><span class="line">	&#125;</span><br><span class="line"></span><br><span class="line"><span class="keyword">protected</span>:</span><br><span class="line">	ExecQueue *queue;</span><br><span class="line">	Executor *executor;</span><br><span class="line"></span><br><span class="line"><span class="keyword">protected</span>:</span><br><span class="line">	<span class="function"><span class="keyword">virtual</span> <span class="type">void</span> <span class="title">handle</span><span class="params">(<span class="type">int</span> state, <span class="type">int</span> error)</span> </span>&#123;</span><br><span class="line">		<span class="keyword">this</span>-&gt;state = state;</span><br><span class="line">		<span class="keyword">this</span>-&gt;error = error;</span><br><span class="line">		<span class="keyword">this</span>-&gt;<span class="built_in">subtask_done</span>();</span><br><span class="line">	&#125;</span><br><span class="line">&#125;;</span><br></pre></td></tr></table></figure>
+
+<p>SubTask类和ExecSession类非常简单，由于篇幅有限这只列出我们关心的函数。</p>
+<p>SubTask有三个关键函数：</p>
+<p>虚函数：dispatch、done</p>
+<p>普通成员函数：subtask_done。</p>
+<p>而</p>
+<p>SubTask::dispatch 最终被重写为：ExecRequest::dispatch</p>
+<p>SubTask::done 最终被重写为：WFGoTask::done</p>
+<p>其中subtask_done实现如下：</p>
+<figure class="highlight cpp"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br></pre></td><td class="code"><pre><span class="line"><span class="function"><span class="type">void</span> <span class="title">SubTask::subtask_done</span><span class="params">()</span> </span>&#123;</span><br><span class="line">	SubTask *cur = <span class="keyword">this</span>;</span><br><span class="line"></span><br><span class="line">	<span class="keyword">while</span> (<span class="number">1</span>) &#123;</span><br><span class="line">		cur = cur-&gt;<span class="built_in">done</span>();</span><br><span class="line">		<span class="keyword">if</span> (cur) &#123;</span><br><span class="line">			cur-&gt;<span class="built_in">dispatch</span>();</span><br><span class="line">		&#125;</span><br><span class="line">        <span class="comment">/* ... */</span></span><br><span class="line"></span><br><span class="line">		<span class="keyword">break</span>;</span><br><span class="line">	&#125;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p>done的实现落实到了WFGoTask::done上，作用是销毁当前的task对象并且返回串行队列当中的下一个task，然后由subtask_done调用ExecRequest::dispatch将task挂到ExecQueue的链表上等待线程池的消费。</p>
+<p>ExecSession有两个我们比较关心的纯虚函数：execute、handle。这两函数一路继承体系下来最终分别被重写为__WFGoTask::execute和ExecRequest::handle。</p>
+<p>所以在Executor::executor_thread_routine函数中调用的execute、handle函数最终被重写为：__WFGoTask::execute、ExecRequest::handle()。</p>
+<p>最后总结一下go-task执行的流程：</p>
+<ol>
+<li><p>构造一个go-task对象 &amp;&amp; 调用start函数。</p>
+</li>
+<li><p>start函数会new一个first为go-task，last为nullptr的SeriesWork对象 &amp;&amp; 调用first的dispatch也即ExecRequest::dispatch。</p>
+</li>
+<li><p>executor的request函数，将go-task挂到ExecQueue链表的尾部上，由线程池去消费。当然，如果ExecQueue原来是为空的，就创建第一个Executor::executor_thread_routine。</p>
+</li>
+<li><p>Executor::executor_thread_routine会<strong>链式</strong>触发让线程池处理ExecQueue每一个任务。</p>
+</li>
+<li><p>调用任务的__WFGoTask::execute。</p>
+</li>
+<li><p>调用任务的ExecRequest::handle。</p>
+</li>
+<li><p>调用SubTask::subtask_done &amp;&amp; （如果存在的话）调用SeriesWork对象的下一个task的dispatch（PS，可能不是ExecRequest::dispatch这个重载函数）</p>
+</li>
+<li><p>调用WFGoTask::done。删除当前task对象并且返回串行队列的下一个串行任务。</p>
+</li>
+</ol>
+<p><strong>最后要还要提醒的一句是：Executor::executor_thread_routine在向ExecQueue的链表取任务时是保证非并发的，但是在执行任务的execute时，是有可能是并发执行的！</strong> 有人可能会注意到那为什么在向链表取任务时要加锁？因为这把锁可能防止Executor::executor_thread_routine和Executor::request之间的竞争问题，而Executor::executor_thread_routine和Executor::executor_thread_routine之间并不存在竞争问题。</p>
+<hr>
+<p><strong>本章完结</strong></p>
+
+    </div>
+
+    
+    
+    
+        <div class="reward-container">
+  <div></div>
+  <button onclick="var qr = document.getElementById('qr'); qr.style.display = (qr.style.display === 'none') ? 'block' : 'none';">
+    打赏
+  </button>
+  <div id="qr" style="display: none;">
+      
+      <div style="display: inline-block;">
+        <img src="/images/wechatpay.jpg" alt="半个馒头 微信支付">
+        <p>微信支付</p>
+      </div>
+
+  </div>
+</div>
+
+
+      <footer class="post-footer">
+          <div class="post-tags">
+              <a href="/tags/%E9%AB%98%E6%80%A7%E8%83%BD%E6%9C%8D%E5%8A%A1%E5%99%A8%E6%A1%86%E6%9E%B6/" rel="tag"># 高性能服务器框架</a>
+          </div>
+
+        
+
+
+        
+    <div class="post-nav">
+      <div class="post-nav-item">
+    <a href="/2024/09/30/c++/TLS/" rel="prev" title="有关线程局部变量的随记">
+      <i class="fa fa-chevron-left"></i> 有关线程局部变量的随记
+    </a></div>
+      <div class="post-nav-item">
+    <a href="/2024/10/19/mediaserver/Start/" rel="next" title="音视频基础分享">
+      音视频基础分享 <i class="fa fa-chevron-right"></i>
+    </a></div>
+    </div>
+      </footer>
+    
+  </article>
+  
+  
+  
+
+
+
+          </div>
+          
+
+<script>
+  window.addEventListener('tabs:register', () => {
+    let { activeClass } = CONFIG.comments;
+    if (CONFIG.comments.storage) {
+      activeClass = localStorage.getItem('comments_active') || activeClass;
+    }
+    if (activeClass) {
+      let activeTab = document.querySelector(`a[href="#comment-${activeClass}"]`);
+      if (activeTab) {
+        activeTab.click();
+      }
+    }
+  });
+  if (CONFIG.comments.storage) {
+    window.addEventListener('tabs:click', event => {
+      if (!event.target.matches('.tabs-comment .tab-content .tab-pane')) return;
+      let commentClass = event.target.classList[1];
+      localStorage.setItem('comments_active', commentClass);
+    });
+  }
+</script>
+
+        </div>
+          
+  
+  <div class="toggle sidebar-toggle">
+    <span class="toggle-line toggle-line-first"></span>
+    <span class="toggle-line toggle-line-middle"></span>
+    <span class="toggle-line toggle-line-last"></span>
+  </div>
+
+  <aside class="sidebar">
+    <div class="sidebar-inner">
+
+      <ul class="sidebar-nav motion-element">
+        <li class="sidebar-nav-toc">
+          文章目录
+        </li>
+        <li class="sidebar-nav-overview">
+          站点概览
+        </li>
+      </ul>
+
+      <!--noindex-->
+      <div class="post-toc-wrap sidebar-panel">
+          <div class="post-toc motion-element"><ol class="nav"><li class="nav-item nav-level-2"><a class="nav-link" href="#%E5%89%8D%E8%A8%80"><span class="nav-number">1.</span> <span class="nav-text">前言</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#%E6%AD%A3%E6%96%87"><span class="nav-number">2.</span> <span class="nav-text">正文</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#%E7%94%A8%E6%B3%95"><span class="nav-number">2.1.</span> <span class="nav-text">用法</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#%E6%BA%90%E7%A0%81%E7%AE%80%E6%9E%90"><span class="nav-number">2.2.</span> <span class="nav-text">源码简析</span></a></li></ol></li></ol></div>
+      </div>
+      <!--/noindex-->
+
+      <div class="site-overview-wrap sidebar-panel">
+        <div class="site-author motion-element" itemprop="author" itemscope itemtype="http://schema.org/Person">
+    <img class="site-author-image" itemprop="image" alt="半个馒头"
+      src="/images/avatar.jpg">
+  <p class="site-author-name" itemprop="name">半个馒头</p>
+  <div class="site-description" itemprop="description"></div>
+</div>
+<div class="site-state-wrap motion-element">
+  <nav class="site-state">
+      <div class="site-state-item site-state-posts">
+          <a href="/archives/">
+        
+          <span class="site-state-item-count">58</span>
+          <span class="site-state-item-name">日志</span>
+        </a>
+      </div>
+      <div class="site-state-item site-state-tags">
+            <a href="/tags/">
+          
+        <span class="site-state-item-count">18</span>
+        <span class="site-state-item-name">标签</span></a>
+      </div>
+  </nav>
+</div>
+  <div class="links-of-author motion-element">
+      <span class="links-of-author-item">
+        <a href="https://github.com/LunarStore" title="GitHub → https:&#x2F;&#x2F;github.com&#x2F;LunarStore" rel="noopener" target="_blank"><i class="fa fa-fw fa-github"></i>GitHub</a>
+      </span>
+      <span class="links-of-author-item">
+        <a href="mailto:18772124875@163.com" title="网易邮箱 → mailto:18772124875@163.com" rel="noopener" target="_blank"><i class="fa fa-fw fa-fas fa-envelope"></i>网易邮箱</a>
+      </span>
+  </div>
+
+
+  <div class="links-of-blogroll motion-element">
+    <div class="links-of-blogroll-title">
+      <i class="fa fa-fw fa-link"></i>
+      友情链接
+    </div>
+    <ul class="links-of-blogroll-list">
+        <li class="links-of-blogroll-item">
+          <a href="https://blog.csdn.net/m0_52566365" title="https:&#x2F;&#x2F;blog.csdn.net&#x2F;m0_52566365" rel="noopener" target="_blank">CSDN博客地址</a>
+        </li>
+    </ul>
+  </div>
+
+      </div>
+        <div class="back-to-top motion-element">
+          <i class="fa fa-arrow-up"></i>
+          <span>0%</span>
+        </div>
+
+    </div>
+  </aside>
+  <div id="sidebar-dimmer"></div>
+
+
+      </div>
+    </main>
+
+    <footer class="footer">
+      <div class="footer-inner">
+        
+
+        
+
+<div class="copyright">
+  
+  &copy; 
+  <span itemprop="copyrightYear">2025</span>
+  <span class="with-love">
+    <i class="fa fa-user"></i>
+  </span>
+  <span class="author" itemprop="copyrightHolder">半个馒头</span>
+</div>
+  <div class="powered-by">由 <a href="https://hexo.io/" class="theme-link" rel="noopener" target="_blank">Hexo</a> & <a href="https://theme-next.org/" class="theme-link" rel="noopener" target="_blank">NexT.Gemini</a> 强力驱动
+  </div>
+
+        
+<div class="busuanzi-count">
+  <script async src="https://busuanzi.ibruce.info/busuanzi/2.3/busuanzi.pure.mini.js"></script>
+    <span class="post-meta-item" id="busuanzi_container_site_uv" style="display: none;">
+      <span class="post-meta-item-icon">
+        <i class="fa fa-user"></i>
+      </span>
+      <span class="site-uv" title="总访客量">
+        <span id="busuanzi_value_site_uv"></span>
+      </span>
+    </span>
+    <span class="post-meta-divider">|</span>
+    <span class="post-meta-item" id="busuanzi_container_site_pv" style="display: none;">
+      <span class="post-meta-item-icon">
+        <i class="fa fa-eye"></i>
+      </span>
+      <span class="site-pv" title="总访问量">
+        <span id="busuanzi_value_site_pv"></span>
+      </span>
+    </span>
+</div>
+
+
+
+
+
+
+
+
+      </div>
+    </footer>
+  </div>
+
+  
+  <script src="/lib/anime.min.js"></script>
+  <script src="/lib/velocity/velocity.min.js"></script>
+  <script src="/lib/velocity/velocity.ui.min.js"></script>
+
+<script src="/js/utils.js"></script>
+
+<script src="/js/motion.js"></script>
+
+
+<script src="/js/schemes/pisces.js"></script>
+
+
+<script src="/js/next-boot.js"></script>
+
+
+
+
+  
+
+
+
+
+  
+<script src="/js/local-search.js"></script>
+
+
+
+
+
+
+
+
+
+
+
+
+
+  
+
+  
+
+</body>
+</html>

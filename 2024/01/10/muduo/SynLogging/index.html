@@ -1,0 +1,561 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=2">
+<meta name="theme-color" content="#222">
+<meta name="generator" content="Hexo 7.3.0">
+  <link rel="apple-touch-icon" sizes="180x180" href="/images/apple-touch-icon-next.png">
+  <link rel="icon" type="image/png" sizes="32x32" href="/images/favicon-32x32-next.png">
+  <link rel="icon" type="image/png" sizes="16x16" href="/images/favicon-16x16-next.png">
+  <link rel="mask-icon" href="/images/logo.svg" color="#222">
+
+<link rel="stylesheet" href="/css/main.css">
+
+
+<link rel="stylesheet" href="/lib/font-awesome/css/font-awesome.min.css">
+  <link rel="stylesheet" href="/lib/pace/pace-theme-flash.min.css">
+  <script src="/lib/pace/pace.min.js"></script>
+
+<script id="hexo-configurations">
+    var NexT = window.NexT || {};
+    var CONFIG = {"hostname":"www.halfmantou.xyz","root":"/","scheme":"Gemini","version":"7.8.0","exturl":false,"sidebar":{"position":"left","display":"post","padding":18,"offset":12,"onmobile":false},"copycode":{"enable":true,"show_result":true,"style":null},"back2top":{"enable":true,"sidebar":true,"scrollpercent":true},"bookmark":{"enable":false,"color":"#222","save":"auto"},"fancybox":false,"mediumzoom":false,"lazyload":false,"pangu":false,"comments":{"style":"tabs","active":null,"storage":true,"lazyload":false,"nav":null},"algolia":{"hits":{"per_page":10},"labels":{"input_placeholder":"Search for Posts","hits_empty":"We didn't find any results for the search: ${query}","hits_stats":"${hits} results found in ${time} ms"}},"localsearch":{"enable":true,"trigger":"auto","top_n_per_article":3,"unescape":false,"preload":false},"motion":{"enable":true,"async":false,"transition":{"post_block":"fadeIn","post_header":"slideDownIn","post_body":"slideDownIn","coll_header":"slideLeftIn","sidebar":"slideUpIn"}},"path":"search.json"};
+  </script>
+
+  <meta name="description" content="Muduo源码笔记系列： muduo源码阅读笔记（0、下载编译muduo） muduo源码阅读笔记（1、同步日志） muduo源码阅读笔记（2、对C语言原生的线程安全以及同步的API的封装） muduo源码阅读笔记（3、线程和线程池的封装） muduo源码阅读笔记（4、异步日志） muduo源码阅读笔记（5、Channel和Poller） muduo源码阅读笔记（6、ExevntLoop和Thre">
+<meta property="og:type" content="article">
+<meta property="og:title" content="muduo源码阅读笔记（1、同步日志）">
+<meta property="og:url" content="https://www.halfmantou.xyz/2024/01/10/muduo/SynLogging/index.html">
+<meta property="og:site_name" content="碎碎念念">
+<meta property="og:description" content="Muduo源码笔记系列： muduo源码阅读笔记（0、下载编译muduo） muduo源码阅读笔记（1、同步日志） muduo源码阅读笔记（2、对C语言原生的线程安全以及同步的API的封装） muduo源码阅读笔记（3、线程和线程池的封装） muduo源码阅读笔记（4、异步日志） muduo源码阅读笔记（5、Channel和Poller） muduo源码阅读笔记（6、ExevntLoop和Thre">
+<meta property="og:locale" content="zh_CN">
+<meta property="article:published_time" content="2024-01-10T04:00:00.000Z">
+<meta property="article:modified_time" content="2025-09-29T14:24:25.062Z">
+<meta property="article:author" content="半个馒头">
+<meta property="article:tag" content="高性能服务器框架">
+<meta name="twitter:card" content="summary">
+
+<link rel="canonical" href="https://www.halfmantou.xyz/2024/01/10/muduo/SynLogging/">
+
+
+<script id="page-configurations">
+  // https://hexo.io/docs/variables.html
+  CONFIG.page = {
+    sidebar: "",
+    isHome : false,
+    isPost : true,
+    lang   : 'zh-CN'
+  };
+</script>
+
+  <title>muduo源码阅读笔记（1、同步日志） | 碎碎念念</title>
+  
+
+
+
+
+
+
+  <noscript>
+  <style>
+  .use-motion .brand,
+  .use-motion .menu-item,
+  .sidebar-inner,
+  .use-motion .post-block,
+  .use-motion .pagination,
+  .use-motion .comments,
+  .use-motion .post-header,
+  .use-motion .post-body,
+  .use-motion .collection-header { opacity: initial; }
+
+  .use-motion .site-title,
+  .use-motion .site-subtitle {
+    opacity: initial;
+    top: initial;
+  }
+
+  .use-motion .logo-line-before i { left: initial; }
+  .use-motion .logo-line-after i { right: initial; }
+  </style>
+</noscript>
+
+</head>
+
+<body itemscope itemtype="http://schema.org/WebPage">
+  <div class="container use-motion">
+    <div class="headband"></div>
+
+    <header class="header" itemscope itemtype="http://schema.org/WPHeader">
+      <div class="header-inner"><div class="site-brand-container">
+  <div class="site-nav-toggle">
+    <div class="toggle" aria-label="切换导航栏">
+      <span class="toggle-line toggle-line-first"></span>
+      <span class="toggle-line toggle-line-middle"></span>
+      <span class="toggle-line toggle-line-last"></span>
+    </div>
+  </div>
+
+  <div class="site-meta">
+
+    <a href="/" class="brand" rel="start">
+      <span class="logo-line-before"><i></i></span>
+      <h1 class="site-title">碎碎念念</h1>
+      <span class="logo-line-after"><i></i></span>
+    </a>
+  </div>
+
+  <div class="site-nav-right">
+    <div class="toggle popup-trigger">
+        <i class="fa fa-search fa-fw fa-lg"></i>
+    </div>
+  </div>
+</div>
+
+
+
+
+<nav class="site-nav">
+  <ul id="menu" class="menu">
+        <li class="menu-item menu-item-home">
+
+    <a href="/" rel="section"><i class="fa fa-fw fa-home"></i>首页</a>
+
+  </li>
+        <li class="menu-item menu-item-about">
+
+    <a href="/about/" rel="section"><i class="fa fa-fw fa-user"></i>关于</a>
+
+  </li>
+        <li class="menu-item menu-item-tags">
+
+    <a href="/tags/" rel="section"><i class="fa fa-fw fa-tags"></i>标签<span class="badge">18</span></a>
+
+  </li>
+        <li class="menu-item menu-item-categories">
+
+    <a href="/categories/" rel="section"><i class="fa fa-fw fa-th"></i>分类<span class="badge">0</span></a>
+
+  </li>
+        <li class="menu-item menu-item-archives">
+
+    <a href="/archives/" rel="section"><i class="fa fa-fw fa-archive"></i>归档<span class="badge">58</span></a>
+
+  </li>
+      <li class="menu-item menu-item-search">
+        <a role="button" class="popup-trigger"><i class="fa fa-search fa-fw"></i>搜索
+        </a>
+      </li>
+  </ul>
+</nav>
+
+
+
+  <div class="search-pop-overlay">
+    <div class="popup search-popup">
+        <div class="search-header">
+  <span class="search-icon">
+    <i class="fa fa-search"></i>
+  </span>
+  <div class="search-input-container">
+    <input autocomplete="off" autocapitalize="off"
+           placeholder="搜索..." spellcheck="false"
+           type="search" class="search-input">
+  </div>
+  <span class="popup-btn-close">
+    <i class="fa fa-times-circle"></i>
+  </span>
+</div>
+<div id="search-result">
+  <div id="no-result">
+    <i class="fa fa-spinner fa-pulse fa-5x fa-fw"></i>
+  </div>
+</div>
+
+    </div>
+  </div>
+
+</div>
+    </header>
+
+    
+  <div class="reading-progress-bar"></div>
+
+  <a href="https://github.com/LunarStore" class="github-corner" title="Follow me on GitHub" aria-label="Follow me on GitHub" rel="noopener" target="_blank"><svg width="80" height="80" viewBox="0 0 250 250" aria-hidden="true"><path d="M0,0 L115,115 L130,115 L142,142 L250,250 L250,0 Z"></path><path d="M128.3,109.0 C113.8,99.7 119.0,89.6 119.0,89.6 C122.0,82.7 120.5,78.6 120.5,78.6 C119.2,72.0 123.4,76.3 123.4,76.3 C127.3,80.9 125.5,87.3 125.5,87.3 C122.9,97.6 130.6,101.9 134.4,103.2" fill="currentColor" style="transform-origin: 130px 106px;" class="octo-arm"></path><path d="M115.0,115.0 C114.9,115.1 118.7,116.5 119.8,115.4 L133.7,101.6 C136.9,99.2 139.9,98.4 142.2,98.6 C133.8,88.0 127.5,74.4 143.8,58.0 C148.5,53.4 154.0,51.2 159.7,51.0 C160.3,49.4 163.2,43.6 171.4,40.1 C171.4,40.1 176.1,42.5 178.8,56.2 C183.1,58.6 187.2,61.8 190.9,65.4 C194.5,69.0 197.7,73.2 200.1,77.6 C213.8,80.2 216.3,84.9 216.3,84.9 C212.7,93.1 206.9,96.0 205.4,96.6 C205.1,102.4 203.0,107.8 198.3,112.5 C181.9,128.9 168.3,122.5 157.7,114.1 C157.9,116.9 156.7,120.9 152.7,124.9 L141.0,136.5 C139.8,137.7 141.6,141.9 141.8,141.8 Z" fill="currentColor" class="octo-body"></path></svg></a>
+
+
+    <main class="main">
+      <div class="main-inner">
+        <div class="content-wrap">
+          
+
+          <div class="content post posts-expand">
+            
+
+    
+  
+  
+  <article itemscope itemtype="http://schema.org/Article" class="post-block" lang="zh-CN">
+    <link itemprop="mainEntityOfPage" href="https://www.halfmantou.xyz/2024/01/10/muduo/SynLogging/">
+
+    <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
+      <meta itemprop="image" content="/images/avatar.jpg">
+      <meta itemprop="name" content="半个馒头">
+      <meta itemprop="description" content="">
+    </span>
+
+    <span hidden itemprop="publisher" itemscope itemtype="http://schema.org/Organization">
+      <meta itemprop="name" content="碎碎念念">
+    </span>
+      <header class="post-header">
+        <h1 class="post-title" itemprop="name headline">
+          muduo源码阅读笔记（1、同步日志）
+        </h1>
+
+        <div class="post-meta">
+            <span class="post-meta-item">
+              <span class="post-meta-item-icon">
+                <i class="fa fa-calendar-o"></i>
+              </span>
+              <span class="post-meta-item-text">发表于</span>
+
+              <time title="创建时间：2024-01-10 12:00:00" itemprop="dateCreated datePublished" datetime="2024-01-10T12:00:00+08:00">2024-01-10</time>
+            </span>
+              <span class="post-meta-item">
+                <span class="post-meta-item-icon">
+                  <i class="fa fa-calendar-check-o"></i>
+                </span>
+                <span class="post-meta-item-text">更新于</span>
+                <time title="修改时间：2025-09-29 22:24:25" itemprop="dateModified" datetime="2025-09-29T22:24:25+08:00">2025-09-29</time>
+              </span>
+
+          
+            <span class="post-meta-item" title="阅读次数" id="busuanzi_container_page_pv" style="display: none;">
+              <span class="post-meta-item-icon">
+                <i class="fa fa-eye"></i>
+              </span>
+              <span class="post-meta-item-text">阅读次数：</span>
+              <span id="busuanzi_value_page_pv"></span>
+            </span>
+
+        </div>
+      </header>
+
+    
+    
+    
+    <div class="post-body" itemprop="articleBody">
+
+      
+        <p><strong>Muduo源码笔记系列：</strong></p>
+<p><a href="./Start.md">muduo源码阅读笔记（0、下载编译muduo）</a></p>
+<p><a href="./SynLogging.md">muduo源码阅读笔记（1、同步日志）</a></p>
+<p><a href="./ThreadSafeAndSync.md">muduo源码阅读笔记（2、对C语言原生的线程安全以及同步的API的封装）</a></p>
+<p><a href="./ThreadAndThreadPool.md">muduo源码阅读笔记（3、线程和线程池的封装）</a></p>
+<p><a href="./AsyncLogging.md">muduo源码阅读笔记（4、异步日志）</a></p>
+<p><a href="./ChannelAndPoller.md">muduo源码阅读笔记（5、Channel和Poller）</a></p>
+<p><a href="./EvevntLoopAndThread.md">muduo源码阅读笔记（6、ExevntLoop和Thread）</a></p>
+<p><a href="./EventLoopThreadPool.md">muduo源码阅读笔记（7、EventLoopThreadPool）</a></p>
+<p><a href="./TimerQueue.md">muduo源码阅读笔记（8、定时器TimerQueue）</a></p>
+<p><a href="./TcpServer.md">muduo源码阅读笔记（9、TcpServer）</a></p>
+<p><a href="./TcpConnection.md">muduo源码阅读笔记（10、TcpConnection）</a></p>
+<p><strong>前言</strong></p>
+<p>Muduo的日志设计的非常简单，日志的格式是固定的，一条日志包括：[日志头，日志体，日志尾]。实际上，参考工业级日志的使用来看，日志还应该能支持格式变更，即用户可以自定义日志的格式，选择自己关心的日志条目进行输出，或者在日志中添加一些额外的字符来修饰日志。考虑到Muduo的核心是网络库，而不是日志库，这些点就不过多深入讨论。</p>
+<h2 id="日志消息体输出到Impl-stream-（简化日志的使用方式（宏定义-临时对象的编程技巧）"><a href="#日志消息体输出到Impl-stream-（简化日志的使用方式（宏定义-临时对象的编程技巧）" class="headerlink" title="日志消息体输出到Impl::stream_（简化日志的使用方式（宏定义 + 临时对象的编程技巧）"></a>日志消息体输出到<code>Impl::stream_</code>（简化日志的使用方式（宏定义 + 临时对象的编程技巧）</h2><p>调用匿名对象的<code>stream()</code>成员函数，会返回一个类型为LogStream的引用也即<code>Impl::stream_</code>对象本身，muduo对<code>LogStream</code>类进行了详细的<code>&gt;&gt;</code>操作符重载，这部分代码简单易读，就不详细赘述了，这样就能将<strong>字符串类型&#x2F;数值类型</strong>的数据使用<code>&gt;&gt;</code>操作符输出到<code>Impl::stream_</code>上（类似std::cout的使用）</p>
+<p>日志消息体的输出：</p>
+<span id="more"></span>
+<figure class="highlight cpp"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">//</span></span><br><span class="line"><span class="comment">// CAUTION: do not write:</span></span><br><span class="line"><span class="comment">//</span></span><br><span class="line"><span class="comment">// if (good)</span></span><br><span class="line"><span class="comment">//   LOG_INFO &lt;&lt; &quot;Good news&quot;;</span></span><br><span class="line"><span class="comment">// else</span></span><br><span class="line"><span class="comment">//   LOG_WARN &lt;&lt; &quot;Bad news&quot;;</span></span><br><span class="line"><span class="comment">//</span></span><br><span class="line"><span class="comment">// this expends to</span></span><br><span class="line"><span class="comment">//</span></span><br><span class="line"><span class="comment">// if (good)</span></span><br><span class="line"><span class="comment">//   if (logging_INFO)</span></span><br><span class="line"><span class="comment">//     logInfoStream &lt;&lt; &quot;Good news&quot;;</span></span><br><span class="line"><span class="comment">//   else</span></span><br><span class="line"><span class="comment">//     logWarnStream &lt;&lt; &quot;Bad news&quot;;</span></span><br><span class="line"><span class="comment">//</span></span><br><span class="line"><span class="meta">#<span class="keyword">define</span> LOG_TRACE <span class="keyword">if</span> (muduo::Logger::logLevel() &lt;= muduo::Logger::TRACE) \</span></span><br><span class="line"><span class="meta">  muduo::Logger(__FILE__, __LINE__, muduo::Logger::TRACE, __func__).stream()</span></span><br><span class="line"><span class="meta">#<span class="keyword">define</span> LOG_DEBUG <span class="keyword">if</span> (muduo::Logger::logLevel() &lt;= muduo::Logger::DEBUG) \</span></span><br><span class="line"><span class="meta">  muduo::Logger(__FILE__, __LINE__, muduo::Logger::DEBUG, __func__).stream()</span></span><br><span class="line"><span class="meta">#<span class="keyword">define</span> LOG_INFO <span class="keyword">if</span> (muduo::Logger::logLevel() &lt;= muduo::Logger::INFO) \</span></span><br><span class="line"><span class="meta">  muduo::Logger(__FILE__, __LINE__).stream()</span></span><br><span class="line"><span class="meta">#<span class="keyword">define</span> LOG_WARN muduo::Logger(__FILE__, __LINE__, muduo::Logger::WARN).stream()</span></span><br><span class="line"><span class="meta">#<span class="keyword">define</span> LOG_ERROR muduo::Logger(__FILE__, __LINE__, muduo::Logger::ERROR).stream()</span></span><br><span class="line"><span class="meta">#<span class="keyword">define</span> LOG_FATAL muduo::Logger(__FILE__, __LINE__, muduo::Logger::FATAL).stream()</span></span><br><span class="line"><span class="meta">#<span class="keyword">define</span> LOG_SYSERR muduo::Logger(__FILE__, __LINE__, false).stream()</span></span><br><span class="line"><span class="meta">#<span class="keyword">define</span> LOG_SYSFATAL muduo::Logger(__FILE__, __LINE__, true).stream()</span></span><br></pre></td></tr></table></figure>
+
+<p>综合<code>Logger</code>以及<code>LogStream</code>的实现可知，在程序运行期间，通过上面的宏使用muduo的日志时，创建的Logger临时对象会在 <strong>栈上开辟一段很大的空间（一般是detail::kSmallBuffer（4000byte））</strong> 缓存日志</p>
+<h2 id="日志消息头输出到Impl-stream"><a href="#日志消息头输出到Impl-stream" class="headerlink" title="日志消息头输出到Impl::stream_"></a>日志消息头输出到<code>Impl::stream_</code></h2><p>结合上面的宏定义来讲，在muduo中，当临时的Logger对象构造时，在其构造函数中，首先会自动输出一条日志的基本头部信息，比如对宏定义传来的时间戳进行格式化输出，输出线程所在的tid以及日志级别，如果是一条错误报告的log（此时errno非0），还会输出错误码的字符串信息。</p>
+<figure class="highlight cpp"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br></pre></td><td class="code"><pre><span class="line">Logger::Impl::<span class="built_in">Impl</span>(LogLevel level, <span class="type">int</span> savedErrno, <span class="type">const</span> SourceFile&amp; file, <span class="type">int</span> line)</span><br><span class="line">  : <span class="built_in">time_</span>(Timestamp::<span class="built_in">now</span>()),</span><br><span class="line">    <span class="built_in">stream_</span>(),</span><br><span class="line">    <span class="built_in">level_</span>(level),</span><br><span class="line">    <span class="built_in">line_</span>(line),</span><br><span class="line">    <span class="built_in">basename_</span>(file)</span><br><span class="line">&#123;</span><br><span class="line">  formatTime(); <span class="comment">// 输出格式化的时间戳（这部分代码可简略的看一下，了解作用即可，无需细看。</span></span><br><span class="line">  CurrentThread::<span class="built_in">tid</span>(); <span class="comment">// 缓存tid</span></span><br><span class="line">  stream_ &lt;&lt; <span class="built_in">T</span>(CurrentThread::<span class="built_in">tidString</span>(), CurrentThread::<span class="built_in">tidStringLength</span>()); <span class="comment">// 输出字符串形式的tid</span></span><br><span class="line">  stream_ &lt;&lt; <span class="built_in">T</span>(LogLevelName[level], <span class="number">6</span>); <span class="comment">//输出字符串形式的日志级别</span></span><br><span class="line">  <span class="keyword">if</span> (savedErrno != <span class="number">0</span>)  <span class="comment">//需要输出错误就输出错误</span></span><br><span class="line">  &#123;</span><br><span class="line">    stream_ &lt;&lt; <span class="built_in">strerror_tl</span>(savedErrno) &lt;&lt; <span class="string">&quot; (errno=&quot;</span> &lt;&lt; savedErrno &lt;&lt; <span class="string">&quot;) &quot;</span>;</span><br><span class="line">  &#125;</span><br><span class="line">&#125;</span><br><span class="line"></span><br><span class="line"><span class="comment">// ...</span></span><br><span class="line"></span><br><span class="line">Logger::<span class="built_in">Logger</span>(SourceFile file, <span class="type">int</span> line)</span><br><span class="line">  : <span class="built_in">impl_</span>(INFO, <span class="number">0</span>, file, line)</span><br><span class="line">&#123;</span><br><span class="line">&#125;</span><br><span class="line"><span class="comment">// ...</span></span><br></pre></td></tr></table></figure>
+
+<h2 id="日志尾部输出到Impl-stream-Impl-stream-对象直接输出到日志输出地（LogAppender）（利用临时对象行生命周期的特点，在析构中，同步（默认）输出日志。"><a href="#日志尾部输出到Impl-stream-Impl-stream-对象直接输出到日志输出地（LogAppender）（利用临时对象行生命周期的特点，在析构中，同步（默认）输出日志。" class="headerlink" title="日志尾部输出到Impl::stream_ &amp;&amp; Impl::stream_对象直接输出到日志输出地（LogAppender）（利用临时对象行生命周期的特点，在析构中，同步（默认）输出日志。"></a>日志尾部输出到<code>Impl::stream_</code> &amp;&amp; <code>Impl::stream_</code>对象直接输出到日志输出地（LogAppender）（利用临时对象行生命周期的特点，在析构中，同步（默认）输出日志。</h2><p>这里的LogAppender可能代表磁盘上的文件、控制台std::cout、数据库等。</p>
+<p>Muduo的日志中g_output其实是类型是函数指针的全局变量，这里通过函数指针实现了C语言的多态，Muduo默认的<code>g_output</code>是<strong>直接</strong>将<code>Impl::stream_</code>拼接的日志输出到控制台，即<strong>输出是同步的</strong>。当然，如果用户参考g_output的定义，实现了自己的输出函数，可以通过<code>Logger::setOutput()</code>接口，提供自定义函数的地址作为参数，将自定义函数安装到<code>g_output</code>上。后面Muduo实现的异步日志就是这么干的。</p>
+<figure class="highlight cpp"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br><span class="line">36</span><br><span class="line">37</span><br><span class="line">38</span><br><span class="line">39</span><br><span class="line">40</span><br><span class="line">41</span><br></pre></td><td class="code"><pre><span class="line"><span class="function"><span class="type">void</span> <span class="title">defaultOutput</span><span class="params">(<span class="type">const</span> <span class="type">char</span>* msg, <span class="type">int</span> len)</span></span></span><br><span class="line"><span class="function"></span>&#123;</span><br><span class="line">  <span class="comment">// 同步输出到终端</span></span><br><span class="line">  <span class="type">size_t</span> n = <span class="built_in">fwrite</span>(msg, <span class="number">1</span>, len, stdout);</span><br><span class="line">  <span class="comment">//FIXME check n</span></span><br><span class="line">  (<span class="type">void</span>)n;</span><br><span class="line">&#125;</span><br><span class="line"></span><br><span class="line"><span class="function"><span class="type">void</span> <span class="title">defaultFlush</span><span class="params">()</span></span></span><br><span class="line"><span class="function"></span>&#123;</span><br><span class="line">  <span class="built_in">fflush</span>(stdout);</span><br><span class="line">&#125;</span><br><span class="line"></span><br><span class="line"><span class="comment">/*</span></span><br><span class="line"><span class="comment">* 函数指针，实现多态。以及输出的解耦。</span></span><br><span class="line"><span class="comment">* typedef void (*OutputFunc)(const char* msg, int len);</span></span><br><span class="line"><span class="comment">* typedef void (*FlushFunc)();</span></span><br><span class="line"><span class="comment">*/</span></span><br><span class="line">Logger::OutputFunc g_output = defaultOutput;</span><br><span class="line">Logger::FlushFunc g_flush = defaultFlush;</span><br><span class="line"></span><br><span class="line"><span class="comment">// ...</span></span><br><span class="line"></span><br><span class="line"><span class="type">void</span> Logger::Impl::<span class="built_in">finish</span>()</span><br><span class="line">&#123;</span><br><span class="line">  stream_ &lt;&lt; <span class="string">&quot; - &quot;</span> &lt;&lt; basename_ &lt;&lt; <span class="string">&#x27;:&#x27;</span> &lt;&lt; line_ &lt;&lt; <span class="string">&#x27;\n&#x27;</span>;    <span class="comment">//将文件名以及日志所在行号（临时对象的构造会传入这两个信息）作为日志尾输出到Impl::stream_</span></span><br><span class="line">&#125;</span><br><span class="line"></span><br><span class="line"><span class="comment">// ...</span></span><br><span class="line"></span><br><span class="line">Logger::~<span class="built_in">Logger</span>()</span><br><span class="line">&#123;</span><br><span class="line">  impl_.<span class="built_in">finish</span>();</span><br><span class="line">  <span class="function"><span class="type">const</span> LogStream::Buffer&amp; <span class="title">buf</span><span class="params">(stream().buffer())</span></span>;  <span class="comment">// 获取Impl::stream_</span></span><br><span class="line">  <span class="built_in">g_output</span>(buf.<span class="built_in">data</span>(), buf.<span class="built_in">length</span>());   <span class="comment">// 将Impl::stream_输出到日志输出地（stdout/file/database）</span></span><br><span class="line">  <span class="keyword">if</span> (impl_.level_ == FATAL)</span><br><span class="line">  &#123;</span><br><span class="line">    <span class="built_in">g_flush</span>();</span><br><span class="line">    <span class="built_in">abort</span>();</span><br><span class="line">  &#125;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<h2 id="日志效果"><a href="#日志效果" class="headerlink" title="日志效果"></a>日志效果</h2><table>
+<thead>
+<tr>
+<th>LogHeader</th>
+<th>LogBody</th>
+<th>LogTail</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>Time ThreadID LogLevel</td>
+<td>LogMessage</td>
+<td>- FileName:LineNumber</td>
+</tr>
+</tbody></table>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><span class="line">20240109 03:21:56.970321Z  3094 INFO  Hello - Logging_test.cc:69</span><br><span class="line">20240109 03:21:56.970363Z  3094 WARN  World - Logging_test.cc:70</span><br><span class="line">20240109 03:21:56.970367Z  3094 ERROR Error - Logging_test.cc:71</span><br></pre></td></tr></table></figure>
+
+<h2 id="细节明细"><a href="#细节明细" class="headerlink" title="细节明细"></a>细节明细</h2><p>在 Muduo 中，为了实现日志的功能，使用了一个内部的 Impl 类来处理日志的具体实现细节。这样的设计有几个优点：</p>
+<ol>
+<li><p>封装性：<br>将日志的具体实现封装在 Impl 类中，使得日志系统的使用者无需关心内部的具体实现细节。这样可以减少用户对日志系统内部的依赖，提高系统的封装性和可维护性。</p>
+</li>
+<li><p>灵活性：<br>Impl 类的存在使得 Muduo 可以更加灵活地修改、扩展或者替换日志系统的具体实现，而不会对外部接口产生影响。如果未来需要更换日志库、修改日志输出格式等，只需修改 Impl 类的实现而不必修改用户代码。</p>
+</li>
+<li><p>解耦：<br>通过引入 Impl 类，日志系统的实现与接口之间形成了一种解耦。这种解耦有助于降低模块之间的依赖性，提高代码的灵活性和可维护性。</p>
+</li>
+<li><p>信息隐藏：<br>Impl 类将具体的实现细节隐藏在类的私有部分，只暴露必要的接口给外部。这有助于控制用户对日志系统内部的访问权限，同时防止滥用或错误的使用。</p>
+</li>
+</ol>
+<p>muduo还统一了日志级别的字符串长度，固定为6，不足的补空格，这样，也提升了一点点性能，毕竟积少成多。同时利用模板，在编译期确定字符串长度的操作，可以参考SourceFile类的数组引用构造的实现。</p>
+<figure class="highlight cpp"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br></pre></td><td class="code"><pre><span class="line"><span class="function"><span class="keyword">template</span>&lt;<span class="type">int</span> N&gt;</span></span><br><span class="line"><span class="function"><span class="title">SourceFile</span><span class="params">(<span class="type">const</span> <span class="type">char</span> (&amp;arr)[N])</span>  <span class="comment">// 数组引用，编译期就能确定字符串长度。</span></span></span><br><span class="line"><span class="function">    : data_(arr),</span></span><br><span class="line"><span class="function">    size_(N<span class="number">-1</span>)</span></span><br><span class="line"><span class="function">&#123;</span></span><br><span class="line">    <span class="type">const</span> <span class="type">char</span>* slash = <span class="built_in">strrchr</span>(data_, <span class="string">&#x27;/&#x27;</span>); <span class="comment">// builtin function</span></span><br><span class="line">    <span class="keyword">if</span> (slash)</span><br><span class="line">    &#123;</span><br><span class="line">    data_ = slash + <span class="number">1</span>;</span><br><span class="line">    size_ -= <span class="built_in">static_cast</span>&lt;<span class="type">int</span>&gt;(data_ - arr);</span><br><span class="line">    &#125;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<hr>
+<p><strong>本章完结</strong></p>
+
+    </div>
+
+    
+    
+    
+        <div class="reward-container">
+  <div></div>
+  <button onclick="var qr = document.getElementById('qr'); qr.style.display = (qr.style.display === 'none') ? 'block' : 'none';">
+    打赏
+  </button>
+  <div id="qr" style="display: none;">
+      
+      <div style="display: inline-block;">
+        <img src="/images/wechatpay.jpg" alt="半个馒头 微信支付">
+        <p>微信支付</p>
+      </div>
+
+  </div>
+</div>
+
+
+      <footer class="post-footer">
+          <div class="post-tags">
+              <a href="/tags/%E9%AB%98%E6%80%A7%E8%83%BD%E6%9C%8D%E5%8A%A1%E5%99%A8%E6%A1%86%E6%9E%B6/" rel="tag"># 高性能服务器框架</a>
+          </div>
+
+        
+
+
+        
+    <div class="post-nav">
+      <div class="post-nav-item"></div>
+      <div class="post-nav-item">
+    <a href="/2024/01/10/muduo/Start/" rel="next" title="muduo源码阅读笔记（0、下载编译muduo）">
+      muduo源码阅读笔记（0、下载编译muduo） <i class="fa fa-chevron-right"></i>
+    </a></div>
+    </div>
+      </footer>
+    
+  </article>
+  
+  
+  
+
+
+
+          </div>
+          
+
+<script>
+  window.addEventListener('tabs:register', () => {
+    let { activeClass } = CONFIG.comments;
+    if (CONFIG.comments.storage) {
+      activeClass = localStorage.getItem('comments_active') || activeClass;
+    }
+    if (activeClass) {
+      let activeTab = document.querySelector(`a[href="#comment-${activeClass}"]`);
+      if (activeTab) {
+        activeTab.click();
+      }
+    }
+  });
+  if (CONFIG.comments.storage) {
+    window.addEventListener('tabs:click', event => {
+      if (!event.target.matches('.tabs-comment .tab-content .tab-pane')) return;
+      let commentClass = event.target.classList[1];
+      localStorage.setItem('comments_active', commentClass);
+    });
+  }
+</script>
+
+        </div>
+          
+  
+  <div class="toggle sidebar-toggle">
+    <span class="toggle-line toggle-line-first"></span>
+    <span class="toggle-line toggle-line-middle"></span>
+    <span class="toggle-line toggle-line-last"></span>
+  </div>
+
+  <aside class="sidebar">
+    <div class="sidebar-inner">
+
+      <ul class="sidebar-nav motion-element">
+        <li class="sidebar-nav-toc">
+          文章目录
+        </li>
+        <li class="sidebar-nav-overview">
+          站点概览
+        </li>
+      </ul>
+
+      <!--noindex-->
+      <div class="post-toc-wrap sidebar-panel">
+          <div class="post-toc motion-element"><ol class="nav"><li class="nav-item nav-level-2"><a class="nav-link" href="#%E6%97%A5%E5%BF%97%E6%B6%88%E6%81%AF%E4%BD%93%E8%BE%93%E5%87%BA%E5%88%B0Impl-stream-%EF%BC%88%E7%AE%80%E5%8C%96%E6%97%A5%E5%BF%97%E7%9A%84%E4%BD%BF%E7%94%A8%E6%96%B9%E5%BC%8F%EF%BC%88%E5%AE%8F%E5%AE%9A%E4%B9%89-%E4%B8%B4%E6%97%B6%E5%AF%B9%E8%B1%A1%E7%9A%84%E7%BC%96%E7%A8%8B%E6%8A%80%E5%B7%A7%EF%BC%89"><span class="nav-number">1.</span> <span class="nav-text">日志消息体输出到Impl::stream_（简化日志的使用方式（宏定义 + 临时对象的编程技巧）</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#%E6%97%A5%E5%BF%97%E6%B6%88%E6%81%AF%E5%A4%B4%E8%BE%93%E5%87%BA%E5%88%B0Impl-stream"><span class="nav-number">2.</span> <span class="nav-text">日志消息头输出到Impl::stream_</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#%E6%97%A5%E5%BF%97%E5%B0%BE%E9%83%A8%E8%BE%93%E5%87%BA%E5%88%B0Impl-stream-Impl-stream-%E5%AF%B9%E8%B1%A1%E7%9B%B4%E6%8E%A5%E8%BE%93%E5%87%BA%E5%88%B0%E6%97%A5%E5%BF%97%E8%BE%93%E5%87%BA%E5%9C%B0%EF%BC%88LogAppender%EF%BC%89%EF%BC%88%E5%88%A9%E7%94%A8%E4%B8%B4%E6%97%B6%E5%AF%B9%E8%B1%A1%E8%A1%8C%E7%94%9F%E5%91%BD%E5%91%A8%E6%9C%9F%E7%9A%84%E7%89%B9%E7%82%B9%EF%BC%8C%E5%9C%A8%E6%9E%90%E6%9E%84%E4%B8%AD%EF%BC%8C%E5%90%8C%E6%AD%A5%EF%BC%88%E9%BB%98%E8%AE%A4%EF%BC%89%E8%BE%93%E5%87%BA%E6%97%A5%E5%BF%97%E3%80%82"><span class="nav-number">3.</span> <span class="nav-text">日志尾部输出到Impl::stream_ &amp;&amp; Impl::stream_对象直接输出到日志输出地（LogAppender）（利用临时对象行生命周期的特点，在析构中，同步（默认）输出日志。</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#%E6%97%A5%E5%BF%97%E6%95%88%E6%9E%9C"><span class="nav-number">4.</span> <span class="nav-text">日志效果</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#%E7%BB%86%E8%8A%82%E6%98%8E%E7%BB%86"><span class="nav-number">5.</span> <span class="nav-text">细节明细</span></a></li></ol></div>
+      </div>
+      <!--/noindex-->
+
+      <div class="site-overview-wrap sidebar-panel">
+        <div class="site-author motion-element" itemprop="author" itemscope itemtype="http://schema.org/Person">
+    <img class="site-author-image" itemprop="image" alt="半个馒头"
+      src="/images/avatar.jpg">
+  <p class="site-author-name" itemprop="name">半个馒头</p>
+  <div class="site-description" itemprop="description"></div>
+</div>
+<div class="site-state-wrap motion-element">
+  <nav class="site-state">
+      <div class="site-state-item site-state-posts">
+          <a href="/archives/">
+        
+          <span class="site-state-item-count">58</span>
+          <span class="site-state-item-name">日志</span>
+        </a>
+      </div>
+      <div class="site-state-item site-state-tags">
+            <a href="/tags/">
+          
+        <span class="site-state-item-count">18</span>
+        <span class="site-state-item-name">标签</span></a>
+      </div>
+  </nav>
+</div>
+  <div class="links-of-author motion-element">
+      <span class="links-of-author-item">
+        <a href="https://github.com/LunarStore" title="GitHub → https:&#x2F;&#x2F;github.com&#x2F;LunarStore" rel="noopener" target="_blank"><i class="fa fa-fw fa-github"></i>GitHub</a>
+      </span>
+      <span class="links-of-author-item">
+        <a href="mailto:18772124875@163.com" title="网易邮箱 → mailto:18772124875@163.com" rel="noopener" target="_blank"><i class="fa fa-fw fa-fas fa-envelope"></i>网易邮箱</a>
+      </span>
+  </div>
+
+
+  <div class="links-of-blogroll motion-element">
+    <div class="links-of-blogroll-title">
+      <i class="fa fa-fw fa-link"></i>
+      友情链接
+    </div>
+    <ul class="links-of-blogroll-list">
+        <li class="links-of-blogroll-item">
+          <a href="https://blog.csdn.net/m0_52566365" title="https:&#x2F;&#x2F;blog.csdn.net&#x2F;m0_52566365" rel="noopener" target="_blank">CSDN博客地址</a>
+        </li>
+    </ul>
+  </div>
+
+      </div>
+        <div class="back-to-top motion-element">
+          <i class="fa fa-arrow-up"></i>
+          <span>0%</span>
+        </div>
+
+    </div>
+  </aside>
+  <div id="sidebar-dimmer"></div>
+
+
+      </div>
+    </main>
+
+    <footer class="footer">
+      <div class="footer-inner">
+        
+
+        
+
+<div class="copyright">
+  
+  &copy; 
+  <span itemprop="copyrightYear">2025</span>
+  <span class="with-love">
+    <i class="fa fa-user"></i>
+  </span>
+  <span class="author" itemprop="copyrightHolder">半个馒头</span>
+</div>
+  <div class="powered-by">由 <a href="https://hexo.io/" class="theme-link" rel="noopener" target="_blank">Hexo</a> & <a href="https://theme-next.org/" class="theme-link" rel="noopener" target="_blank">NexT.Gemini</a> 强力驱动
+  </div>
+
+        
+<div class="busuanzi-count">
+  <script async src="https://busuanzi.ibruce.info/busuanzi/2.3/busuanzi.pure.mini.js"></script>
+    <span class="post-meta-item" id="busuanzi_container_site_uv" style="display: none;">
+      <span class="post-meta-item-icon">
+        <i class="fa fa-user"></i>
+      </span>
+      <span class="site-uv" title="总访客量">
+        <span id="busuanzi_value_site_uv"></span>
+      </span>
+    </span>
+    <span class="post-meta-divider">|</span>
+    <span class="post-meta-item" id="busuanzi_container_site_pv" style="display: none;">
+      <span class="post-meta-item-icon">
+        <i class="fa fa-eye"></i>
+      </span>
+      <span class="site-pv" title="总访问量">
+        <span id="busuanzi_value_site_pv"></span>
+      </span>
+    </span>
+</div>
+
+
+
+
+
+
+
+
+      </div>
+    </footer>
+  </div>
+
+  
+  <script src="/lib/anime.min.js"></script>
+  <script src="/lib/velocity/velocity.min.js"></script>
+  <script src="/lib/velocity/velocity.ui.min.js"></script>
+
+<script src="/js/utils.js"></script>
+
+<script src="/js/motion.js"></script>
+
+
+<script src="/js/schemes/pisces.js"></script>
+
+
+<script src="/js/next-boot.js"></script>
+
+
+
+
+  
+
+
+
+
+  
+<script src="/js/local-search.js"></script>
+
+
+
+
+
+
+
+
+
+
+
+
+
+  
+
+  
+
+</body>
+</html>

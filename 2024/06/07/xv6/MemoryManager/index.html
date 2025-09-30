@@ -1,0 +1,615 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=2">
+<meta name="theme-color" content="#222">
+<meta name="generator" content="Hexo 7.3.0">
+  <link rel="apple-touch-icon" sizes="180x180" href="/images/apple-touch-icon-next.png">
+  <link rel="icon" type="image/png" sizes="32x32" href="/images/favicon-32x32-next.png">
+  <link rel="icon" type="image/png" sizes="16x16" href="/images/favicon-16x16-next.png">
+  <link rel="mask-icon" href="/images/logo.svg" color="#222">
+
+<link rel="stylesheet" href="/css/main.css">
+
+
+<link rel="stylesheet" href="/lib/font-awesome/css/font-awesome.min.css">
+  <link rel="stylesheet" href="/lib/pace/pace-theme-flash.min.css">
+  <script src="/lib/pace/pace.min.js"></script>
+
+<script id="hexo-configurations">
+    var NexT = window.NexT || {};
+    var CONFIG = {"hostname":"www.halfmantou.xyz","root":"/","scheme":"Gemini","version":"7.8.0","exturl":false,"sidebar":{"position":"left","display":"post","padding":18,"offset":12,"onmobile":false},"copycode":{"enable":true,"show_result":true,"style":null},"back2top":{"enable":true,"sidebar":true,"scrollpercent":true},"bookmark":{"enable":false,"color":"#222","save":"auto"},"fancybox":false,"mediumzoom":false,"lazyload":false,"pangu":false,"comments":{"style":"tabs","active":null,"storage":true,"lazyload":false,"nav":null},"algolia":{"hits":{"per_page":10},"labels":{"input_placeholder":"Search for Posts","hits_empty":"We didn't find any results for the search: ${query}","hits_stats":"${hits} results found in ${time} ms"}},"localsearch":{"enable":true,"trigger":"auto","top_n_per_article":3,"unescape":false,"preload":false},"motion":{"enable":true,"async":false,"transition":{"post_block":"fadeIn","post_header":"slideDownIn","post_body":"slideDownIn","coll_header":"slideLeftIn","sidebar":"slideUpIn"}},"path":"search.json"};
+  </script>
+
+  <meta name="description" content="前言前一章我们介绍了XV6的启动流程，在本章，我们就要开始介绍类Unix操作系统最重要的一部分——内存管理模块。 本文以XV6里面的内存管理为主，后面会提炼Onix中内存管理比较好的部分，来对XV6进行一个补充。 Onix相关链接：  github仓库链接。  B站配套视频链接。   XV6-x86的github链接：  链接。">
+<meta property="og:type" content="article">
+<meta property="og:title" content="这才是计科之 Onix &amp; XV6 源码分析（2、类Unix的内存管理）">
+<meta property="og:url" content="https://www.halfmantou.xyz/2024/06/07/xv6/MemoryManager/index.html">
+<meta property="og:site_name" content="碎碎念念">
+<meta property="og:description" content="前言前一章我们介绍了XV6的启动流程，在本章，我们就要开始介绍类Unix操作系统最重要的一部分——内存管理模块。 本文以XV6里面的内存管理为主，后面会提炼Onix中内存管理比较好的部分，来对XV6进行一个补充。 Onix相关链接：  github仓库链接。  B站配套视频链接。   XV6-x86的github链接：  链接。">
+<meta property="og:locale" content="zh_CN">
+<meta property="og:image" content="https://www.halfmantou.xyz/2024/06/07/xv6/MemoryManager/photo/memmanager/vaddr.png">
+<meta property="og:image" content="https://www.halfmantou.xyz/2024/06/07/xv6/MemoryManager/photo/memmanager/entry.png">
+<meta property="og:image" content="https://www.halfmantou.xyz/2024/06/07/xv6/MemoryManager/photo/memmanager/vaddr2paddr.png">
+<meta property="og:image" content="https://www.halfmantou.xyz/2024/06/07/xv6/MemoryManager/photo/memmanager/kalloc.drawio.png">
+<meta property="og:image" content="https://www.halfmantou.xyz/2024/06/07/xv6/MemoryManager/photo/memmanager/main_page_table.drawio.png">
+<meta property="og:image" content="https://www.halfmantou.xyz/2024/06/07/xv6/MemoryManager/photo/memmanager/onix_memory_map.drawio.png">
+<meta property="og:image" content="https://www.halfmantou.xyz/2024/06/07/xv6/MemoryManager/photo/memmanager/memory_paging_02.drawio.png">
+<meta property="article:published_time" content="2024-06-07T04:00:00.000Z">
+<meta property="article:modified_time" content="2025-09-29T14:24:25.795Z">
+<meta property="article:author" content="半个馒头">
+<meta property="article:tag" content="类Unix源码剖析">
+<meta name="twitter:card" content="summary">
+<meta name="twitter:image" content="https://www.halfmantou.xyz/2024/06/07/xv6/MemoryManager/photo/memmanager/vaddr.png">
+
+<link rel="canonical" href="https://www.halfmantou.xyz/2024/06/07/xv6/MemoryManager/">
+
+
+<script id="page-configurations">
+  // https://hexo.io/docs/variables.html
+  CONFIG.page = {
+    sidebar: "",
+    isHome : false,
+    isPost : true,
+    lang   : 'zh-CN'
+  };
+</script>
+
+  <title>这才是计科之 Onix & XV6 源码分析（2、类Unix的内存管理） | 碎碎念念</title>
+  
+
+
+
+
+
+
+  <noscript>
+  <style>
+  .use-motion .brand,
+  .use-motion .menu-item,
+  .sidebar-inner,
+  .use-motion .post-block,
+  .use-motion .pagination,
+  .use-motion .comments,
+  .use-motion .post-header,
+  .use-motion .post-body,
+  .use-motion .collection-header { opacity: initial; }
+
+  .use-motion .site-title,
+  .use-motion .site-subtitle {
+    opacity: initial;
+    top: initial;
+  }
+
+  .use-motion .logo-line-before i { left: initial; }
+  .use-motion .logo-line-after i { right: initial; }
+  </style>
+</noscript>
+
+</head>
+
+<body itemscope itemtype="http://schema.org/WebPage">
+  <div class="container use-motion">
+    <div class="headband"></div>
+
+    <header class="header" itemscope itemtype="http://schema.org/WPHeader">
+      <div class="header-inner"><div class="site-brand-container">
+  <div class="site-nav-toggle">
+    <div class="toggle" aria-label="切换导航栏">
+      <span class="toggle-line toggle-line-first"></span>
+      <span class="toggle-line toggle-line-middle"></span>
+      <span class="toggle-line toggle-line-last"></span>
+    </div>
+  </div>
+
+  <div class="site-meta">
+
+    <a href="/" class="brand" rel="start">
+      <span class="logo-line-before"><i></i></span>
+      <h1 class="site-title">碎碎念念</h1>
+      <span class="logo-line-after"><i></i></span>
+    </a>
+  </div>
+
+  <div class="site-nav-right">
+    <div class="toggle popup-trigger">
+        <i class="fa fa-search fa-fw fa-lg"></i>
+    </div>
+  </div>
+</div>
+
+
+
+
+<nav class="site-nav">
+  <ul id="menu" class="menu">
+        <li class="menu-item menu-item-home">
+
+    <a href="/" rel="section"><i class="fa fa-fw fa-home"></i>首页</a>
+
+  </li>
+        <li class="menu-item menu-item-about">
+
+    <a href="/about/" rel="section"><i class="fa fa-fw fa-user"></i>关于</a>
+
+  </li>
+        <li class="menu-item menu-item-tags">
+
+    <a href="/tags/" rel="section"><i class="fa fa-fw fa-tags"></i>标签<span class="badge">18</span></a>
+
+  </li>
+        <li class="menu-item menu-item-categories">
+
+    <a href="/categories/" rel="section"><i class="fa fa-fw fa-th"></i>分类<span class="badge">0</span></a>
+
+  </li>
+        <li class="menu-item menu-item-archives">
+
+    <a href="/archives/" rel="section"><i class="fa fa-fw fa-archive"></i>归档<span class="badge">58</span></a>
+
+  </li>
+      <li class="menu-item menu-item-search">
+        <a role="button" class="popup-trigger"><i class="fa fa-search fa-fw"></i>搜索
+        </a>
+      </li>
+  </ul>
+</nav>
+
+
+
+  <div class="search-pop-overlay">
+    <div class="popup search-popup">
+        <div class="search-header">
+  <span class="search-icon">
+    <i class="fa fa-search"></i>
+  </span>
+  <div class="search-input-container">
+    <input autocomplete="off" autocapitalize="off"
+           placeholder="搜索..." spellcheck="false"
+           type="search" class="search-input">
+  </div>
+  <span class="popup-btn-close">
+    <i class="fa fa-times-circle"></i>
+  </span>
+</div>
+<div id="search-result">
+  <div id="no-result">
+    <i class="fa fa-spinner fa-pulse fa-5x fa-fw"></i>
+  </div>
+</div>
+
+    </div>
+  </div>
+
+</div>
+    </header>
+
+    
+  <div class="reading-progress-bar"></div>
+
+  <a href="https://github.com/LunarStore" class="github-corner" title="Follow me on GitHub" aria-label="Follow me on GitHub" rel="noopener" target="_blank"><svg width="80" height="80" viewBox="0 0 250 250" aria-hidden="true"><path d="M0,0 L115,115 L130,115 L142,142 L250,250 L250,0 Z"></path><path d="M128.3,109.0 C113.8,99.7 119.0,89.6 119.0,89.6 C122.0,82.7 120.5,78.6 120.5,78.6 C119.2,72.0 123.4,76.3 123.4,76.3 C127.3,80.9 125.5,87.3 125.5,87.3 C122.9,97.6 130.6,101.9 134.4,103.2" fill="currentColor" style="transform-origin: 130px 106px;" class="octo-arm"></path><path d="M115.0,115.0 C114.9,115.1 118.7,116.5 119.8,115.4 L133.7,101.6 C136.9,99.2 139.9,98.4 142.2,98.6 C133.8,88.0 127.5,74.4 143.8,58.0 C148.5,53.4 154.0,51.2 159.7,51.0 C160.3,49.4 163.2,43.6 171.4,40.1 C171.4,40.1 176.1,42.5 178.8,56.2 C183.1,58.6 187.2,61.8 190.9,65.4 C194.5,69.0 197.7,73.2 200.1,77.6 C213.8,80.2 216.3,84.9 216.3,84.9 C212.7,93.1 206.9,96.0 205.4,96.6 C205.1,102.4 203.0,107.8 198.3,112.5 C181.9,128.9 168.3,122.5 157.7,114.1 C157.9,116.9 156.7,120.9 152.7,124.9 L141.0,136.5 C139.8,137.7 141.6,141.9 141.8,141.8 Z" fill="currentColor" class="octo-body"></path></svg></a>
+
+
+    <main class="main">
+      <div class="main-inner">
+        <div class="content-wrap">
+          
+
+          <div class="content post posts-expand">
+            
+
+    
+  
+  
+  <article itemscope itemtype="http://schema.org/Article" class="post-block" lang="zh-CN">
+    <link itemprop="mainEntityOfPage" href="https://www.halfmantou.xyz/2024/06/07/xv6/MemoryManager/">
+
+    <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
+      <meta itemprop="image" content="/images/avatar.jpg">
+      <meta itemprop="name" content="半个馒头">
+      <meta itemprop="description" content="">
+    </span>
+
+    <span hidden itemprop="publisher" itemscope itemtype="http://schema.org/Organization">
+      <meta itemprop="name" content="碎碎念念">
+    </span>
+      <header class="post-header">
+        <h1 class="post-title" itemprop="name headline">
+          这才是计科之 Onix & XV6 源码分析（2、类Unix的内存管理）
+        </h1>
+
+        <div class="post-meta">
+            <span class="post-meta-item">
+              <span class="post-meta-item-icon">
+                <i class="fa fa-calendar-o"></i>
+              </span>
+              <span class="post-meta-item-text">发表于</span>
+
+              <time title="创建时间：2024-06-07 12:00:00" itemprop="dateCreated datePublished" datetime="2024-06-07T12:00:00+08:00">2024-06-07</time>
+            </span>
+              <span class="post-meta-item">
+                <span class="post-meta-item-icon">
+                  <i class="fa fa-calendar-check-o"></i>
+                </span>
+                <span class="post-meta-item-text">更新于</span>
+                <time title="修改时间：2025-09-29 22:24:25" itemprop="dateModified" datetime="2025-09-29T22:24:25+08:00">2025-09-29</time>
+              </span>
+
+          
+            <span class="post-meta-item" title="阅读次数" id="busuanzi_container_page_pv" style="display: none;">
+              <span class="post-meta-item-icon">
+                <i class="fa fa-eye"></i>
+              </span>
+              <span class="post-meta-item-text">阅读次数：</span>
+              <span id="busuanzi_value_page_pv"></span>
+            </span>
+
+        </div>
+      </header>
+
+    
+    
+    
+    <div class="post-body" itemprop="articleBody">
+
+      
+        <h2 id="前言"><a href="#前言" class="headerlink" title="前言"></a>前言</h2><p>前一章我们介绍了XV6的启动流程，在本章，我们就要开始介绍类Unix操作系统最重要的一部分——内存管理模块。</p>
+<p>本文以XV6里面的内存管理为主，后面会提炼Onix中内存管理比较好的部分，来对XV6进行一个补充。</p>
+<p>Onix相关链接：</p>
+<ul>
+<li><p><a target="_blank" rel="noopener" href="https://github.com/StevenBaby/onix">github仓库链接</a>。</p>
+</li>
+<li><p><a target="_blank" rel="noopener" href="https://www.bilibili.com/video/BV1qM4y127om/">B站配套视频链接</a>。</p>
+</li>
+</ul>
+<p>XV6-x86的github链接：</p>
+<ul>
+<li><a target="_blank" rel="noopener" href="https://github.com/mit-pdos/xv6-public">链接</a>。</li>
+</ul>
+<span id="more"></span>
+
+<h2 id="分页"><a href="#分页" class="headerlink" title="分页"></a>分页</h2><p>首先了解一下unix-like系统虚拟内存做法。</p>
+<p>x86中分页涉及两个主要寄存器：cr0、cr3，cr0主要用于控制是否开启分页，cr3用于存放页目录的地址。当cr0寄存器设置开启分页，cpu所使用的一切地址皆是虚拟地址，在分页机制中，一个虚拟地址被划分成3个部分，如下图：</p>
+<p><img src="/2024/06/07/xv6/MemoryManager/photo/memmanager/vaddr.png"></p>
+<p>如图中所注释的那样，地址的高10位代表在<strong>页目录</strong>中的索引（一个目录项占4Byte）、中间10位代表<strong>页表</strong>上的索引（一个页表项占4Byte）、低12位代表在<strong>页框</strong>上的偏移（1Byte为单位）。一个典型的页目录大小是4096字节（一个Page的大小），页表和页目录大小一样。并且低12位的寻址范围正好也是4096，这样一切就恰到好处。此时：sizeof(页目录) &#x3D;&#x3D; sizeof(页表) &#x3D;&#x3D; sizeof(页框) &#x3D;&#x3D; 4096。</p>
+<p>此外，由于页目录（页表）每一项都是4Byte为单位。所以每个页目录（页表）正好有1024个entry。</p>
+<p>一个页目录（页表）的每一个索引项都是4Byte，这4Byte格式如下图：</p>
+<p><img src="/2024/06/07/xv6/MemoryManager/photo/memmanager/entry.png"></p>
+<p>从entry的结构图可以看出，它的高20位指向页框号（物理上的），在4G的物理地址空间内，一个页面按4096个字节算的话，正好有1M个页面（页框）。所以20位正好能为每一个页框从0开始编址。</p>
+<p>entry的低12位是一些控制位，比如0位指示该entry所指向的物理地址是否有效，第1位指示entry所指的物理页是否可写，第3位代表用户态能否访问，等等。我们可以利用这些位来实现很多unix-like中的骚操作，最有名的应该是利用第1位实现<strong>写时拷贝</strong>。</p>
+<p>CPU会通过MMU来完成虚拟地址到物理地址的翻译，记要翻译的虚拟地址是vaddr，过程如下：</p>
+<ol start="0">
+<li><p>拿到cr3指向的页目录地址（物理地址），dir_paddr。</p>
+</li>
+<li><p>位运算取vaddr的高10位，将高10位作为页目录的索引，得到dir_entry，dir_entry会指向下一级的页表，所以通过dir_entry可以得到页表的地址（物理地址），tab_paddr。<br>s</p>
+</li>
+<li><p>位运算取vaddr中间10位，将中间10位作为页表的索引，得到tab_entry，tab_entry会指向最后一级的页框，所以通过tab_entry可以得到页框的地址（物理地址），frm_paddr。</p>
+</li>
+<li><p>最后，位运算取vaddr的低12位，这12位作为页框的物理地址frm_addr的偏移，于此得到了虚拟地址对应的物理地址：frm_paddr + offset。</p>
+</li>
+</ol>
+<p>整个流程可以使用xv6官方提供的图来描绘：</p>
+<p><img src="/2024/06/07/xv6/MemoryManager/photo/memmanager/vaddr2paddr.png"></p>
+<h2 id="内存管理"><a href="#内存管理" class="headerlink" title="内存管理"></a>内存管理</h2><p>首先回顾一下，在进入main前，cpu的状态如下：关中断 &amp; 进入了保护模式 &amp; 安装了一个临时全局描述符 &amp; BSP分配了一个4K的内核栈 &amp; 开启了4M big page的临时分页。</p>
+<p>XV6在main函数中会进行内存管理相关的初始化：</p>
+<figure class="highlight cpp"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br></pre></td><td class="code"><pre><span class="line"><span class="function"><span class="type">int</span></span></span><br><span class="line"><span class="function"><span class="title">main</span><span class="params">(<span class="type">void</span>)</span></span></span><br><span class="line"><span class="function"></span>&#123;</span><br><span class="line">  <span class="built_in">kinit1</span>(end, <span class="built_in">P2V</span>(<span class="number">4</span>*<span class="number">1024</span>*<span class="number">1024</span>)); <span class="comment">// phys page allocator</span></span><br><span class="line">  <span class="built_in">kvmalloc</span>();      <span class="comment">// kernel page table</span></span><br><span class="line">  <span class="built_in">seginit</span>();       <span class="comment">// segment descriptors // 扩张了用户【数据&amp;代码】段描述符，源码很简单，读者可自行阅读，这里就不去帖代码了</span></span><br><span class="line">  <span class="comment">// ...</span></span><br><span class="line">  <span class="built_in">startothers</span>();   <span class="comment">// start other processors  // 唤醒其他处理器，本文不会做过多讲解，后面的文章再深入探讨。</span></span><br><span class="line">  <span class="built_in">kinit2</span>(<span class="built_in">P2V</span>(<span class="number">4</span>*<span class="number">1024</span>*<span class="number">1024</span>), <span class="built_in">P2V</span>(PHYSTOP)); <span class="comment">// must come after startothers()</span></span><br><span class="line">  <span class="comment">// ...</span></span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p>因为cpu现在是开启分页的，所以，我们利用P2V宏来获得4M物理地址对应的虚拟地址，实现也很简单，就是物理地址加上内核基地址的偏移就能得到物理地址对应的虚拟地址：</p>
+<figure class="highlight cpp"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><span class="line"><span class="meta">#<span class="keyword">define</span> V2P_WO(x) ((x) - KERNBASE)    <span class="comment">// same as V2P, but without casts</span></span></span><br><span class="line"><span class="meta">#<span class="keyword">define</span> P2V_WO(x) ((x) + KERNBASE)    <span class="comment">// same as P2V, but without casts</span></span></span><br></pre></td></tr></table></figure>
+
+<h3 id="kinit1：初始化内核内存分配器（阶段1）。"><a href="#kinit1：初始化内核内存分配器（阶段1）。" class="headerlink" title="kinit1：初始化内核内存分配器（阶段1）。"></a>kinit1：初始化内核内存分配器（阶段1）。</h3><p>xv6的注释将kalloc称为物理内存分配器，这是第一个吐槽点，从它的源码上来看，我认为把它称为内核内存分配器更加合适。因为xv6把物理内存、内核内存的管理全都交给kalloc做，并且内存粒度也固定为4K。由于所有的物理地址也由kalloc管理，<strong>为此内核不得不去在自己的页表上去映射所有的物理内存！</strong>，其优点就是代码实现上会很简单（特别是在软件实现修改页表的操作上），但是这样做是非常暴力的。如果你阅读过Onix、或者其他更完善的unix-like操作系统的话会发现，更加严谨的做法是：get_page + alloc_kpage + kmalloc：</p>
+<figure class="highlight cpp"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">// Onix</span></span><br><span class="line"></span><br><span class="line"><span class="comment">// src/kernel/memory.c</span></span><br><span class="line"></span><br><span class="line"><span class="comment">// 底层实现为：使用连续的256页来跟踪每个页框，每个页框会对应1Byte的entry</span></span><br><span class="line"><span class="comment">// 使用1Byte的好处是可以记录每个页框的索引。这里方便实现copy on write</span></span><br><span class="line"><span class="comment">// 和xv6不同，我们在后面就会看到，Onix在实现fork的copy on write时，子进程的</span></span><br><span class="line"><span class="comment">// 页表也是动态复制的。</span></span><br><span class="line"></span><br><span class="line"><span class="comment">// 分配一页物理内存</span></span><br><span class="line"><span class="function"><span class="type">static</span> u32 <span class="title">get_page</span><span class="params">()</span> </span>&#123; <span class="comment">/* ... */</span> &#125;</span><br><span class="line"><span class="comment">// 释放一页物理内存</span></span><br><span class="line"><span class="function"><span class="type">static</span> <span class="type">void</span> <span class="title">put_page</span><span class="params">(u32 addr)</span> </span>&#123;<span class="comment">/* ... */</span>&#125;</span><br><span class="line"></span><br><span class="line"><span class="comment">// 该函数是基于位图实现，利用位图来管理内核的内存，只有页目录的内存分配会使用内核内存，</span></span><br><span class="line"><span class="comment">// 页表、页框的内存分配全部通过get_page()函数。内核页表也不用相xv6那样去映射所有物理页，</span></span><br><span class="line"><span class="comment">// 另外一个优点是该函数可以连续分配多个内核页，xv6就存在最大只能分配1个page的限制！</span></span><br><span class="line"></span><br><span class="line"><span class="comment">// src/kernel/memory.c</span></span><br><span class="line"></span><br><span class="line"><span class="comment">// 分配 count 个连续的内核页</span></span><br><span class="line"><span class="function">u32 <span class="title">alloc_kpage</span><span class="params">(u32 count)</span> </span>&#123; <span class="comment">/* ... */</span> &#125;</span><br><span class="line"><span class="comment">// 释放 count 个连续的内核页</span></span><br><span class="line"><span class="function"><span class="type">void</span> <span class="title">free_kpage</span><span class="params">(u32 vaddr, u32 count)</span> </span>&#123; <span class="comment">/* ... */</span> &#125;</span><br><span class="line"></span><br><span class="line"><span class="comment">// src/kernel/area.c</span></span><br><span class="line"><span class="comment">// 该函数是更加细粒度的分配内核内存，可以分配小于4K的小块内存。内部有一个内存池，</span></span><br><span class="line"></span><br><span class="line"><span class="comment">// 对细小内存进行池化管理。</span></span><br><span class="line"><span class="function"><span class="type">void</span> *<span class="title">kmalloc</span><span class="params">(<span class="type">size_t</span> size)</span> </span>&#123; <span class="comment">/* ... */</span> &#125;</span><br><span class="line"><span class="function"><span class="type">void</span> <span class="title">kfree</span><span class="params">(<span class="type">void</span> *ptr)</span> </span>&#123; <span class="comment">/* ... */</span> &#125;</span><br></pre></td></tr></table></figure>
+
+<p>这里可以计算一下：如果以1byte为单位去管理1M的页（1M * pagesieze（4096）&#x3D;&#x3D; 4G），1页可以管理4096页内存，所以1M的页需要 （1024 * 1024） &#x2F; （4 * 1024） &#x3D; 256页。</p>
+<p>回到kinit1函数，kinit1函数执行第一个阶段的内核内存管理的初始化。它会把从内核代码结束的位置开始往上4M的位置为止，以page为单位将每一页利用链表串起来。这部分涉及代码非常简单，直接看源码会比较清晰，这里就不贴它的代码了。大概的结构图如下：</p>
+<p><img src="/2024/06/07/xv6/MemoryManager/photo/memmanager/kalloc.drawio.png"></p>
+<h3 id="kvmalloc：构造并安装更加细粒度的页表kpgdir"><a href="#kvmalloc：构造并安装更加细粒度的页表kpgdir" class="headerlink" title="kvmalloc：构造并安装更加细粒度的页表kpgdir"></a>kvmalloc：构造并安装更加细粒度的页表kpgdir</h3><p>首先明确，到目前为止cpu使用的entrypgdir是4M big page的页表。kvmalloc会构造一个页表kpgdir，该页表会使用4K的页，分页粒度更加细粒，相对于entrypgdir来说做了进一步细分。kpgdir的内核映射的地址是没有任何变化的，切换到kpgdir页表后，内核的地址空间和之前没有什么区别。唯一的区别就是kpgdir的地址映射范围更大，多了一些entrypgdir页表所不可访问的范围。从数组kmap可以看到，pgdir将原来4M的内核空间扩张到了PHYSTOP（224M），同时将物理内存的高位的设备空间<strong>直接映射</strong>到内核高位虚拟地址空间。XV6在启动阶段没有进行内存探测，只是暴力的将可分配物理内存规定为PHYSTOP（224M）大小，我们可以通过修改PHYSTOP来动态调整XV6的物理内存上限。但是由于PHYSTOP被映射到了KERNBASE之上，所以PHYSTOP的大小是有限制的，即使物理内存是4G，KERNBASE + PHYSTOP的大小也不能覆盖设备地址空间。</p>
+<figure class="highlight cpp"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br></pre></td><td class="code"><pre><span class="line"><span class="type">static</span> <span class="keyword">struct</span> <span class="title class_">kmap</span> &#123;</span><br><span class="line">  <span class="type">void</span> *virt;</span><br><span class="line">  uint phys_start;</span><br><span class="line">  uint phys_end;</span><br><span class="line">  <span class="type">int</span> perm;</span><br><span class="line">&#125; kmap[] = &#123;</span><br><span class="line"> &#123; (<span class="type">void</span>*)KERNBASE, <span class="number">0</span>,             EXTMEM,    PTE_W&#125;, <span class="comment">// I/O space</span></span><br><span class="line"> &#123; (<span class="type">void</span>*)KERNLINK, <span class="built_in">V2P</span>(KERNLINK), <span class="built_in">V2P</span>(data), <span class="number">0</span>&#125;,     <span class="comment">// kern text+rodata</span></span><br><span class="line"> &#123; (<span class="type">void</span>*)data,     <span class="built_in">V2P</span>(data),     PHYSTOP,   PTE_W&#125;, <span class="comment">// kern data+memory</span></span><br><span class="line"> &#123; (<span class="type">void</span>*)DEVSPACE, DEVSPACE,      <span class="number">0</span>,         PTE_W&#125;, <span class="comment">// more devices</span></span><br><span class="line">&#125;;</span><br></pre></td></tr></table></figure>
+
+<p>直接上代码：</p>
+<p>下面这个函数主要作用就是根据页表，用软件模拟MMU的方式，找到传进来的虚拟地址va对应的页表项的虚拟地址，这里用语言表述的可能有点绕。代码从某种程度上比语言好懂。如果alloc为1，在对应的页表不存在时就创建一个页表：</p>
+<figure class="highlight cpp"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">// 简单讲，就是返回va对应页表项的虚拟地址</span></span><br><span class="line"><span class="function"><span class="type">static</span> <span class="type">pte_t</span> *</span></span><br><span class="line"><span class="function"><span class="title">walkpgdir</span><span class="params">(<span class="type">pde_t</span> *pgdir, <span class="type">const</span> <span class="type">void</span> *va, <span class="type">int</span> alloc)</span></span></span><br><span class="line"><span class="function"></span>&#123;</span><br><span class="line">  <span class="type">pde_t</span> *pde;   <span class="comment">// vaddr 虚拟地址</span></span><br><span class="line">  <span class="type">pte_t</span> *pgtab; <span class="comment">// vaddr 虚拟地址</span></span><br><span class="line"></span><br><span class="line">  pde = &amp;pgdir[<span class="built_in">PDX</span>(va)];                          <span class="comment">// 虚拟地址va对应的页表所在页目录项</span></span><br><span class="line">  <span class="keyword">if</span>(*pde &amp; PTE_P)&#123;</span><br><span class="line">    pgtab = (<span class="type">pte_t</span>*)<span class="built_in">P2V</span>(<span class="built_in">PTE_ADDR</span>(*pde));          <span class="comment">// 存在，转换页表物理地址为虚拟地址</span></span><br><span class="line">  &#125; <span class="keyword">else</span> &#123;</span><br><span class="line">    <span class="keyword">if</span>(!alloc || (pgtab = (<span class="type">pte_t</span>*)<span class="built_in">kalloc</span>()) == <span class="number">0</span>) <span class="comment">// 不存在就创建</span></span><br><span class="line">      <span class="keyword">return</span> <span class="number">0</span>;</span><br><span class="line">    <span class="comment">// Make sure all those PTE_P bits are zero.</span></span><br><span class="line">    <span class="built_in">memset</span>(pgtab, <span class="number">0</span>, PGSIZE);                     <span class="comment">// 清零，防止垃圾值干扰</span></span><br><span class="line">    <span class="comment">// The permissions here are overly generous, but they can</span></span><br><span class="line">    <span class="comment">// be further restricted by the permissions in the page table</span></span><br><span class="line">    <span class="comment">// entries, if necessary.</span></span><br><span class="line">    *pde = <span class="built_in">V2P</span>(pgtab) | PTE_P | PTE_W | PTE_U;    <span class="comment">// 用物理地址填充页目录项</span></span><br><span class="line">  &#125;</span><br><span class="line">  <span class="keyword">return</span> &amp;pgtab[<span class="built_in">PTX</span>(va)];</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p>mappages函数作用就简单了，利用walkpgdir函数将传进来的虚拟地址映射到物理地址上。当然，如果页框的页表还没被映射，walkpgdir就会创建页表项：</p>
+<figure class="highlight cpp"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">// Create PTEs for virtual addresses starting at va that refer to</span></span><br><span class="line"><span class="comment">// physical addresses starting at pa. va and size might not</span></span><br><span class="line"><span class="comment">// be page-aligned.</span></span><br><span class="line"><span class="function"><span class="type">static</span> <span class="type">int</span></span></span><br><span class="line"><span class="function"><span class="title">mappages</span><span class="params">(<span class="type">pde_t</span> *pgdir, <span class="type">void</span> *va, uint size, uint pa, <span class="type">int</span> perm)</span></span></span><br><span class="line"><span class="function"></span>&#123;</span><br><span class="line">  <span class="type">char</span> *a, *last;</span><br><span class="line">  <span class="type">pte_t</span> *pte;</span><br><span class="line"></span><br><span class="line">  a = (<span class="type">char</span>*)<span class="built_in">PGROUNDDOWN</span>((uint)va);                 <span class="comment">// 4k对齐</span></span><br><span class="line">  last = (<span class="type">char</span>*)<span class="built_in">PGROUNDDOWN</span>(((uint)va) + size - <span class="number">1</span>); <span class="comment">// 结尾对齐</span></span><br><span class="line">  <span class="keyword">for</span>(;;)&#123;</span><br><span class="line">    <span class="keyword">if</span>((pte = <span class="built_in">walkpgdir</span>(pgdir, a, <span class="number">1</span>)) == <span class="number">0</span>)         <span class="comment">// 查询虚拟地址a的页表项，不存在就创建。</span></span><br><span class="line">      <span class="keyword">return</span> <span class="number">-1</span>;</span><br><span class="line">    <span class="keyword">if</span>(*pte &amp; PTE_P)</span><br><span class="line">      <span class="built_in">panic</span>(<span class="string">&quot;remap&quot;</span>);</span><br><span class="line">    *pte = pa | perm | PTE_P;                       <span class="comment">// 填充页表项，让页表项指向页框。</span></span><br><span class="line">    <span class="keyword">if</span>(a == last)</span><br><span class="line">      <span class="keyword">break</span>;</span><br><span class="line">    a += PGSIZE;</span><br><span class="line">    pa += PGSIZE;</span><br><span class="line">  &#125;</span><br><span class="line">  <span class="keyword">return</span> <span class="number">0</span>;</span><br><span class="line">&#125;</span><br><span class="line"></span><br></pre></td></tr></table></figure>
+
+<p>setupkvm函数利用mappages根据数组kmap来构造一个正式的内核页表：kpgdir：</p>
+<figure class="highlight cpp"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br></pre></td><td class="code"><pre><span class="line"></span><br><span class="line"><span class="comment">// Set up kernel part of a page table.</span></span><br><span class="line"><span class="function"><span class="type">pde_t</span>*</span></span><br><span class="line"><span class="function"><span class="title">setupkvm</span><span class="params">(<span class="type">void</span>)</span></span></span><br><span class="line"><span class="function"></span>&#123;</span><br><span class="line">  <span class="type">pde_t</span> *pgdir;</span><br><span class="line">  <span class="keyword">struct</span> <span class="title class_">kmap</span> *k;</span><br><span class="line"></span><br><span class="line">  <span class="keyword">if</span>((pgdir = (<span class="type">pde_t</span>*)<span class="built_in">kalloc</span>()) == <span class="number">0</span>)   <span class="comment">// 分配页目录</span></span><br><span class="line">    <span class="keyword">return</span> <span class="number">0</span>;</span><br><span class="line">  <span class="built_in">memset</span>(pgdir, <span class="number">0</span>, PGSIZE);             <span class="comment">// 清零，以免野值干扰</span></span><br><span class="line">  <span class="keyword">if</span> (<span class="built_in">P2V</span>(PHYSTOP) &gt; (<span class="type">void</span>*)DEVSPACE)   <span class="comment">// PHYSTOP要合理，不能占用设备io空间</span></span><br><span class="line">    <span class="built_in">panic</span>(<span class="string">&quot;PHYSTOP too high&quot;</span>);</span><br><span class="line">  <span class="keyword">for</span>(k = kmap; k &lt; &amp;kmap[<span class="built_in">NELEM</span>(kmap)]; k++)    <span class="comment">// 这里主要就是对内核映射进行细化，因为最开始内核是4M big page映射</span></span><br><span class="line">    <span class="keyword">if</span>(<span class="built_in">mappages</span>(pgdir, k-&gt;virt, k-&gt;phys_end - k-&gt;phys_start,</span><br><span class="line">                (uint)k-&gt;phys_start, k-&gt;perm) &lt; <span class="number">0</span>) &#123;</span><br><span class="line">      <span class="built_in">freevm</span>(pgdir);</span><br><span class="line">      <span class="keyword">return</span> <span class="number">0</span>;</span><br><span class="line">    &#125;</span><br><span class="line">  <span class="keyword">return</span> pgdir;</span><br><span class="line">&#125;</span><br><span class="line"></span><br><span class="line"><span class="comment">// Allocate one page table for the machine for the kernel address</span></span><br><span class="line"><span class="comment">// space for scheduler processes.</span></span><br><span class="line"><span class="function"><span class="type">void</span></span></span><br><span class="line"><span class="function"><span class="title">kvmalloc</span><span class="params">(<span class="type">void</span>)</span></span></span><br><span class="line"><span class="function"></span>&#123;</span><br><span class="line">  kpgdir = <span class="built_in">setupkvm</span>();</span><br><span class="line">  switchkvm();</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p>在阅读上面这段代码时，一定要分清哪里是物理地址，哪里是物理地址。读者一定要时刻铭记，只要开启分页后，一切地址都是虚拟地址，但是页目录项、页表项都是存的物理地址，我们在拿到物理地址后，在访问前需要将他们进一步转换为虚拟地址。V2P、P2V的实现代码上面已经贴过，就是减去或者加上一个偏移量即可。</p>
+<p>我们的内存空间又有了一些变化：</p>
+<p><img src="/2024/06/07/xv6/MemoryManager/photo/memmanager/main_page_table.drawio.png"></p>
+<h3 id="kinit2：初始化内核内存分配器（阶段2）。"><a href="#kinit2：初始化内核内存分配器（阶段2）。" class="headerlink" title="kinit2：初始化内核内存分配器（阶段2）。"></a>kinit2：初始化内核内存分配器（阶段2）。</h3><p>根据注释要求：该函数是在所有其他AP（从处理器）处理器启动之后调用。在查看startothers的实现得知，BSP会为每个AP核都会单独分配一个（scheduler的）内核栈，所以结合kfree的头插法实现，我猜测，XV6是要让这（scheduler的）内核栈在KERNBASE + 4M以内，这暗示了只有KERNBASE + 4M才是内核真正的内存，尽管物理内存和内核内存都在kmem上混合管理。</p>
+<p>回归正题，和kinit1类似，kinit2就是将KERNBASE + 4M到KERNBASE + PHYSTOP之间的物理内存页正式挂到kmem的freelist上。<strong>进程页表、页目录、页框的内存分配统一由kalloc来做。</strong>（又一次强调！）</p>
+<p>最后，cpu的状态如下：关中断 &amp; 进入了保护模式 &amp; 安装了包括【内核&amp;用户】【代码&amp;数据】段描述符 &amp; BSP分配了一个4K的内核栈 &amp; 开启了以kmap为基础的粒度为4K的内核分页。</p>
+<p>至此XV6的内存管理的介绍差不多结束，</p>
+<h2 id="简单聊一下内存管理在Onix中的做法"><a href="#简单聊一下内存管理在Onix中的做法" class="headerlink" title="简单聊一下内存管理在Onix中的做法"></a>简单聊一下内存管理在Onix中的做法</h2><p>首先再次强调，XV6将所有物理地址映射到内核页表并且统一交由kalloc管理的做法极大简化了我们对页目录、页表的修改。但这种将所有物理内存都映射到内核页表的做法是不明智的！</p>
+<p>Onix内核页表采用的是直接映射，直接将Onix内核虚拟地址空间映射到物理地址空间。前面提到过，Onix操作系统对内存的管理采用：get_page + alloc_kpage + kmalloc的方式。get_page（管理单位：page）管理的是整个4G物理内存空间，底层是一个256页的大数组，每一byte记录4G物理内存的一个page的引用计数；alloc_kpage（管理单位：page）管理的就是Onix内核（虚拟）页内存，底层是位图，Onix初始化时会向大数组中申请内核所需要的连续的物理内存（将物理数组的byte置为1），申请的内核页会以位图的方式交由alloc_kpage管理；kmalloc（管理单位：小于page的内存碎片）管理内核的小块（虚拟）内存分配与释放，实现较为复杂，底层它是一个小块内存的内存池，实现上和C++中标准库的内存分配器类似。感兴趣的读者可以去深入阅读Onix的代码。这里了解Onix的内存管理基本架构即可。</p>
+<p>Onix内存布局如下，盗取了Onix作者的图：</p>
+<p><img src="/2024/06/07/xv6/MemoryManager/photo/memmanager/onix_memory_map.drawio.png"></p>
+<p>关于虚拟内存，Onix同样采用了两级页表的形式，所不同的是，Onix中进程的页表是由内核页内存分配器alloc_kpage负责，而像进程的页表、页框则是由get_page负责。</p>
+<p>这就引入了一个问题，Onix内核页表并不会像XV6那样，把所有的物理内存页都映射到内核页上，那么Onix是如何实现修改页表、页框的操作的呢？</p>
+<p><strong>答案就是将页目录的最后一个entry指向自己</strong>，这里还是引用Onix作者画的页表映射图为例：</p>
+<p><img src="/2024/06/07/xv6/MemoryManager/photo/memmanager/memory_paging_02.drawio.png"></p>
+<p>从图中我们可以看到，页目录的最后一个entry指向了页目录本身。（0x1007中低12位是控制位！</p>
+<p>有了这个前提，我们的页目录就有两种访问方式：</p>
+<ol>
+<li><p>直接通过页目录的虚拟地址访问。</p>
+</li>
+<li><p><strong>通过虚拟地址：0xfffff000访问。</strong></p>
+</li>
+</ol>
+<p>你可以在脑海中模拟MMU映射地址过程，试着去翻译地址0xfffff000，最终你一定会发现，翻译后的物理地址确实指向页目录本身。这真的是一种很神奇的方法。</p>
+<p>同理在Onix中，如果你想访问一个虚拟地址的页表，你可以且只能使用：</p>
+<ul>
+<li><strong>虚拟地址：0xFFC00000 | 虚拟地址在页目录中的索引（虚拟地址高10位）</strong></li>
+</ul>
+<p>至此，我们通过“欺骗”MMU的方式实现了，即使我们的内核页表没有映射进程的页表、页框的物理地址，我门的程序还是可以去修改进程的页表。</p>
+<p>Onix操作页表、页框的核心函数如下：</p>
+<figure class="highlight cpp"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">// 获取页目录vd</span></span><br><span class="line"><span class="function"><span class="type">static</span> <span class="type">page_entry_t</span> *<span class="title">get_pde</span><span class="params">()</span></span></span><br><span class="line"><span class="function"></span>&#123;</span><br><span class="line">    <span class="keyword">return</span> (<span class="type">page_entry_t</span> *)(<span class="number">0xfffff000</span>);</span><br><span class="line">&#125;</span><br><span class="line"></span><br><span class="line"><span class="comment">// 获取虚拟地址 vaddr 对应的页表vd</span></span><br><span class="line"><span class="function"><span class="type">static</span> <span class="type">page_entry_t</span> *<span class="title">get_pte</span><span class="params">(u32 vaddr, <span class="type">bool</span> create)</span></span></span><br><span class="line"><span class="function"></span>&#123;</span><br><span class="line">    <span class="type">page_entry_t</span> *pde = <span class="built_in">get_pde</span>();</span><br><span class="line">    u32 idx = <span class="built_in">DIDX</span>(vaddr);</span><br><span class="line">    <span class="type">page_entry_t</span> *entry = &amp;pde[idx];</span><br><span class="line"></span><br><span class="line">    <span class="built_in">assert</span>(create || (!create &amp;&amp; entry-&gt;present));</span><br><span class="line"></span><br><span class="line">    <span class="type">page_entry_t</span> *table = (<span class="type">page_entry_t</span> *)(PDE_MASK | (idx &lt;&lt; <span class="number">12</span>));</span><br><span class="line"></span><br><span class="line">    <span class="keyword">if</span> (!entry-&gt;present)</span><br><span class="line">    &#123;</span><br><span class="line">        <span class="built_in">LOGK</span>(<span class="string">&quot;Get and create page table entry for 0x%p\n&quot;</span>, vaddr);</span><br><span class="line">        u32 page = <span class="built_in">get_page</span>();</span><br><span class="line"></span><br><span class="line">        <span class="comment">//页目录、页表项的项必须存物理地址!!!</span></span><br><span class="line">        <span class="built_in">entry_init</span>(entry, <span class="built_in">IDX</span>(page));</span><br><span class="line">        <span class="built_in">memset</span>(table, <span class="number">0</span>, PAGE_SIZE);</span><br><span class="line">    &#125;</span><br><span class="line"></span><br><span class="line">    <span class="keyword">return</span> table;</span><br><span class="line">&#125;</span><br><span class="line"></span><br><span class="line"><span class="function"><span class="type">page_entry_t</span> *<span class="title">get_entry</span><span class="params">(u32 vaddr, <span class="type">bool</span> create)</span></span></span><br><span class="line"><span class="function"></span>&#123;</span><br><span class="line">    <span class="type">page_entry_t</span> *pte = <span class="built_in">get_pte</span>(vaddr, create);</span><br><span class="line">    <span class="keyword">return</span> &amp;pte[<span class="built_in">TIDX</span>(vaddr)];</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p>再有一次，强烈建议各位想深入学习Unix-like操作系统的同学去阅读一下Onix的源码。链接放在文章的开头了。</p>
+<p>参考文档：</p>
+<p>XV6中文文档：<a target="_blank" rel="noopener" href="https://th0ar.gitbooks.io/xv6-chinese/content/">https://th0ar.gitbooks.io/xv6-chinese/content/</a></p>
+<p>Onix分页机制（含）的文档：<a target="_blank" rel="noopener" href="https://github.com/StevenBaby/onix/blob/dev/docs/05%20%E5%86%85%E5%AD%98%E7%AE%A1%E7%90%86/041%20%E5%86%85%E5%AD%98%E6%98%A0%E5%B0%84%E5%8E%9F%E7%90%86.md">https://github.com/StevenBaby/onix/blob/dev/docs/05%20%E5%86%85%E5%AD%98%E7%AE%A1%E7%90%86/041%20%E5%86%85%E5%AD%98%E6%98%A0%E5%B0%84%E5%8E%9F%E7%90%86.md</a></p>
+<p>CR0寄存器详解：<a target="_blank" rel="noopener" href="https://blog.csdn.net/qq_30528603/article/details/131143850">https://blog.csdn.net/qq_30528603/article/details/131143850</a></p>
+<hr>
+<p><strong>本章完结</strong></p>
+
+    </div>
+
+    
+    
+    
+        <div class="reward-container">
+  <div></div>
+  <button onclick="var qr = document.getElementById('qr'); qr.style.display = (qr.style.display === 'none') ? 'block' : 'none';">
+    打赏
+  </button>
+  <div id="qr" style="display: none;">
+      
+      <div style="display: inline-block;">
+        <img src="/images/wechatpay.jpg" alt="半个馒头 微信支付">
+        <p>微信支付</p>
+      </div>
+
+  </div>
+</div>
+
+
+      <footer class="post-footer">
+          <div class="post-tags">
+              <a href="/tags/%E7%B1%BBUnix%E6%BA%90%E7%A0%81%E5%89%96%E6%9E%90/" rel="tag"># 类Unix源码剖析</a>
+          </div>
+
+        
+
+
+        
+    <div class="post-nav">
+      <div class="post-nav-item">
+    <a href="/2024/05/12/stm32/I2C/" rel="prev" title="STM32快速入门（总线协议之I2C一主多从（软件实现 & 硬件实现））">
+      <i class="fa fa-chevron-left"></i> STM32快速入门（总线协议之I2C一主多从（软件实现 & 硬件实现））
+    </a></div>
+      <div class="post-nav-item">
+    <a href="/2024/06/07/xv6/Boot/" rel="next" title="这才是计科之 Onix & XV6 源码分析（1、XV6-x86的启动）">
+      这才是计科之 Onix & XV6 源码分析（1、XV6-x86的启动） <i class="fa fa-chevron-right"></i>
+    </a></div>
+    </div>
+      </footer>
+    
+  </article>
+  
+  
+  
+
+
+
+          </div>
+          
+
+<script>
+  window.addEventListener('tabs:register', () => {
+    let { activeClass } = CONFIG.comments;
+    if (CONFIG.comments.storage) {
+      activeClass = localStorage.getItem('comments_active') || activeClass;
+    }
+    if (activeClass) {
+      let activeTab = document.querySelector(`a[href="#comment-${activeClass}"]`);
+      if (activeTab) {
+        activeTab.click();
+      }
+    }
+  });
+  if (CONFIG.comments.storage) {
+    window.addEventListener('tabs:click', event => {
+      if (!event.target.matches('.tabs-comment .tab-content .tab-pane')) return;
+      let commentClass = event.target.classList[1];
+      localStorage.setItem('comments_active', commentClass);
+    });
+  }
+</script>
+
+        </div>
+          
+  
+  <div class="toggle sidebar-toggle">
+    <span class="toggle-line toggle-line-first"></span>
+    <span class="toggle-line toggle-line-middle"></span>
+    <span class="toggle-line toggle-line-last"></span>
+  </div>
+
+  <aside class="sidebar">
+    <div class="sidebar-inner">
+
+      <ul class="sidebar-nav motion-element">
+        <li class="sidebar-nav-toc">
+          文章目录
+        </li>
+        <li class="sidebar-nav-overview">
+          站点概览
+        </li>
+      </ul>
+
+      <!--noindex-->
+      <div class="post-toc-wrap sidebar-panel">
+          <div class="post-toc motion-element"><ol class="nav"><li class="nav-item nav-level-2"><a class="nav-link" href="#%E5%89%8D%E8%A8%80"><span class="nav-number">1.</span> <span class="nav-text">前言</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#%E5%88%86%E9%A1%B5"><span class="nav-number">2.</span> <span class="nav-text">分页</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#%E5%86%85%E5%AD%98%E7%AE%A1%E7%90%86"><span class="nav-number">3.</span> <span class="nav-text">内存管理</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#kinit1%EF%BC%9A%E5%88%9D%E5%A7%8B%E5%8C%96%E5%86%85%E6%A0%B8%E5%86%85%E5%AD%98%E5%88%86%E9%85%8D%E5%99%A8%EF%BC%88%E9%98%B6%E6%AE%B51%EF%BC%89%E3%80%82"><span class="nav-number">3.1.</span> <span class="nav-text">kinit1：初始化内核内存分配器（阶段1）。</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#kvmalloc%EF%BC%9A%E6%9E%84%E9%80%A0%E5%B9%B6%E5%AE%89%E8%A3%85%E6%9B%B4%E5%8A%A0%E7%BB%86%E7%B2%92%E5%BA%A6%E7%9A%84%E9%A1%B5%E8%A1%A8kpgdir"><span class="nav-number">3.2.</span> <span class="nav-text">kvmalloc：构造并安装更加细粒度的页表kpgdir</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#kinit2%EF%BC%9A%E5%88%9D%E5%A7%8B%E5%8C%96%E5%86%85%E6%A0%B8%E5%86%85%E5%AD%98%E5%88%86%E9%85%8D%E5%99%A8%EF%BC%88%E9%98%B6%E6%AE%B52%EF%BC%89%E3%80%82"><span class="nav-number">3.3.</span> <span class="nav-text">kinit2：初始化内核内存分配器（阶段2）。</span></a></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#%E7%AE%80%E5%8D%95%E8%81%8A%E4%B8%80%E4%B8%8B%E5%86%85%E5%AD%98%E7%AE%A1%E7%90%86%E5%9C%A8Onix%E4%B8%AD%E7%9A%84%E5%81%9A%E6%B3%95"><span class="nav-number">4.</span> <span class="nav-text">简单聊一下内存管理在Onix中的做法</span></a></li></ol></div>
+      </div>
+      <!--/noindex-->
+
+      <div class="site-overview-wrap sidebar-panel">
+        <div class="site-author motion-element" itemprop="author" itemscope itemtype="http://schema.org/Person">
+    <img class="site-author-image" itemprop="image" alt="半个馒头"
+      src="/images/avatar.jpg">
+  <p class="site-author-name" itemprop="name">半个馒头</p>
+  <div class="site-description" itemprop="description"></div>
+</div>
+<div class="site-state-wrap motion-element">
+  <nav class="site-state">
+      <div class="site-state-item site-state-posts">
+          <a href="/archives/">
+        
+          <span class="site-state-item-count">58</span>
+          <span class="site-state-item-name">日志</span>
+        </a>
+      </div>
+      <div class="site-state-item site-state-tags">
+            <a href="/tags/">
+          
+        <span class="site-state-item-count">18</span>
+        <span class="site-state-item-name">标签</span></a>
+      </div>
+  </nav>
+</div>
+  <div class="links-of-author motion-element">
+      <span class="links-of-author-item">
+        <a href="https://github.com/LunarStore" title="GitHub → https:&#x2F;&#x2F;github.com&#x2F;LunarStore" rel="noopener" target="_blank"><i class="fa fa-fw fa-github"></i>GitHub</a>
+      </span>
+      <span class="links-of-author-item">
+        <a href="mailto:18772124875@163.com" title="网易邮箱 → mailto:18772124875@163.com" rel="noopener" target="_blank"><i class="fa fa-fw fa-fas fa-envelope"></i>网易邮箱</a>
+      </span>
+  </div>
+
+
+  <div class="links-of-blogroll motion-element">
+    <div class="links-of-blogroll-title">
+      <i class="fa fa-fw fa-link"></i>
+      友情链接
+    </div>
+    <ul class="links-of-blogroll-list">
+        <li class="links-of-blogroll-item">
+          <a href="https://blog.csdn.net/m0_52566365" title="https:&#x2F;&#x2F;blog.csdn.net&#x2F;m0_52566365" rel="noopener" target="_blank">CSDN博客地址</a>
+        </li>
+    </ul>
+  </div>
+
+      </div>
+        <div class="back-to-top motion-element">
+          <i class="fa fa-arrow-up"></i>
+          <span>0%</span>
+        </div>
+
+    </div>
+  </aside>
+  <div id="sidebar-dimmer"></div>
+
+
+      </div>
+    </main>
+
+    <footer class="footer">
+      <div class="footer-inner">
+        
+
+        
+
+<div class="copyright">
+  
+  &copy; 
+  <span itemprop="copyrightYear">2025</span>
+  <span class="with-love">
+    <i class="fa fa-user"></i>
+  </span>
+  <span class="author" itemprop="copyrightHolder">半个馒头</span>
+</div>
+  <div class="powered-by">由 <a href="https://hexo.io/" class="theme-link" rel="noopener" target="_blank">Hexo</a> & <a href="https://theme-next.org/" class="theme-link" rel="noopener" target="_blank">NexT.Gemini</a> 强力驱动
+  </div>
+
+        
+<div class="busuanzi-count">
+  <script async src="https://busuanzi.ibruce.info/busuanzi/2.3/busuanzi.pure.mini.js"></script>
+    <span class="post-meta-item" id="busuanzi_container_site_uv" style="display: none;">
+      <span class="post-meta-item-icon">
+        <i class="fa fa-user"></i>
+      </span>
+      <span class="site-uv" title="总访客量">
+        <span id="busuanzi_value_site_uv"></span>
+      </span>
+    </span>
+    <span class="post-meta-divider">|</span>
+    <span class="post-meta-item" id="busuanzi_container_site_pv" style="display: none;">
+      <span class="post-meta-item-icon">
+        <i class="fa fa-eye"></i>
+      </span>
+      <span class="site-pv" title="总访问量">
+        <span id="busuanzi_value_site_pv"></span>
+      </span>
+    </span>
+</div>
+
+
+
+
+
+
+
+
+      </div>
+    </footer>
+  </div>
+
+  
+  <script src="/lib/anime.min.js"></script>
+  <script src="/lib/velocity/velocity.min.js"></script>
+  <script src="/lib/velocity/velocity.ui.min.js"></script>
+
+<script src="/js/utils.js"></script>
+
+<script src="/js/motion.js"></script>
+
+
+<script src="/js/schemes/pisces.js"></script>
+
+
+<script src="/js/next-boot.js"></script>
+
+
+
+
+  
+
+
+
+
+  
+<script src="/js/local-search.js"></script>
+
+
+
+
+
+
+
+
+
+
+
+
+
+  
+
+  
+
+</body>
+</html>

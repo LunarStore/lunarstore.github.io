@@ -1,0 +1,713 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=2">
+<meta name="theme-color" content="#222">
+<meta name="generator" content="Hexo 7.3.0">
+  <link rel="apple-touch-icon" sizes="180x180" href="/images/apple-touch-icon-next.png">
+  <link rel="icon" type="image/png" sizes="32x32" href="/images/favicon-32x32-next.png">
+  <link rel="icon" type="image/png" sizes="16x16" href="/images/favicon-16x16-next.png">
+  <link rel="mask-icon" href="/images/logo.svg" color="#222">
+
+<link rel="stylesheet" href="/css/main.css">
+
+
+<link rel="stylesheet" href="/lib/font-awesome/css/font-awesome.min.css">
+  <link rel="stylesheet" href="/lib/pace/pace-theme-flash.min.css">
+  <script src="/lib/pace/pace.min.js"></script>
+
+<script id="hexo-configurations">
+    var NexT = window.NexT || {};
+    var CONFIG = {"hostname":"www.halfmantou.xyz","root":"/","scheme":"Gemini","version":"7.8.0","exturl":false,"sidebar":{"position":"left","display":"post","padding":18,"offset":12,"onmobile":false},"copycode":{"enable":true,"show_result":true,"style":null},"back2top":{"enable":true,"sidebar":true,"scrollpercent":true},"bookmark":{"enable":false,"color":"#222","save":"auto"},"fancybox":false,"mediumzoom":false,"lazyload":false,"pangu":false,"comments":{"style":"tabs","active":null,"storage":true,"lazyload":false,"nav":null},"algolia":{"hits":{"per_page":10},"labels":{"input_placeholder":"Search for Posts","hits_empty":"We didn't find any results for the search: ${query}","hits_stats":"${hits} results found in ${time} ms"}},"localsearch":{"enable":true,"trigger":"auto","top_n_per_article":3,"unescape":false,"preload":false},"motion":{"enable":true,"async":false,"transition":{"post_block":"fadeIn","post_header":"slideDownIn","post_body":"slideDownIn","coll_header":"slideLeftIn","sidebar":"slideUpIn"}},"path":"search.json"};
+  </script>
+
+  <meta name="description" content="前言在嵌入式Linux这块，对设备树一直都没怎么去了解，一直是模模糊糊的。所以最近也是被老大赶鸭子上架，快速跟着正点原子的驱动开发的课程学了一下。感觉对设备树的认识也是更清晰了一点。同样借着此篇博客记录了一下我的理解。起一个备忘的作用也希望能帮到其他人。 正文其实类比理解的话DTS相当于.c源文件，文件描述板级设备信息。一个平台或机器对应一个.dts源文件。  DTI相当于c语言的头文件。  DT">
+<meta property="og:type" content="article">
+<meta property="og:title" content="Linux驱动开发——设备树随记">
+<meta property="og:url" content="https://www.halfmantou.xyz/2024/11/17/linux_driver/device_tree/index.html">
+<meta property="og:site_name" content="碎碎念念">
+<meta property="og:description" content="前言在嵌入式Linux这块，对设备树一直都没怎么去了解，一直是模模糊糊的。所以最近也是被老大赶鸭子上架，快速跟着正点原子的驱动开发的课程学了一下。感觉对设备树的认识也是更清晰了一点。同样借着此篇博客记录了一下我的理解。起一个备忘的作用也希望能帮到其他人。 正文其实类比理解的话DTS相当于.c源文件，文件描述板级设备信息。一个平台或机器对应一个.dts源文件。  DTI相当于c语言的头文件。  DT">
+<meta property="og:locale" content="zh_CN">
+<meta property="article:published_time" content="2024-11-17T04:00:00.000Z">
+<meta property="article:modified_time" content="2025-09-29T14:24:24.852Z">
+<meta property="article:author" content="半个馒头">
+<meta property="article:tag" content="驱动开发">
+<meta name="twitter:card" content="summary">
+
+<link rel="canonical" href="https://www.halfmantou.xyz/2024/11/17/linux_driver/device_tree/">
+
+
+<script id="page-configurations">
+  // https://hexo.io/docs/variables.html
+  CONFIG.page = {
+    sidebar: "",
+    isHome : false,
+    isPost : true,
+    lang   : 'zh-CN'
+  };
+</script>
+
+  <title>Linux驱动开发——设备树随记 | 碎碎念念</title>
+  
+
+
+
+
+
+
+  <noscript>
+  <style>
+  .use-motion .brand,
+  .use-motion .menu-item,
+  .sidebar-inner,
+  .use-motion .post-block,
+  .use-motion .pagination,
+  .use-motion .comments,
+  .use-motion .post-header,
+  .use-motion .post-body,
+  .use-motion .collection-header { opacity: initial; }
+
+  .use-motion .site-title,
+  .use-motion .site-subtitle {
+    opacity: initial;
+    top: initial;
+  }
+
+  .use-motion .logo-line-before i { left: initial; }
+  .use-motion .logo-line-after i { right: initial; }
+  </style>
+</noscript>
+
+</head>
+
+<body itemscope itemtype="http://schema.org/WebPage">
+  <div class="container use-motion">
+    <div class="headband"></div>
+
+    <header class="header" itemscope itemtype="http://schema.org/WPHeader">
+      <div class="header-inner"><div class="site-brand-container">
+  <div class="site-nav-toggle">
+    <div class="toggle" aria-label="切换导航栏">
+      <span class="toggle-line toggle-line-first"></span>
+      <span class="toggle-line toggle-line-middle"></span>
+      <span class="toggle-line toggle-line-last"></span>
+    </div>
+  </div>
+
+  <div class="site-meta">
+
+    <a href="/" class="brand" rel="start">
+      <span class="logo-line-before"><i></i></span>
+      <h1 class="site-title">碎碎念念</h1>
+      <span class="logo-line-after"><i></i></span>
+    </a>
+  </div>
+
+  <div class="site-nav-right">
+    <div class="toggle popup-trigger">
+        <i class="fa fa-search fa-fw fa-lg"></i>
+    </div>
+  </div>
+</div>
+
+
+
+
+<nav class="site-nav">
+  <ul id="menu" class="menu">
+        <li class="menu-item menu-item-home">
+
+    <a href="/" rel="section"><i class="fa fa-fw fa-home"></i>首页</a>
+
+  </li>
+        <li class="menu-item menu-item-about">
+
+    <a href="/about/" rel="section"><i class="fa fa-fw fa-user"></i>关于</a>
+
+  </li>
+        <li class="menu-item menu-item-tags">
+
+    <a href="/tags/" rel="section"><i class="fa fa-fw fa-tags"></i>标签<span class="badge">18</span></a>
+
+  </li>
+        <li class="menu-item menu-item-categories">
+
+    <a href="/categories/" rel="section"><i class="fa fa-fw fa-th"></i>分类<span class="badge">0</span></a>
+
+  </li>
+        <li class="menu-item menu-item-archives">
+
+    <a href="/archives/" rel="section"><i class="fa fa-fw fa-archive"></i>归档<span class="badge">58</span></a>
+
+  </li>
+      <li class="menu-item menu-item-search">
+        <a role="button" class="popup-trigger"><i class="fa fa-search fa-fw"></i>搜索
+        </a>
+      </li>
+  </ul>
+</nav>
+
+
+
+  <div class="search-pop-overlay">
+    <div class="popup search-popup">
+        <div class="search-header">
+  <span class="search-icon">
+    <i class="fa fa-search"></i>
+  </span>
+  <div class="search-input-container">
+    <input autocomplete="off" autocapitalize="off"
+           placeholder="搜索..." spellcheck="false"
+           type="search" class="search-input">
+  </div>
+  <span class="popup-btn-close">
+    <i class="fa fa-times-circle"></i>
+  </span>
+</div>
+<div id="search-result">
+  <div id="no-result">
+    <i class="fa fa-spinner fa-pulse fa-5x fa-fw"></i>
+  </div>
+</div>
+
+    </div>
+  </div>
+
+</div>
+    </header>
+
+    
+  <div class="reading-progress-bar"></div>
+
+  <a href="https://github.com/LunarStore" class="github-corner" title="Follow me on GitHub" aria-label="Follow me on GitHub" rel="noopener" target="_blank"><svg width="80" height="80" viewBox="0 0 250 250" aria-hidden="true"><path d="M0,0 L115,115 L130,115 L142,142 L250,250 L250,0 Z"></path><path d="M128.3,109.0 C113.8,99.7 119.0,89.6 119.0,89.6 C122.0,82.7 120.5,78.6 120.5,78.6 C119.2,72.0 123.4,76.3 123.4,76.3 C127.3,80.9 125.5,87.3 125.5,87.3 C122.9,97.6 130.6,101.9 134.4,103.2" fill="currentColor" style="transform-origin: 130px 106px;" class="octo-arm"></path><path d="M115.0,115.0 C114.9,115.1 118.7,116.5 119.8,115.4 L133.7,101.6 C136.9,99.2 139.9,98.4 142.2,98.6 C133.8,88.0 127.5,74.4 143.8,58.0 C148.5,53.4 154.0,51.2 159.7,51.0 C160.3,49.4 163.2,43.6 171.4,40.1 C171.4,40.1 176.1,42.5 178.8,56.2 C183.1,58.6 187.2,61.8 190.9,65.4 C194.5,69.0 197.7,73.2 200.1,77.6 C213.8,80.2 216.3,84.9 216.3,84.9 C212.7,93.1 206.9,96.0 205.4,96.6 C205.1,102.4 203.0,107.8 198.3,112.5 C181.9,128.9 168.3,122.5 157.7,114.1 C157.9,116.9 156.7,120.9 152.7,124.9 L141.0,136.5 C139.8,137.7 141.6,141.9 141.8,141.8 Z" fill="currentColor" class="octo-body"></path></svg></a>
+
+
+    <main class="main">
+      <div class="main-inner">
+        <div class="content-wrap">
+          
+
+          <div class="content post posts-expand">
+            
+
+    
+  
+  
+  <article itemscope itemtype="http://schema.org/Article" class="post-block" lang="zh-CN">
+    <link itemprop="mainEntityOfPage" href="https://www.halfmantou.xyz/2024/11/17/linux_driver/device_tree/">
+
+    <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
+      <meta itemprop="image" content="/images/avatar.jpg">
+      <meta itemprop="name" content="半个馒头">
+      <meta itemprop="description" content="">
+    </span>
+
+    <span hidden itemprop="publisher" itemscope itemtype="http://schema.org/Organization">
+      <meta itemprop="name" content="碎碎念念">
+    </span>
+      <header class="post-header">
+        <h1 class="post-title" itemprop="name headline">
+          Linux驱动开发——设备树随记
+        </h1>
+
+        <div class="post-meta">
+            <span class="post-meta-item">
+              <span class="post-meta-item-icon">
+                <i class="fa fa-calendar-o"></i>
+              </span>
+              <span class="post-meta-item-text">发表于</span>
+
+              <time title="创建时间：2024-11-17 12:00:00" itemprop="dateCreated datePublished" datetime="2024-11-17T12:00:00+08:00">2024-11-17</time>
+            </span>
+              <span class="post-meta-item">
+                <span class="post-meta-item-icon">
+                  <i class="fa fa-calendar-check-o"></i>
+                </span>
+                <span class="post-meta-item-text">更新于</span>
+                <time title="修改时间：2025-09-29 22:24:24" itemprop="dateModified" datetime="2025-09-29T22:24:24+08:00">2025-09-29</time>
+              </span>
+
+          
+            <span class="post-meta-item" title="阅读次数" id="busuanzi_container_page_pv" style="display: none;">
+              <span class="post-meta-item-icon">
+                <i class="fa fa-eye"></i>
+              </span>
+              <span class="post-meta-item-text">阅读次数：</span>
+              <span id="busuanzi_value_page_pv"></span>
+            </span>
+
+        </div>
+      </header>
+
+    
+    
+    
+    <div class="post-body" itemprop="articleBody">
+
+      
+        <h2 id="前言"><a href="#前言" class="headerlink" title="前言"></a>前言</h2><p>在嵌入式Linux这块，对设备树一直都没怎么去了解，一直是模模糊糊的。所以最近也是被老大赶鸭子上架，快速跟着正点原子的驱动开发的课程学了一下。感觉对设备树的认识也是更清晰了一点。同样借着此篇博客记录了一下我的理解。起一个备忘的作用也希望能帮到其他人。</p>
+<h2 id="正文"><a href="#正文" class="headerlink" title="正文"></a>正文</h2><p>其实类比理解的话DTS相当于.c源文件，文件描述板级设备信息。一个平台或机器对应一个.dts源文件。</p>
+<ul>
+<li><p>DTI相当于c语言的头文件。</p>
+</li>
+<li><p>DTC相当于于gcc，可以将dts文件编译生成dtb文件</p>
+</li>
+<li><p>DTB相当于二进制.o文件，由DTC将DTS编译生成。</p>
+<span id="more"></span></li>
+</ul>
+<p>严格来讲，DTI是描述芯片以及芯片周围的一些外设（片上外设）的，比如：CPU的一些参数、总线、总线上的中断控制器、时钟、GPIO的参数、UART控制器、I2C控制器、SPI控制器等等。这些东西都是和芯片强绑定的。只要是你用IMX6ULL这颗芯片，那么它的片上外设就是这些。不存在不同。</p>
+<p>而DTS则会描述具体的片外外设的一些参数信息。比如这个外设接在哪个GPIO口？这个外设要设置什么样的GPIO属性？等等。片外外设是围绕着IMX6ULL这颗芯片来设计不同的板载。比如利用IMX6ULL芯片设计出一个路由器、摄像头、交换机等。因为共用一个芯片。所以它们一定会使用同一个DTI。</p>
+<p>一个节点名（node name）命名形如<code>name@unit_addr</code>，从命名上可以分成两个部分：@前面代表name（可重复）、@后面代表该节点外设在内存当中对应的首地址。特别的，如下所示name之前有个冒号和简称。冒号前面的称为标签（也可以理解为别名，不可重复），可以代替节点名来访问改节点。当节点代表一个设备时，比如一个I2C设备，@后面的数字代表设备的从机地址。</p>
+<figure class="highlight dts"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><span class="line"><span class="title class_">/</span><span class="punctuation">&#123;</span></span><br><span class="line"><span class="symbol">	intc:</span> <span class="title class_">interrupt-controller@00a01000</span> <span class="punctuation">&#123;</span></span><br><span class="line">        <span class="comment">/* ... */</span></span><br><span class="line">	<span class="punctuation">&#125;;</span></span><br><span class="line"><span class="punctuation">&#125;</span></span><br></pre></td></tr></table></figure>
+
+<p>使用&amp;符号可以向标签所代表的节点当中添加一些所需要设置的属性。比如</p>
+<p>在开发板启动后，可以在文件系统当中，看到设备树的一些信息。在目录&#x2F;proc&#x2F;device-tree下，使用文件树的方式构建了设备树（节点作为目录、属性作为文件）。</p>
+<h2 id="两个特殊的节点：aliases和chosen"><a href="#两个特殊的节点：aliases和chosen" class="headerlink" title="两个特殊的节点：aliases和chosen"></a>两个特殊的节点：aliases和chosen</h2><p>对于aliases节点其实翻译过来就是别名，以imx6ull.dtsi文件为例：</p>
+<figure class="highlight dts"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br></pre></td><td class="code"><pre><span class="line"><span class="title class_">/</span> <span class="punctuation">&#123;</span></span><br><span class="line">	<span class="title class_">aliases</span> <span class="punctuation">&#123;</span></span><br><span class="line">		gpio0 = <span class="variable">&amp;gpio1</span><span class="punctuation">;</span></span><br><span class="line">		gpio1 = <span class="variable">&amp;gpio2</span><span class="punctuation">;</span></span><br><span class="line">		i2c0 = <span class="variable">&amp;i2c1</span><span class="punctuation">;</span></span><br><span class="line">		i2c1 = <span class="variable">&amp;i2c2</span><span class="punctuation">;</span></span><br><span class="line">		serial0 = <span class="variable">&amp;uart1</span><span class="punctuation">;</span></span><br><span class="line">		serial1 = <span class="variable">&amp;uart2</span><span class="punctuation">;</span></span><br><span class="line">		serial2 = <span class="variable">&amp;uart3</span><span class="punctuation">;</span></span><br><span class="line">		serial7 = <span class="variable">&amp;uart8</span><span class="punctuation">;</span></span><br><span class="line">        <span class="comment">/* ... */</span></span><br><span class="line">	<span class="punctuation">&#125;;</span></span><br><span class="line">    <span class="title class_">soc</span> <span class="punctuation">&#123;</span></span><br><span class="line">        <span class="title class_">aips1</span> <span class="punctuation">&#123;</span></span><br><span class="line"><span class="symbol">            gpio1:</span> <span class="title class_">gpio@0209c000</span> <span class="punctuation">&#123;</span></span><br><span class="line">                <span class="comment">/* ... */</span></span><br><span class="line">			<span class="punctuation">&#125;;</span></span><br><span class="line"><span class="symbol">            gpio2:</span> <span class="title class_">gpio@020a0000</span> <span class="punctuation">&#123;</span></span><br><span class="line">                <span class="comment">/* ... */</span></span><br><span class="line">			<span class="punctuation">&#125;;</span></span><br><span class="line">            <span class="comment">/* ... */</span></span><br><span class="line">        <span class="punctuation">&#125;</span></span><br><span class="line">    <span class="punctuation">&#125;</span></span><br><span class="line"><span class="punctuation">&#125;</span></span><br></pre></td></tr></table></figure>
+
+<p>可以看到，其实就是为各个标签起了一个别名。但是这就有一个疑问：标签和别名之间的区别是什么？</p>
+<p>根据其他人提供的线索去查阅文档：<a target="_blank" rel="noopener" href="https://elinux.org/Device_Tree_Mysteries#Label_vs_aliases_node_property">https://elinux.org/Device_Tree_Mysteries#Label_vs_aliases_node_property</a></p>
+<p>其中关键的一段话是：The aliases are not used directly in the device tree source, but are instead dereferenced by the Linux kernel. When a path is provided to of_find_node_by_path() or of_find_node_opts_by_path(), if the path does not begin with a “&#x2F;“ then the first element of the path must be a property name in the “&#x2F;aliases” node. That element is replaced with the full path from the alias.</p>
+<p>简单来讲，DTS、DTI文件无法使用别名，只能使用标签。标签最终会被解释为节点的绝对路径。而别名是被内核所使用的，当内核调用<code>of_find_node_by_path</code>或<code>of_find_node_opts_by_path</code>函数时，如果提供的的节点的路径不是绝对路径的话，就会把它视作在aliases节点下定义的别名，通过别名来获得节点的绝对路径。</p>
+<p>对于chosen节点，查阅正点原子的IMX6ULL驱动开发指南得43.6.2小结得知，Uboot在启动内核前会向chosen添加一个bootargs属性，其内容为Uboot环境变量当中的bootargs的值。同时，bootargs也会作为内核启动的cmdline参数。</p>
+<h2 id="标准属性"><a href="#标准属性" class="headerlink" title="标准属性"></a>标准属性</h2><h3 id="compatible属性"><a href="#compatible属性" class="headerlink" title="compatible属性"></a>compatible属性</h3><p>compatible属性会维护一个形如：<code>manufacture,model</code>的驱动兼容列表，驱动程序会根据该列表判断是否与设备兼容。</p>
+<p>例如现在有一个设备节点compatible属性值如下：</p>
+<figure class="highlight dts"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line"><span class="attr">compatible</span> <span class="operator">=</span> <span class="string">&quot;fsl,imx6ul-evk-wm8960&quot;</span>,<span class="string">&quot;fsl,imx-audio-wm8960&quot;</span><span class="punctuation">;</span></span><br></pre></td></tr></table></figure>
+
+<p>根据正点原子手册描述得知：上述compatible属性值有两个，分别为“fsl,imx6ul-evk-wm8960”和“fsl,imx-audio-wm8960”，其中“fsl”表示厂商是飞思卡尔，“imx6ul-evk-wm8960”和“imx-audio-wm8960”表示驱动模块名字。sound这个设备首先使用第一个兼容值在 Linux 内核里面查找，看看能不能找到与之匹配的驱动文件，如果没有找到的话就使用第二个兼容值查。</p>
+<p>一般驱动程序文件都会有一个 OF 匹配表，此 OF 匹配表保存着一些 compatible 值，如果设备节点的 compatible 属性值和 OF 匹配表中的何一个值相等，那么就表示设备可以使用这个驱动。</p>
+<h3 id="model属性"><a href="#model属性" class="headerlink" title="model属性"></a>model属性</h3><p>代表设备名</p>
+<h3 id="status属性"><a href="#status属性" class="headerlink" title="status属性"></a>status属性</h3><p>表示设备可操作的状态：</p>
+<p>|	值		|	含义				|<br>|	:-:		|	:-:					|<br>|	okay	|	表示设备是可操作的	|<br>|	disable	|	设备当前不可操作，但未来可能可操作，比如那些热插拔的设备		|<br>|	fail&#x2F;fail-xxx	|	设备出错了	|</p>
+<h3 id="reg、-address-cells和-size-cells-属性"><a href="#reg、-address-cells和-size-cells-属性" class="headerlink" title="reg、#address-cells和#size-cells 属性"></a>reg、#address-cells和#size-cells 属性</h3><p>#address-cells 和#size-cells 这两个属性可以用在任<br>何拥有子节点的设备中。一般和reg属性配合使用使用。reg属性一般格式如下：</p>
+<figure class="highlight dts"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><span class="line"><span class="attr">reg</span> <span class="operator">=</span> <span class="params">&lt;address1 length1&gt;</span>,	<span class="comment">// cell1: addr + len</span></span><br><span class="line">	<span class="params">&lt;address2 length2&gt;</span>,		<span class="comment">// cell2: addr + len</span></span><br><span class="line">	<span class="params">&lt;address3 length3&gt;</span>,		<span class="comment">// cell3: addr + len</span></span><br><span class="line">	...<span class="punctuation">;</span></span><br></pre></td></tr></table></figure>
+
+<p>当父节点定义了#address-cells和#size-cells 属性，子节点在定义reg属性时一个cell就受到父节点定义的#address-cells和#size-cells 属性的约束，<strong>比如当父节点定义#address-cells为2、#size-cells为1时，就说明子节点reg属性当中一个cell由：两个地址 + 一个长度组成</strong>，当然典型的#address-cells和#size-cells 属性的值分别为1、1，这样reg值就和上面代码块所展示的一样。</p>
+<p>这里还是一三个示例来说明一下：</p>
+<p><strong>对于#address-cells为1，#size-cells为0的情况：</strong></p>
+<figure class="highlight dts"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br></pre></td><td class="code"><pre><span class="line"><span class="title class_">spi4</span> <span class="punctuation">&#123;</span></span><br><span class="line">	<span class="attr">compatible</span> <span class="operator">=</span> <span class="string">&quot;spi-gpio&quot;</span><span class="punctuation">;</span></span><br><span class="line">	<span class="meta">#address-cells = &lt;1&gt;;</span></span><br><span class="line">	<span class="meta">#size-cells = &lt;0&gt;;</span></span><br><span class="line"><span class="symbol">	gpio_spi:</span> <span class="title class_">gpio_spi@0</span> <span class="punctuation">&#123;</span></span><br><span class="line">		<span class="attr">compatible</span> <span class="operator">=</span> <span class="string">&quot;fairchild,74hc595&quot;</span><span class="punctuation">;</span></span><br><span class="line">		<span class="attr">reg</span> <span class="operator">=</span> <span class="params">&lt;<span class="number">0</span>&gt;</span><span class="punctuation">;</span></span><br><span class="line"></span><br><span class="line">	<span class="punctuation">&#125;;</span></span><br><span class="line"><span class="punctuation">&#125;;</span></span><br></pre></td></tr></table></figure>
+
+<p>表示gpio_spi当中的reg属性cell只有address值。</p>
+<figure class="highlight dts"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><span class="line"><span class="attr">reg</span> <span class="operator">=</span> <span class="params">&lt;address1&gt;</span>,	<span class="comment">// cell1: addr</span></span><br><span class="line">	<span class="params">&lt;address2&gt;</span>,		<span class="comment">// cell2: addr</span></span><br><span class="line">	<span class="params">&lt;address3&gt;</span>,		<span class="comment">// cell3: addr</span></span><br><span class="line">	...<span class="punctuation">;</span></span><br></pre></td></tr></table></figure>
+
+<p><strong>对于#address-cells为1，#size-cells为1的情况：</strong></p>
+<figure class="highlight dts"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br></pre></td><td class="code"><pre><span class="line"><span class="title class_">spba-bus@02000000</span> <span class="punctuation">&#123;</span></span><br><span class="line">	<span class="attr">compatible</span> <span class="operator">=</span> <span class="string">&quot;fsl,spba-bus&quot;</span>, <span class="string">&quot;simple-bus&quot;</span><span class="punctuation">;</span></span><br><span class="line">	<span class="meta">#address-cells = &lt;1&gt;;</span></span><br><span class="line">	<span class="meta">#size-cells = &lt;1&gt;;</span></span><br><span class="line">	<span class="attr">reg</span> <span class="operator">=</span> <span class="params">&lt;<span class="number">0x02000000</span> <span class="number">0x40000</span>&gt;</span><span class="punctuation">;</span></span><br><span class="line">	<span class="attr">ranges</span><span class="punctuation">;</span></span><br><span class="line"><span class="symbol"></span></span><br><span class="line"><span class="symbol">	ecspi1:</span> <span class="title class_">ecspi@02008000</span> <span class="punctuation">&#123;</span></span><br><span class="line">		<span class="meta">#address-cells = &lt;1&gt;;</span></span><br><span class="line">		<span class="meta">#size-cells = &lt;0&gt;;</span></span><br><span class="line">		<span class="attr">compatible</span> <span class="operator">=</span> <span class="string">&quot;fsl,imx6ul-ecspi&quot;</span>, <span class="string">&quot;fsl,imx51-ecspi&quot;</span><span class="punctuation">;</span></span><br><span class="line">		<span class="attr">reg</span> <span class="operator">=</span> <span class="params">&lt;<span class="number">0x02008000</span> <span class="number">0x4000</span>&gt;</span><span class="punctuation">;</span></span><br><span class="line">		<span class="attr">status</span> <span class="operator">=</span> <span class="string">&quot;disabled&quot;</span><span class="punctuation">;</span></span><br><span class="line">	<span class="punctuation">&#125;;</span></span><br><span class="line"><span class="punctuation">&#125;</span></span><br></pre></td></tr></table></figure>
+
+<p>表示ecspi1当中的reg属性一个cell组成是：address length。</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><span class="line">reg = &lt;address1 length1&gt;,	// cell1: addr + len</span><br><span class="line">	&lt;address2 length2&gt;,		// cell2: addr + len</span><br><span class="line">	&lt;address3 length3&gt;,		// cell3: addr + len</span><br><span class="line">	...;</span><br></pre></td></tr></table></figure>
+
+<p><strong>对于#address-cells为2，#size-cells为1的情况：</strong></p>
+<figure class="highlight dts"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br></pre></td><td class="code"><pre><span class="line"><span class="title class_">external-bus</span> <span class="punctuation">&#123;</span></span><br><span class="line">         <span class="meta">#address-cells = &lt;2&gt;</span></span><br><span class="line">         <span class="meta">#size-cells = &lt;1&gt;;</span></span><br><span class="line">        ...</span><br><span class="line"></span><br><span class="line">         ethernet@<span class="number">0</span>,<span class="number">0</span> <span class="punctuation">&#123;</span></span><br><span class="line">             <span class="attr">compatible</span> <span class="operator">=</span> <span class="string">&quot;smc,smc91c111&quot;</span><span class="punctuation">;</span></span><br><span class="line">             <span class="attr">reg</span> <span class="operator">=</span> <span class="params">&lt;<span class="number">0</span> <span class="number">0</span> <span class="number">0x1000</span>&gt;</span><span class="punctuation">;</span></span><br><span class="line">         <span class="punctuation">&#125;;</span></span><br><span class="line"></span><br><span class="line">         i2c@<span class="number">1</span>,<span class="number">0</span> <span class="punctuation">&#123;</span></span><br><span class="line">             <span class="attr">compatible</span> <span class="operator">=</span> <span class="string">&quot;acme,a1234-i2c-bus&quot;</span><span class="punctuation">;</span></span><br><span class="line">             <span class="meta">#address-cells = &lt;1&gt;;</span></span><br><span class="line">             <span class="meta">#size-cells = &lt;0&gt;;</span></span><br><span class="line">             <span class="attr">reg</span> <span class="operator">=</span> <span class="params">&lt;<span class="number">1</span> <span class="number">0</span> <span class="number">0x1000</span>&gt;</span><span class="punctuation">;</span></span><br><span class="line">         <span class="punctuation">&#125;;</span></span><br><span class="line"></span><br><span class="line">         flash@<span class="number">2</span>,<span class="number">0</span> <span class="punctuation">&#123;</span></span><br><span class="line">             <span class="attr">compatible</span> <span class="operator">=</span> <span class="string">&quot;samsung,k8f1315ebm&quot;</span>, <span class="string">&quot;cfi-flash&quot;</span><span class="punctuation">;</span></span><br><span class="line">             <span class="attr">reg</span> <span class="operator">=</span> <span class="params">&lt;<span class="number">2</span> <span class="number">0</span> <span class="number">0x4000000</span>&gt;</span><span class="punctuation">;</span></span><br><span class="line">         <span class="punctuation">&#125;;</span></span><br><span class="line">	<span class="punctuation">&#125;;</span>    </span><br></pre></td></tr></table></figure>
+
+<p>表示i2c当中的reg属性一个cell组成是：address_MSB（64位地址最高有效位） address_LSB（64位地址最低有效位） length。（<strong>注：一个cell当中一个单元是32位的</strong>）</p>
+<figure class="highlight dts"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><span class="line"><span class="attr">reg</span> <span class="operator">=</span> <span class="params">&lt;address1_MSB address1_LSM length1&gt;</span>,</span><br><span class="line">	<span class="params">&lt;address2_MSB address2_LSB length2&gt;</span>,</span><br><span class="line">	<span class="params">&lt;address3_MSB address3_LSB length3&gt;</span>,</span><br><span class="line">	...<span class="punctuation">;</span></span><br></pre></td></tr></table></figure>
+
+<p>更一般的：只要子节点需要描述多个设备区域，就可以在 reg 属性中连续定义多个地址和大小。</p>
+<figure class="highlight dts"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br></pre></td><td class="code"><pre><span class="line"><span class="title class_">parent</span> <span class="punctuation">&#123;</span></span><br><span class="line">    <span class="meta">#address-cells = &lt;2&gt;;</span></span><br><span class="line">    <span class="meta">#size-cells = &lt;1&gt;;</span></span><br><span class="line"></span><br><span class="line">    <span class="title class_">child@0</span> <span class="punctuation">&#123;</span></span><br><span class="line">        <span class="attr">reg</span> <span class="operator">=</span> <span class="params">&lt;<span class="number">0x00000000</span> <span class="number">0x10000000</span> <span class="number">0x1000</span>&gt;</span>,  <span class="comment">// 第一段地址 + 大小</span></span><br><span class="line">              <span class="params">&lt;<span class="number">0x00000000</span> <span class="number">0x20000000</span> <span class="number">0x2000</span>&gt;</span>,  <span class="comment">// 第二段地址 + 大小</span></span><br><span class="line">              <span class="params">&lt;<span class="number">0x00000001</span> <span class="number">0x30000000</span> <span class="number">0x3000</span>&gt;</span><span class="punctuation">;</span>  <span class="comment">// 第三段地址 + 大小</span></span><br><span class="line">    <span class="punctuation">&#125;;</span></span><br><span class="line"><span class="punctuation">&#125;;</span></span><br></pre></td></tr></table></figure>
+
+<p>解释：</p>
+<ol>
+<li><p>每个设备区域由 #address-cells 和 #size-cells 定义的单元描述。</p>
+<ul>
+<li>比如 0x00000000 0x10000000 是地址，0x1000 是大小。</li>
+</ul>
+</li>
+<li><p>reg 属性用逗号分隔，表示多个设备区域。</p>
+</li>
+<li><p>每个设备区域对应硬件设备的不同地址空间。</p>
+</li>
+</ol>
+<p><strong>特别注意的是#address-cells、#size-cells定义的都是子节点的reg规则，而不是本节点！！！</strong></p>
+<h3 id="其他属性"><a href="#其他属性" class="headerlink" title="其他属性"></a>其他属性</h3><p>对于range属性，IMX6ULL设备树当中是没有使用的（有，但都为空），它的值一般格式为：</p>
+<figure class="highlight dts"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line"><span class="params">&lt;child-bus-address,parent-bus-address,length&gt;</span></span><br></pre></td></tr></table></figure>
+
+<p>当父节点定义此属性时，代表将子节点从child-bus-address地址开始，映射到父节点起始地址parent-bus-address处，并映射length这么长的一个范围。</p>
+<p>对于name属性：name 属性值为字符串，name 属性用于记录节点名字，name 属性已经被弃用，不推荐使用name 属性，一些老的设备树文件可能会使用此属性</p>
+<p>device_type属性：属性值为字符串，IEEE 1275 会用到此属性，用于描述设备的 FCode，但是设备树没有 FCode，所以此属性也被抛弃了。此属性只能用于 cpu 节点或者 memory 节点。imx6ull.dtsi 的 cpu0 节点用到了此属性，内容如下所示：</p>
+<figure class="highlight dts"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><span class="line"><span class="symbol">cpu0:</span> <span class="title class_">cpu@0</span> <span class="punctuation">&#123;</span></span><br><span class="line">	<span class="attr">compatible</span> <span class="operator">=</span> <span class="string">&quot;arm,cortex-a7&quot;</span><span class="punctuation">;</span></span><br><span class="line">	device_<span class="attr">type</span> <span class="operator">=</span> <span class="string">&quot;cpu&quot;</span><span class="punctuation">;</span></span><br><span class="line"><span class="punctuation">&#125;</span></span><br></pre></td></tr></table></figure>
+
+<p>对于根节点的compatible属性：。Linux 内核会通过根节点的 compoatible 属性查看是否支持此设备，如果支持的话才会启动 Linux 内核。</p>
+<h2 id="OF函数-——-驱动和设备树交互的桥梁"><a href="#OF函数-——-驱动和设备树交互的桥梁" class="headerlink" title="OF函数 —— 驱动和设备树交互的桥梁"></a>OF函数 —— 驱动和设备树交互的桥梁</h2><p>OF函数定义的头文件：include&#x2F;linux&#x2F;of.h</p>
+<h3 id="查找节点的-OF-函数"><a href="#查找节点的-OF-函数" class="headerlink" title="查找节点的 OF 函数"></a>查找节点的 OF 函数</h3><ul>
+<li><p><code>struct device_node *of_find_node_by_name(struct device_node *from,    const char *name)</code><br>  描述：通过节点名字查找指定的节点。</p>
+<ul>
+<li>from：开始查找的节点，如果为 NULL 表示从根节点开始查找整个设备树。</li>
+<li>name：要查找的节点名字。</li>
+<li>返回值：找到的节点，如果为 NULL 表示查找失败。</li>
+</ul>
+</li>
+<li><p><code>struct device_node *of_find_node_by_type(struct device_node *from,    const char *type)</code><br>  描述：通过 device_type 属性查找指定的节点。（因为device_type用到很少，所以该函数用的也很少）</p>
+<ul>
+<li>from：开始查找的节点，如果为 NULL 表示从根节点开始查找整个设备树。</li>
+<li>type：要查找的节点对应的 type 字符串，也就是 device_type 属性值。</li>
+<li>返回值：找到的节点，如果为 NULL 表示查找失败。</li>
+</ul>
+</li>
+<li><p><code>struct device_node *of_find_compatible_node(struct device_node *from,   const char *type,    const char *compatible)</code><br>  描述：根据 device_type 和 compatible 这两个属性查找指定的节点。</p>
+<ul>
+<li>from：开始查找的节点，如果为 NULL 表示从根节点开始查找整个设备树。</li>
+<li>type：要查找的节点对应的 type 字符串，也就是 device_type 属性值，可以为 NULL，表示忽略掉 device_type 属性。</li>
+<li>compatible：要查找的节点所对应的 compatible 属性列表。</li>
+<li>返回值：找到的节点，如果为 NULL 表示查找失败</li>
+</ul>
+</li>
+<li><p><code>struct device_node *of_find_matching_node_and_match(struct device_node *from,   const struct of_device_id *matches,   const struct of_device_id **match)</code><br>  描述：通过 of_device_id 匹配表来查找指定的节点。</p>
+<ul>
+<li>from：开始查找的节点，如果为 NULL 表示从根节点开始查找整个设备树。</li>
+<li>matches：of_device_id 匹配表，也就是在此匹配表里面查找节点。</li>
+<li>match：找到的匹配的 of_device_id。</li>
+<li>返回值：找到的节点，如果为 NULL 表示查找失败</li>
+</ul>
+</li>
+<li><p><code>inline struct device_node *of_find_node_by_path(const char *path)</code></p>
+<p>  描述：通过路径来查找指定的节点。</p>
+<ul>
+<li>path：带有全路径的节点名，可以使用节点的别名，比如“&#x2F;backlight”就是 backlight 这个节点的全路径。</li>
+<li>返回值：找到的节点，如果为 NULL 表示查找失败。</li>
+</ul>
+</li>
+<li><p><code>struct device_node *of_get_parent(const struct device_node *node)</code></p>
+<p>  描述：用于获取指定节点的父节点(如果有父节点的话)。</p>
+<ul>
+<li>node：要查找的父节点的节点。</li>
+<li>返回值：找到的父节点。</li>
+</ul>
+</li>
+<li><p><code>struct device_node *of_get_next_child(const struct device_node *node,   struct device_node *prev)</code><br>  描述：数用迭代的方式查找子节点。</p>
+<ul>
+<li>node：父节点。</li>
+<li>prev：前一个子节点，也就是从哪一个子节点开始迭代的查找下一个子节点。可以设置为NULL，表示从第一个子节点开始。</li>
+<li>返回值：找到的下一个子节点。</li>
+</ul>
+</li>
+</ul>
+<h3 id="获取属性值的-OF-函数"><a href="#获取属性值的-OF-函数" class="headerlink" title="获取属性值的 OF 函数"></a>获取属性值的 OF 函数</h3><p>设备树的属性在内核当中以一个结构体的形式存在，它的定义如下：</p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br></pre></td><td class="code"><pre><span class="line"><span class="class"><span class="keyword">struct</span> <span class="title">property</span> &#123;</span></span><br><span class="line">	<span class="type">char</span> *name; <span class="comment">/* 属性名字 */</span></span><br><span class="line">	<span class="type">int</span> length; <span class="comment">/* 属性长度 */</span></span><br><span class="line">	<span class="type">void</span> *value; <span class="comment">/* 属性值 */</span></span><br><span class="line">	<span class="class"><span class="keyword">struct</span> <span class="title">property</span> *<span class="title">next</span>;</span> <span class="comment">/* 下一个属性 */</span></span><br><span class="line">	<span class="type">unsigned</span> <span class="type">long</span> _flags;</span><br><span class="line">	<span class="type">unsigned</span> <span class="type">int</span> unique_id;</span><br><span class="line">	<span class="class"><span class="keyword">struct</span> <span class="title">bin_attribute</span> <span class="title">attr</span>;</span></span><br><span class="line">&#125;;</span><br></pre></td></tr></table></figure>
+
+<ul>
+<li><p><code>property *of_find_property(const struct device_node *np,   const char *name,   int *lenp)</code><br>  描述：查找指定节点的属性名为name的属性值。</p>
+<ul>
+<li>np：设备节点。</li>
+<li>name： 属性名字。</li>
+<li>lenp：属性值的字节数。</li>
+<li>返回值：找到的属性。</li>
+</ul>
+</li>
+<li><p><code>int of_property_count_elems_of_size(const struct device_node *np,   const char *propname,   int elem_size)</code><br>  描述：获取属性中元素的数量，比如 reg 属性值是一个数组，那么使用此函数可以获取到这个数组的大小。</p>
+<ul>
+<li>np：设备节点。</li>
+<li>proname： 需要统计元素数量的属性名字。</li>
+<li>elem_size：元素长度。</li>
+<li>返回值：得到的属性元素数量。</li>
+</ul>
+</li>
+<li><p><code>int of_property_read_u32_index(const struct device_node *np,   const char *propname,   u32 index,    u32 *out_value)</code><br>  描述：从属性中获取指定标号的 u32 类型数据值(无符号 32位)，比如某个属性有多个 u32 类型的值，那么就可以使用此函数来获取指定标号的数据值。</p>
+<ul>
+<li>np：设备节点。</li>
+<li>proname： 要读取的属性名字。</li>
+<li>index：要读取的值标号。</li>
+<li>out_value：读取到的值<br>  返回值：0 读取成功，负值，读取失败，-EINVAL 表示属性不存在，-ENODATA 表示没有要读取的数据，-EOVERFLOW 表示属性值列表太小。</li>
+</ul>
+</li>
+<li><p><code>int of_property_read_ux_array(const struct device_node *np,   const char *propname,    ux *out_values,    size_t sz)</code>（x &#x3D; 8, 16, 32, 64）<br>  描述：可以读取属性中 u8、u16、u32 和 u64 类型的数组数据，比如大多数的 reg 属性都是数组数据，可以使用这 4 个函数一次读取出 reg 属性中的所有数据。</p>
+<ul>
+<li>np：设备节点。</li>
+<li>proname： 要读取的属性名字。</li>
+<li>out_value：读取到的数组值，分别为 u8、u16、u32 和 u64。</li>
+<li>sz：要读取的数组元素数量。</li>
+<li>返回值：0，读取成功，负值，读取失败，-EINVAL 表示属性不存在，-ENODATA 表示没有要读取的数据，-EOVERFLOW 表示属性值列表太小。</li>
+</ul>
+</li>
+<li><p><code>int of_property_read_ux(const struct device_node *np,    const char *propname,   ux *out_value)</code>（x &#x3D; 8, 16, 32, 64）<br>  描述：是用于读取这种只有一个整形值的属性，可以读取 u8、u16、u32 和 u64 类型属性值。</p>
+<ul>
+<li>np：设备节点。</li>
+<li>proname： 要读取的属性名字。</li>
+<li>out_value：读取到的数组值。</li>
+<li>返回值：0，读取成功，负值，读取失败，-EINVAL 表示属性不存在，-ENODATA 表示没有要读取的数据，-EOVERFLOW 表示属性值列表太小。</li>
+</ul>
+</li>
+<li><p><code>int of_property_read_string(struct device_node *np,    const char *propname,   const char **out_string)</code><br>  描述：读取属性中字符串值。</p>
+<ul>
+<li>np：设备节点。</li>
+<li>proname： 要读取的属性名字。</li>
+<li>out_string：读取到的字符串值。</li>
+<li>返回值：0，读取成功，负值，读取失败。</li>
+</ul>
+</li>
+<li><p><code>int of_n_addr_cells(struct device_node *np)</code>、<code>int of_n_size_cells(struct device_node *np)</code></p>
+<p>  描述：分别可以获取设备的#address-cells、#size-cells属性值。</p>
+<ul>
+<li>np：设备节点。</li>
+<li>返回值：#address-cells、#size-cells属性值。</li>
+</ul>
+</li>
+<li><p><code>int of_device_is_compatible(const struct device_node *device,   const char *compat)</code><br>  描述：查看节点的 compatible 属性是否有包含 compat 指定的字符串。</p>
+<ul>
+<li>device：设备节点。</li>
+<li>compat：要查看的字符串。</li>
+<li>返回值：0，节点的 compatible 属性中不包含 compat 指定的字符串；正数，节点的 compatible</li>
+<li>属性中包含 compat 指定的字符串。</li>
+</ul>
+</li>
+</ul>
+<p>了解完操作设备树的OF函数之后，其实我们就应该知道，所谓设备树的属性，除了常用的reg之外，在设备树文件当中，存在很多其他的一些厂商自定义的属性，这些属性专门为他们的芯片&#x2F;设备服务的。我们也可以为一个节点自定义一个属性。最开始接触设备树的时候，因为没有任何单片机的基础，对于设备树文件当中出现的GPIO、I2C、SPI、PWM、UART等陌生的词汇没有任何概念，在有了一点单片机的基础后，再来看设备树这些概念，其实就很好理解了，对于某一个节点，为什么要有这些属性都大概能知道其原因。</p>
+<hr>
+<p><strong>本章完结</strong></p>
+
+    </div>
+
+    
+    
+    
+        <div class="reward-container">
+  <div></div>
+  <button onclick="var qr = document.getElementById('qr'); qr.style.display = (qr.style.display === 'none') ? 'block' : 'none';">
+    打赏
+  </button>
+  <div id="qr" style="display: none;">
+      
+      <div style="display: inline-block;">
+        <img src="/images/wechatpay.jpg" alt="半个馒头 微信支付">
+        <p>微信支付</p>
+      </div>
+
+  </div>
+</div>
+
+
+      <footer class="post-footer">
+          <div class="post-tags">
+              <a href="/tags/%E9%A9%B1%E5%8A%A8%E5%BC%80%E5%8F%91/" rel="tag"># 驱动开发</a>
+          </div>
+
+        
+
+
+        
+    <div class="post-nav">
+      <div class="post-nav-item">
+    <a href="/2024/11/07/workflow/TCPServer_3/" rel="prev" title="WorkFlow源码剖析——Communicator之TCPServer（下）">
+      <i class="fa fa-chevron-left"></i> WorkFlow源码剖析——Communicator之TCPServer（下）
+    </a></div>
+      <div class="post-nav-item">
+    <a href="/2024/11/20/linux_driver/char_device/" rel="next" title="Linux驱动开发快速入门——字符设备驱动">
+      Linux驱动开发快速入门——字符设备驱动 <i class="fa fa-chevron-right"></i>
+    </a></div>
+    </div>
+      </footer>
+    
+  </article>
+  
+  
+  
+
+
+
+          </div>
+          
+
+<script>
+  window.addEventListener('tabs:register', () => {
+    let { activeClass } = CONFIG.comments;
+    if (CONFIG.comments.storage) {
+      activeClass = localStorage.getItem('comments_active') || activeClass;
+    }
+    if (activeClass) {
+      let activeTab = document.querySelector(`a[href="#comment-${activeClass}"]`);
+      if (activeTab) {
+        activeTab.click();
+      }
+    }
+  });
+  if (CONFIG.comments.storage) {
+    window.addEventListener('tabs:click', event => {
+      if (!event.target.matches('.tabs-comment .tab-content .tab-pane')) return;
+      let commentClass = event.target.classList[1];
+      localStorage.setItem('comments_active', commentClass);
+    });
+  }
+</script>
+
+        </div>
+          
+  
+  <div class="toggle sidebar-toggle">
+    <span class="toggle-line toggle-line-first"></span>
+    <span class="toggle-line toggle-line-middle"></span>
+    <span class="toggle-line toggle-line-last"></span>
+  </div>
+
+  <aside class="sidebar">
+    <div class="sidebar-inner">
+
+      <ul class="sidebar-nav motion-element">
+        <li class="sidebar-nav-toc">
+          文章目录
+        </li>
+        <li class="sidebar-nav-overview">
+          站点概览
+        </li>
+      </ul>
+
+      <!--noindex-->
+      <div class="post-toc-wrap sidebar-panel">
+          <div class="post-toc motion-element"><ol class="nav"><li class="nav-item nav-level-2"><a class="nav-link" href="#%E5%89%8D%E8%A8%80"><span class="nav-number">1.</span> <span class="nav-text">前言</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#%E6%AD%A3%E6%96%87"><span class="nav-number">2.</span> <span class="nav-text">正文</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#%E4%B8%A4%E4%B8%AA%E7%89%B9%E6%AE%8A%E7%9A%84%E8%8A%82%E7%82%B9%EF%BC%9Aaliases%E5%92%8Cchosen"><span class="nav-number">3.</span> <span class="nav-text">两个特殊的节点：aliases和chosen</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#%E6%A0%87%E5%87%86%E5%B1%9E%E6%80%A7"><span class="nav-number">4.</span> <span class="nav-text">标准属性</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#compatible%E5%B1%9E%E6%80%A7"><span class="nav-number">4.1.</span> <span class="nav-text">compatible属性</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#model%E5%B1%9E%E6%80%A7"><span class="nav-number">4.2.</span> <span class="nav-text">model属性</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#status%E5%B1%9E%E6%80%A7"><span class="nav-number">4.3.</span> <span class="nav-text">status属性</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#reg%E3%80%81-address-cells%E5%92%8C-size-cells-%E5%B1%9E%E6%80%A7"><span class="nav-number">4.4.</span> <span class="nav-text">reg、#address-cells和#size-cells 属性</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#%E5%85%B6%E4%BB%96%E5%B1%9E%E6%80%A7"><span class="nav-number">4.5.</span> <span class="nav-text">其他属性</span></a></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#OF%E5%87%BD%E6%95%B0-%E2%80%94%E2%80%94-%E9%A9%B1%E5%8A%A8%E5%92%8C%E8%AE%BE%E5%A4%87%E6%A0%91%E4%BA%A4%E4%BA%92%E7%9A%84%E6%A1%A5%E6%A2%81"><span class="nav-number">5.</span> <span class="nav-text">OF函数 —— 驱动和设备树交互的桥梁</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#%E6%9F%A5%E6%89%BE%E8%8A%82%E7%82%B9%E7%9A%84-OF-%E5%87%BD%E6%95%B0"><span class="nav-number">5.1.</span> <span class="nav-text">查找节点的 OF 函数</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#%E8%8E%B7%E5%8F%96%E5%B1%9E%E6%80%A7%E5%80%BC%E7%9A%84-OF-%E5%87%BD%E6%95%B0"><span class="nav-number">5.2.</span> <span class="nav-text">获取属性值的 OF 函数</span></a></li></ol></li></ol></div>
+      </div>
+      <!--/noindex-->
+
+      <div class="site-overview-wrap sidebar-panel">
+        <div class="site-author motion-element" itemprop="author" itemscope itemtype="http://schema.org/Person">
+    <img class="site-author-image" itemprop="image" alt="半个馒头"
+      src="/images/avatar.jpg">
+  <p class="site-author-name" itemprop="name">半个馒头</p>
+  <div class="site-description" itemprop="description"></div>
+</div>
+<div class="site-state-wrap motion-element">
+  <nav class="site-state">
+      <div class="site-state-item site-state-posts">
+          <a href="/archives/">
+        
+          <span class="site-state-item-count">58</span>
+          <span class="site-state-item-name">日志</span>
+        </a>
+      </div>
+      <div class="site-state-item site-state-tags">
+            <a href="/tags/">
+          
+        <span class="site-state-item-count">18</span>
+        <span class="site-state-item-name">标签</span></a>
+      </div>
+  </nav>
+</div>
+  <div class="links-of-author motion-element">
+      <span class="links-of-author-item">
+        <a href="https://github.com/LunarStore" title="GitHub → https:&#x2F;&#x2F;github.com&#x2F;LunarStore" rel="noopener" target="_blank"><i class="fa fa-fw fa-github"></i>GitHub</a>
+      </span>
+      <span class="links-of-author-item">
+        <a href="mailto:18772124875@163.com" title="网易邮箱 → mailto:18772124875@163.com" rel="noopener" target="_blank"><i class="fa fa-fw fa-fas fa-envelope"></i>网易邮箱</a>
+      </span>
+  </div>
+
+
+  <div class="links-of-blogroll motion-element">
+    <div class="links-of-blogroll-title">
+      <i class="fa fa-fw fa-link"></i>
+      友情链接
+    </div>
+    <ul class="links-of-blogroll-list">
+        <li class="links-of-blogroll-item">
+          <a href="https://blog.csdn.net/m0_52566365" title="https:&#x2F;&#x2F;blog.csdn.net&#x2F;m0_52566365" rel="noopener" target="_blank">CSDN博客地址</a>
+        </li>
+    </ul>
+  </div>
+
+      </div>
+        <div class="back-to-top motion-element">
+          <i class="fa fa-arrow-up"></i>
+          <span>0%</span>
+        </div>
+
+    </div>
+  </aside>
+  <div id="sidebar-dimmer"></div>
+
+
+      </div>
+    </main>
+
+    <footer class="footer">
+      <div class="footer-inner">
+        
+
+        
+
+<div class="copyright">
+  
+  &copy; 
+  <span itemprop="copyrightYear">2025</span>
+  <span class="with-love">
+    <i class="fa fa-user"></i>
+  </span>
+  <span class="author" itemprop="copyrightHolder">半个馒头</span>
+</div>
+  <div class="powered-by">由 <a href="https://hexo.io/" class="theme-link" rel="noopener" target="_blank">Hexo</a> & <a href="https://theme-next.org/" class="theme-link" rel="noopener" target="_blank">NexT.Gemini</a> 强力驱动
+  </div>
+
+        
+<div class="busuanzi-count">
+  <script async src="https://busuanzi.ibruce.info/busuanzi/2.3/busuanzi.pure.mini.js"></script>
+    <span class="post-meta-item" id="busuanzi_container_site_uv" style="display: none;">
+      <span class="post-meta-item-icon">
+        <i class="fa fa-user"></i>
+      </span>
+      <span class="site-uv" title="总访客量">
+        <span id="busuanzi_value_site_uv"></span>
+      </span>
+    </span>
+    <span class="post-meta-divider">|</span>
+    <span class="post-meta-item" id="busuanzi_container_site_pv" style="display: none;">
+      <span class="post-meta-item-icon">
+        <i class="fa fa-eye"></i>
+      </span>
+      <span class="site-pv" title="总访问量">
+        <span id="busuanzi_value_site_pv"></span>
+      </span>
+    </span>
+</div>
+
+
+
+
+
+
+
+
+      </div>
+    </footer>
+  </div>
+
+  
+  <script src="/lib/anime.min.js"></script>
+  <script src="/lib/velocity/velocity.min.js"></script>
+  <script src="/lib/velocity/velocity.ui.min.js"></script>
+
+<script src="/js/utils.js"></script>
+
+<script src="/js/motion.js"></script>
+
+
+<script src="/js/schemes/pisces.js"></script>
+
+
+<script src="/js/next-boot.js"></script>
+
+
+
+
+  
+
+
+
+
+  
+<script src="/js/local-search.js"></script>
+
+
+
+
+
+
+
+
+
+
+
+
+
+  
+
+  
+
+</body>
+</html>
