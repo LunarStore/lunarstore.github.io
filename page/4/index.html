@@ -133,7 +133,7 @@
   </li>
         <li class="menu-item menu-item-archives">
 
-    <a href="/archives/" rel="section"><i class="fa fa-fw fa-archive"></i>归档<span class="badge">58</span></a>
+    <a href="/archives/" rel="section"><i class="fa fa-fw fa-archive"></i>归档<span class="badge">59</span></a>
 
   </li>
       <li class="menu-item menu-item-search">
@@ -185,6 +185,82 @@
 
           <div class="content index posts-expand">
             
+      
+  
+  
+  <article itemscope itemtype="http://schema.org/Article" class="post-block" lang="zh-CN">
+    <link itemprop="mainEntityOfPage" href="https://www.halfmantou.xyz/2024/05/08/stm32/USART/">
+
+    <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
+      <meta itemprop="image" content="/images/avatar.jpg">
+      <meta itemprop="name" content="半个馒头">
+      <meta itemprop="description" content="">
+    </span>
+
+    <span hidden itemprop="publisher" itemscope itemtype="http://schema.org/Organization">
+      <meta itemprop="name" content="碎碎念念">
+    </span>
+      <header class="post-header">
+        <h2 class="post-title" itemprop="name headline">
+          
+            <a href="/2024/05/08/stm32/USART/" class="post-title-link" itemprop="url">STM32快速入门（串口传输之USART）</a>
+        </h2>
+
+        <div class="post-meta">
+            <span class="post-meta-item">
+              <span class="post-meta-item-icon">
+                <i class="fa fa-calendar-o"></i>
+              </span>
+              <span class="post-meta-item-text">发表于</span>
+
+              <time title="创建时间：2024-05-08 12:00:00" itemprop="dateCreated datePublished" datetime="2024-05-08T12:00:00+08:00">2024-05-08</time>
+            </span>
+              <span class="post-meta-item">
+                <span class="post-meta-item-icon">
+                  <i class="fa fa-calendar-check-o"></i>
+                </span>
+                <span class="post-meta-item-text">更新于</span>
+                <time title="修改时间：2025-09-29 22:24:25" itemprop="dateModified" datetime="2025-09-29T22:24:25+08:00">2025-09-29</time>
+              </span>
+
+          
+
+        </div>
+      </header>
+
+    
+    
+    
+    <div class="post-body" itemprop="articleBody">
+
+      
+          <h2 id="前言"><a href="#前言" class="headerlink" title="前言"></a>前言</h2><p>USART串口传输能实现信息在设备之间的点对点传输，支持单工、半双工、全全双工，一般是有三个引脚：TX、RX、SW_RX（共地）。不需要一根线来同步时钟。最大优点是可以和电脑通信，实现程序调试的功能。</p>
+<h2 id="导航"><a href="#导航" class="headerlink" title="导航"></a>导航</h2><p>图248 USART框图：</p>
+<p><img src="/2024/05/08/stm32/USART/photo/USART.png" alt="nevigate"></p>
+<p>图片引自STM32 F1XX系列的中文参考手册。</p>
+<h2 id="USART发送和接收的实现细节"><a href="#USART发送和接收的实现细节" class="headerlink" title="USART发送和接收的实现细节"></a>USART发送和接收的实现细节</h2>
+          <!--noindex-->
+            <div class="post-button">
+              <a class="btn" href="/2024/05/08/stm32/USART/#more" rel="contents">
+                阅读全文 &raquo;
+              </a>
+            </div>
+          <!--/noindex-->
+        
+      
+    </div>
+
+    
+    
+    
+      <footer class="post-footer">
+        <div class="post-eof"></div>
+      </footer>
+  </article>
+  
+  
+  
+
       
   
   
@@ -918,89 +994,6 @@
   
   
 
-      
-  
-  
-  <article itemscope itemtype="http://schema.org/Article" class="post-block" lang="zh-CN">
-    <link itemprop="mainEntityOfPage" href="https://www.halfmantou.xyz/2024/02/03/sylar/IOManager/">
-
-    <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
-      <meta itemprop="image" content="/images/avatar.jpg">
-      <meta itemprop="name" content="半个馒头">
-      <meta itemprop="description" content="">
-    </span>
-
-    <span hidden itemprop="publisher" itemscope itemtype="http://schema.org/Organization">
-      <meta itemprop="name" content="碎碎念念">
-    </span>
-      <header class="post-header">
-        <h2 class="post-title" itemprop="name headline">
-          
-            <a href="/2024/02/03/sylar/IOManager/" class="post-title-link" itemprop="url">重写Sylar基于协程的服务器（5、IO协程调度模块的设计）</a>
-        </h2>
-
-        <div class="post-meta">
-            <span class="post-meta-item">
-              <span class="post-meta-item-icon">
-                <i class="fa fa-calendar-o"></i>
-              </span>
-              <span class="post-meta-item-text">发表于</span>
-
-              <time title="创建时间：2024-02-03 12:00:00" itemprop="dateCreated datePublished" datetime="2024-02-03T12:00:00+08:00">2024-02-03</time>
-            </span>
-              <span class="post-meta-item">
-                <span class="post-meta-item-icon">
-                  <i class="fa fa-calendar-check-o"></i>
-                </span>
-                <span class="post-meta-item-text">更新于</span>
-                <time title="修改时间：2025-09-29 22:24:25" itemprop="dateModified" datetime="2025-09-29T22:24:25+08:00">2025-09-29</time>
-              </span>
-
-          
-
-        </div>
-      </header>
-
-    
-    
-    
-    <div class="post-body" itemprop="articleBody">
-
-      
-          <p><strong>重写Sylar基于协程的服务器系列：</strong></p>
-<p><a href="./Start.md"> 重写Sylar基于协程的服务器（0、搭建开发环境以及项目框架 || 下载编译简化版Sylar）</a></p>
-<p><a href="./Log.md"> 重写Sylar基于协程的服务器（1、日志模块的架构）</a></p>
-<p><a href="./Configure.md">重写Sylar基于协程的服务器（2、配置模块的设计）</a></p>
-<p><a href="./Fiber.md">重写Sylar基于协程的服务器（3、协程模块的设计）</a></p>
-<p><a href="./Scheduler.md">重写Sylar基于协程的服务器（4、协程调度模块的设计）</a></p>
-<p><a href="./IOManager.md">重写Sylar基于协程的服务器（5、IO协程调度模块的设计）</a></p>
-<p><a href="./Hook.md">重写Sylar基于协程的服务器（6、HOOK模块的设计）</a></p>
-<p><a href="./TcpServerAndHttpServer.md">重写Sylar基于协程的服务器（7、TcpServer &amp; HttpServer的设计与实现）</a></p>
-<p><strong>简述</strong></p>
-<p>sylar的IOManager模块本质上就是一个事件池，主要负责向epoll中注册事件和回调。实现了Idle协程的回调，回调是一个阻塞在epoll_wait上的事件循环，将有IO事件发生的协程唤醒。</p>
-<h2 id="核心数据结构"><a href="#核心数据结构" class="headerlink" title="核心数据结构"></a>核心数据结构</h2><p>将socketfd封装成一个结构体FdContext，对于fd上的读写事件封装成EventContext，提供的TrigleEvent函数，在fd有读写事件发生时，将相应读写事件的EventContext::m_fiber成员放到EventContext::m_scheduler调度器中，可以唤醒阻塞的协程。FdContext结构体定义如下。</p>
-          <!--noindex-->
-            <div class="post-button">
-              <a class="btn" href="/2024/02/03/sylar/IOManager/#more" rel="contents">
-                阅读全文 &raquo;
-              </a>
-            </div>
-          <!--/noindex-->
-        
-      
-    </div>
-
-    
-    
-    
-      <footer class="post-footer">
-        <div class="post-eof"></div>
-      </footer>
-  </article>
-  
-  
-  
-
 
   
   <nav class="pagination">
@@ -1072,7 +1065,7 @@
       <div class="site-state-item site-state-posts">
           <a href="/archives/">
         
-          <span class="site-state-item-count">58</span>
+          <span class="site-state-item-count">59</span>
           <span class="site-state-item-name">日志</span>
         </a>
       </div>

@@ -133,7 +133,7 @@
   </li>
         <li class="menu-item menu-item-archives">
 
-    <a href="/archives/" rel="section"><i class="fa fa-fw fa-archive"></i>归档<span class="badge">58</span></a>
+    <a href="/archives/" rel="section"><i class="fa fa-fw fa-archive"></i>归档<span class="badge">59</span></a>
 
   </li>
       <li class="menu-item menu-item-search">
@@ -185,6 +185,85 @@
 
           <div class="content index posts-expand">
             
+      
+  
+  
+  <article itemscope itemtype="http://schema.org/Article" class="post-block" lang="zh-CN">
+    <link itemprop="mainEntityOfPage" href="https://www.halfmantou.xyz/2024/11/07/workflow/TCPServer_3/">
+
+    <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
+      <meta itemprop="image" content="/images/avatar.jpg">
+      <meta itemprop="name" content="半个馒头">
+      <meta itemprop="description" content="">
+    </span>
+
+    <span hidden itemprop="publisher" itemscope itemtype="http://schema.org/Organization">
+      <meta itemprop="name" content="碎碎念念">
+    </span>
+      <header class="post-header">
+        <h2 class="post-title" itemprop="name headline">
+          
+            <a href="/2024/11/07/workflow/TCPServer_3/" class="post-title-link" itemprop="url">WorkFlow源码剖析——Communicator之TCPServer（下）</a>
+        </h2>
+
+        <div class="post-meta">
+            <span class="post-meta-item">
+              <span class="post-meta-item-icon">
+                <i class="fa fa-calendar-o"></i>
+              </span>
+              <span class="post-meta-item-text">发表于</span>
+
+              <time title="创建时间：2024-11-07 12:00:00" itemprop="dateCreated datePublished" datetime="2024-11-07T12:00:00+08:00">2024-11-07</time>
+            </span>
+              <span class="post-meta-item">
+                <span class="post-meta-item-icon">
+                  <i class="fa fa-calendar-check-o"></i>
+                </span>
+                <span class="post-meta-item-text">更新于</span>
+                <time title="修改时间：2025-09-29 22:24:25" itemprop="dateModified" datetime="2025-09-29T22:24:25+08:00">2025-09-29</time>
+              </span>
+
+          
+
+        </div>
+      </header>
+
+    
+    
+    
+    <div class="post-body" itemprop="articleBody">
+
+      
+          <h2 id="前言"><a href="#前言" class="headerlink" title="前言"></a>前言</h2><p>系列链接如下：</p>
+<p><a target="_blank" rel="noopener" href="https://blog.csdn.net/m0_52566365/article/details/142903964">WorkFlow源码剖析——GO-Task 源码分析</a></p>
+<p><a target="_blank" rel="noopener" href="https://blog.csdn.net/m0_52566365/article/details/143452443">WorkFlow源码剖析——Communicator之TCPServer（上）</a></p>
+<p><a target="_blank" rel="noopener" href="https://blog.csdn.net/m0_52566365/article/details/143493066">WorkFlow源码剖析——Communicator之TCPServer（中）</a></p>
+<p><a target="_blank" rel="noopener" href="https://blog.csdn.net/m0_52566365/article/details/143605123">WorkFlow源码剖析——Communicator之TCPServer（下）</a></p>
+<p>终于来到TCPServer最后一部分，前面两篇博客已经深入分析了WorkFlow底层poller和Communicator的实现细节，本篇博客将会从整体视角，整合前面所讲的poller以及Communicator形成最终的TCPServer。</p>
+<p>同样放上workflow开源项目的Github地址：<a target="_blank" rel="noopener" href="https://github.com/sogou/workflow">https://github.com/sogou/workflow</a></p>
+<p>和GO-Task的实现类似，尤其需要注意对基类SubTask、CommSession虚函数的重写。如果你看过GO-Task的实现，本文最终所讲的TCPServer任务其实差不多。因为TCPServer的继承树和GO-Task的继承树不能说相似，只能说一模一样。对称性对框架的设计真的很重要，我认为对称思想（也可以说成抽象思想）是优雅的象征。并且对称性可以帮我们减少出BUG的风险。如果你刷过的LeetCode，你一定会发现，在解答那些对边界条件要求很高的题目时，如果你能给各种情况抽象出一套统一的逻辑说词，大概率就不会wa。</p>
+          <!--noindex-->
+            <div class="post-button">
+              <a class="btn" href="/2024/11/07/workflow/TCPServer_3/#more" rel="contents">
+                阅读全文 &raquo;
+              </a>
+            </div>
+          <!--/noindex-->
+        
+      
+    </div>
+
+    
+    
+    
+      <footer class="post-footer">
+        <div class="post-eof"></div>
+      </footer>
+  </article>
+  
+  
+  
+
       
   
   
@@ -885,78 +964,6 @@
   
   
 
-      
-  
-  
-  <article itemscope itemtype="http://schema.org/Article" class="post-block" lang="zh-CN">
-    <link itemprop="mainEntityOfPage" href="https://www.halfmantou.xyz/2024/06/11/stm32/RCC/">
-
-    <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
-      <meta itemprop="image" content="/images/avatar.jpg">
-      <meta itemprop="name" content="半个馒头">
-      <meta itemprop="description" content="">
-    </span>
-
-    <span hidden itemprop="publisher" itemscope itemtype="http://schema.org/Organization">
-      <meta itemprop="name" content="碎碎念念">
-    </span>
-      <header class="post-header">
-        <h2 class="post-title" itemprop="name headline">
-          
-            <a href="/2024/06/11/stm32/RCC/" class="post-title-link" itemprop="url">STM32F103时钟分析</a>
-        </h2>
-
-        <div class="post-meta">
-            <span class="post-meta-item">
-              <span class="post-meta-item-icon">
-                <i class="fa fa-calendar-o"></i>
-              </span>
-              <span class="post-meta-item-text">发表于</span>
-
-              <time title="创建时间：2024-06-11 12:00:00" itemprop="dateCreated datePublished" datetime="2024-06-11T12:00:00+08:00">2024-06-11</time>
-            </span>
-              <span class="post-meta-item">
-                <span class="post-meta-item-icon">
-                  <i class="fa fa-calendar-check-o"></i>
-                </span>
-                <span class="post-meta-item-text">更新于</span>
-                <time title="修改时间：2025-09-29 22:24:25" itemprop="dateModified" datetime="2025-09-29T22:24:25+08:00">2025-09-29</time>
-              </span>
-
-          
-
-        </div>
-      </header>
-
-    
-    
-    
-    <div class="post-body" itemprop="articleBody">
-
-      
-          <h2 id="SystemInit系统初始化时钟源码分析"><a href="#SystemInit系统初始化时钟源码分析" class="headerlink" title="SystemInit系统初始化时钟源码分析"></a>SystemInit系统初始化时钟源码分析</h2><p>伪代码如下：</p>
-          <!--noindex-->
-            <div class="post-button">
-              <a class="btn" href="/2024/06/11/stm32/RCC/#more" rel="contents">
-                阅读全文 &raquo;
-              </a>
-            </div>
-          <!--/noindex-->
-        
-      
-    </div>
-
-    
-    
-    
-      <footer class="post-footer">
-        <div class="post-eof"></div>
-      </footer>
-  </article>
-  
-  
-  
-
 
   
   <nav class="pagination">
@@ -1028,7 +1035,7 @@
       <div class="site-state-item site-state-posts">
           <a href="/archives/">
         
-          <span class="site-state-item-count">58</span>
+          <span class="site-state-item-count">59</span>
           <span class="site-state-item-name">日志</span>
         </a>
       </div>
